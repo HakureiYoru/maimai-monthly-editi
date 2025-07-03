@@ -1,0 +1,23 @@
+import { members } from 'wix-members.v2';
+
+export async function getUsersByRole(roleId) {
+    let userIds = [];
+    let cursor = null; // 用于分页查询
+
+    try {
+        do {
+            const results = await members.listMembers({
+                query: { roleId: roleId },
+                paging: { limit: 100, cursor: cursor }
+            });
+
+            userIds = userIds.concat(results.items.map(member => member._id)); // 追加获取的用户 ID
+            cursor = results.pageInfo.nextCursor; // 获取下一页的游标
+        } while (cursor); // 如果有下一页，继续查询
+
+        return userIds;
+    } catch (error) {
+        console.error("获取角色用户失败:", error);
+        return [];
+    }
+}

@@ -1,0 +1,69 @@
+import { mediaManager } from 'wix-media-backend';
+import { fetch } from 'wix-fetch';
+
+export async function getMediaDownloadUrls(maidataUrl, trackUrl, bgUrl, bgVideoUrl) {
+    const fileUrls = [maidataUrl, trackUrl, bgUrl, bgVideoUrl].filter(url => url); // 过滤掉空值
+ 
+
+    try {
+        const downloadUrl = await mediaManager.downloadFiles(fileUrls);
+        if (downloadUrl) {
+            return downloadUrl;
+        } else {
+            console.error("No URL returned from downloadFiles");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error in downloadFiles: ", error);
+        return null;
+    }
+}
+
+
+export async function getFileDownloadUrlAndContent(fileUrl) {
+    const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
+    //console.log(downloadUrl);
+    return fetch(downloadUrl)
+        .then((response) => {
+            if (response.ok) {
+                return response.text();
+            } else {
+                throw new Error(`Error fetching file content: ${response.status} ${response.statusText}`);
+            }
+        })
+        .then((fileContent) => {
+            return { downloadUrl, fileContent };
+        })
+        .catch((error) => {
+            console.error('Error fetching file content:', error);
+            throw error;
+        });
+}
+
+export async function getBatchDownloadUrls(items) {
+    const downloadUrls = [];
+    console.log("Query results:", items); // 确认查询结果
+    for (const item of items) {
+        const fileUrls = [item.inVideo的複本, item.maidata的複本, item.track的複本, item.上傳檔案欄].filter(url => url);
+
+        try {
+            let suffix = await mediaManager.downloadFiles(fileUrls);
+
+            if (suffix) {
+                suffix = suffix.replace('undefined', '');
+                const prefix = "https://archive.wixmp.com";
+                const downloadUrl = prefix + suffix;
+
+                downloadUrls.push(downloadUrl);
+            } else {
+
+                downloadUrls.push(null);
+            }
+        } catch (error) {
+
+            downloadUrls.push(null);
+        }
+    }
+    console.log("All constructed download URLs:", downloadUrls); // 打印所有构造的下载 URL
+    return downloadUrls;
+}

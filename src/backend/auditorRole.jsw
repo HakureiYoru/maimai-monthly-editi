@@ -1,0 +1,23 @@
+import { currentMember } from 'wix-members-backend';
+
+import { members } from 'wix-members-backend';
+
+// Function to get member data
+export async function logMemberData(memberId) {
+    try {
+        const member = await members.getMember(memberId);
+        console.log('Member Data:', member);
+    } catch (error) {
+        console.error('Error retrieving member data:', error);
+    }
+}
+
+export async function getCurrentMemberRoles() {
+    try {
+        const roles = await currentMember.getRoles();
+        return roles;
+    } catch (error) {
+        console.error(error);
+    }
+}
+

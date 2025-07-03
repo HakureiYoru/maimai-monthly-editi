@@ -1,0 +1,186 @@
+import wixData from 'wix-data';
+import wixUsersBackend from 'wix-users-backend';
+import { badges } from 'wix-members-backend'; // 添加此行
+
+let oldBadgeLevel;
+
+
+// 更新用户积分的函数
+
+export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, excludeFromDailyLimit) {
+  const results = await wixData.query('UserPoints').eq('userId', userId).find();
+  let userPoints;
+  if (results.items.length === 0) {
+    userPoints = {
+      userId: userId,
+      points: pointsToAdd,
+      lastSignedIn: new Date(),
+      dailyPoints: Number(pointsToAdd)
+    };
+    await wixData.insert('UserPoints', userPoints);
+  } else {
+    userPoints = results.items[0];
+    
+    // 检查用户今天是否已经达到积分上限
+    const today = new Date();
+    const lastPointsUpdate = new Date(userPoints.lastSignedIn);
+    const pointsLimit = 30;
+    oldBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+    if (
+      today.getDate() === lastPointsUpdate.getDate() &&
+      today.getMonth() === lastPointsUpdate.getMonth() &&
+      today.getFullYear() === lastPointsUpdate.getFullYear()
+    ) {
+      // 同一天
+      if (userPoints.dailyPoints < pointsLimit) {
+        const remainingPoints = pointsLimit - userPoints.dailyPoints;
+        const actualPointsToAdd = Math.min(remainingPoints, pointsToAdd);
+        if (excludeFromDailyLimit) {
+          userPoints.points += actualPointsToAdd;
+        }
+        else
+        {
+          userPoints.points += pointsToAdd;
+        }
+        
+        if (excludeFromDailyLimit) {
+          userPoints.dailyPoints += actualPointsToAdd;
+        }
+        console.log("开始计算等级");
+          const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+          console.log(oldBadgeLevel);
+          console.log(newBadgeLevel);
+          if (oldBadgeLevel !== newBadgeLevel) {
+              await assignBadge(userId, newBadgeLevel);
+              console.log("assigning");
+              
+          }
+
+
+        await wixData.update('UserPoints', userPoints);
+      }
+      else if(userPoints.dailyPoints === pointsLimit){
+        if (excludeFromDailyLimit==false) {
+          userPoints.points += pointsToAdd;
+        }
+        // 检查积分是否达到新等级并分配徽章
+        console.log("开始计算等级");
+        const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+          if (oldBadgeLevel !== newBadgeLevel) {
+              await assignBadge(userId, newBadgeLevel);
+              console.log("assigning");
+              console.log(oldBadgeLevel);
+              console.log(newBadgeLevel);
+          }
+
+        await wixData.update('UserPoints', userPoints);
+      }
+
+    } else {
+      // 不同天，重置dailyPoints
+      
+      userPoints.points += pointsToAdd;
+      if (excludeFromDailyLimit) {
+        userPoints.dailyPoints = pointsToAdd;
+        userPoints.lastSignedIn = today;
+      }
+      
+    console.log("开始计算等级");
+    const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+        
+          if (oldBadgeLevel !== newBadgeLevel) {
+              await assignBadge(userId, newBadgeLevel);
+              console.log("assigning");
+              console.log(oldBadgeLevel);
+              console.log(newBadgeLevel);
+          }
+      await wixData.update('UserPoints', userPoints);
+    }
+  }
+}
+
+
+// 分配徽章的函数
+async function assignBadge(userId, badgeLevel) {
+  // 根据徽章等级获取徽章ID
+  const newBadgeId = await getBadgeIdByLevel(badgeLevel);
+
+  // 如果有新徽章，则为用户分配新徽章，并移除旧徽章
+  if (newBadgeId) {
+    await badges.assignMembers(newBadgeId, [userId]);
+
+    // 获取旧徽章ID
+    const oldBadgeLevel = badgeLevel - 1;
+    const oldBadgeId = oldBadgeLevel > 0 ? await getBadgeIdByLevel(oldBadgeLevel) : null;
+
+    // 如果有旧徽章ID，从用户身上移除旧徽章
+    if (oldBadgeId) {
+      await badges.removeMembers(oldBadgeId, [userId]);
+    }
+  }
+}
+
+// 根据徽章等级查询徽章ID的函数
+async function getBadgeIdByLevel(level) {
+  const badgeName = `Level ${level}`;
+  const results = await wixData.query('Members/Badges')
+    .eq('title', badgeName)
+    .find();
+
+  return results.items.length > 0 ? results.items[0]._id : null;
+}
+
+
+export async function getUserPoints(userId) {
+  const results = await wixData.query('UserPoints').eq('userId', userId).find();
+  if (results.items.length > 0) {
+    return results.items[0];
+  } else {
+    return null;
+  }
+}
+
+
+export function getBadgeLevelByPoints(points) {
+  if (points >= 2000) {
+    return 6;
+  } else if (points >= 1200) {
+    return 5;
+  } else if (points >= 600) {
+    return 4;
+  } else if (points >= 300) {
+    return 3;
+  } else if (points >= 90) {
+    return 2;
+  } else if (points >= 30) {
+    return 1;
+  } else if (points < 30) {
+    return 0;
+  }
+  return null;
+}
+
+
+export function getPointsForBadgeLevel(level) {
+  switch (level) {
+    case 1:
+      return 30;
+    case 2:
+      return 90;
+    case 3:
+      return 300;
+    case 4:
+      return 600;
+    case 5:
+      return 1200;
+    case 6:
+      return 2000;
+    default:
+      return 0;
+  }
+}
+
+
+
+
+

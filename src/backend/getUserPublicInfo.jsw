@@ -1,0 +1,121 @@
+// backend/getUserPublicInfo.jsw
+import { members } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+export async function getUserPublicInfo(userId) {
+    const member = await members.getMember(userId);
+
+    // 检查用户是否存在
+    if (!member) {
+        console.error("Member not found");
+        return null; // 如果没有找到用户，则返回null
+    }
+
+    return {
+        name: member.profile.nickname,
+        // 使用条件运算符检查用户是否有头像，如果没有则返回一个默认值或空字符串
+        profileImageUrl: member.profile.profilePhoto ? member.profile.profilePhoto.url : '',
+        userslug: member.profile.slug,
+    };
+}
+
+
+export async function getUserInfoBySlug(userSlug) {
+    try {
+        // 查询 Members/PublicData 数据集
+        const results = await wixData.query("Members/PublicData")
+            .eq("slug", userSlug) // 检索与给定 slug 匹配的记录
+            .find();
+
+        if (results.items.length > 0) {
+            // 如果找到匹配的用户，返回该用户的信息
+            const userInfo = results.items[0];
+            return {
+                realId: userInfo._id, // 用户的真实 ID
+                nickname: userInfo.nickname, // 用户昵称
+                profilePhoto: userInfo.profilePhoto, // 用户头像
+            };
+        } else {
+            // 如果没有找到匹配的用户，返回 null 或错误信息
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching user info by slug:", error);
+        return null;
+    }
+}
+
+
+
+// 添加一个新的函数来获取用户的积分排名和权重
+export async function getUserRankAndVoteWeight(userId) {
+    // 查询 UserPoints 数据集并按 points 降序排序
+    const results = await wixData.query('UserPoints')
+        .descending('points')
+        .limit(1000)  // 增加返回记录的数量上限到1000
+        .find();
+
+    const users = results.items;
+    let rank = 1; // 开始排名为1
+    let userPoints = null;
+    
+    // 查找当前用户在列表中的排名
+    for (let user of users) {
+        if (user.userId === userId) {
+            userPoints = user.points; // 找到当前用户的积分
+            break; // 停止循环
+        }
+        rank++; // 如果不是当前用户，则排名加1
+    }
+
+    // 如果没有找到用户，返回null
+    if (!userPoints) {
+        return null;
+    }
+
+    // 使用之前提供的逻辑来计算投票权重
+    const voteWeight = getVoteWeight(rank);
+
+    return {
+        rank: rank,
+        voteWeight: voteWeight
+    };
+}
+
+
+// 根据用户排名获取投票权重的函数
+function getVoteWeight(rank) {
+  if (rank === 1) {
+    return 15;
+  } else if (rank === 2) {
+    return 12;
+  } else if (rank === 3) {
+    return 10;
+  } else if (rank > 3 && rank <= 12) {
+    return 7;
+  } else if (rank > 12 && rank <= 30) {
+    return 5;
+  } else if (rank > 30 && rank <= 50) {
+    return 2;
+  } else {
+    return 1; 
+  }
+}
+
+
+//用来拆链接的
+export async function extractSlugFromURL(url) {
+
+    const parts = url.split('/profile/');
+    if (parts.length === 2) {
+        const slugParts = parts[1].split('/');
+        if (slugParts.length >= 1) {
+            const extractedSlug = slugParts[0];
+
+            return extractedSlug; // 返回slug部分
+        }
+    }
+
+    console.log("未找到有效的slug，返回null");
+    return null; // 如果URL格式不正确，返回null
+}
