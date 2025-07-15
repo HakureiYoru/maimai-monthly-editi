@@ -1,36 +1,42 @@
 import wixData from 'wix-data';
 import wixUsersBackend from 'wix-users-backend';
-import { badges } from 'wix-members-backend'; // 添加此行
+import { badges } from 'wix-members-backend';
+import { POINTS_CONFIG, COLLECTIONS } from 'backend/constants';
+import { isSameDay } from 'backend/utils';
+import { logError } from 'backend/errorHandler';
 
 let oldBadgeLevel;
 
-
-// 更新用户积分的函数
-
+/**
+ * 更新用户积分
+ * @param {string} userId - 用户ID
+ * @param {number} pointsToAdd - 要添加的积分数量（可以是负数）
+ * @param {boolean} updateLastSignedIn - 是否更新最后登录时间
+ * @param {boolean} excludeFromDailyLimit - 是否排除在每日限制之外
+ * @returns {Promise<void>}
+ */
 export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, excludeFromDailyLimit) {
-  const results = await wixData.query('UserPoints').eq('userId', userId).find();
-  let userPoints;
-  if (results.items.length === 0) {
-    userPoints = {
-      userId: userId,
-      points: pointsToAdd,
-      lastSignedIn: new Date(),
-      dailyPoints: Number(pointsToAdd)
-    };
-    await wixData.insert('UserPoints', userPoints);
+  try {
+    const results = await wixData.query(COLLECTIONS.USER_POINTS).eq('userId', userId).find();
+    let userPoints;
+    if (results.items.length === 0) {
+      userPoints = {
+        userId: userId,
+        points: pointsToAdd,
+        lastSignedIn: new Date(),
+        dailyPoints: Number(pointsToAdd)
+      };
+      await wixData.insert(COLLECTIONS.USER_POINTS, userPoints);
   } else {
     userPoints = results.items[0];
     
     // 检查用户今天是否已经达到积分上限
     const today = new Date();
     const lastPointsUpdate = new Date(userPoints.lastSignedIn);
-    const pointsLimit = 30;
+    const pointsLimit = POINTS_CONFIG.DAILY_LIMIT;
     oldBadgeLevel = getBadgeLevelByPoints(userPoints.points);
-    if (
-      today.getDate() === lastPointsUpdate.getDate() &&
-      today.getMonth() === lastPointsUpdate.getMonth() &&
-      today.getFullYear() === lastPointsUpdate.getFullYear()
-    ) {
+    
+    if (isSameDay(today, lastPointsUpdate)) {
       // 同一天
       if (userPoints.dailyPoints < pointsLimit) {
         const remainingPoints = pointsLimit - userPoints.dailyPoints;
@@ -57,7 +63,7 @@ export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, 
           }
 
 
-        await wixData.update('UserPoints', userPoints);
+        await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
       }
       else if(userPoints.dailyPoints === pointsLimit){
         if (excludeFromDailyLimit==false) {
@@ -73,29 +79,30 @@ export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, 
               console.log(newBadgeLevel);
           }
 
-        await wixData.update('UserPoints', userPoints);
+        await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
       }
 
     } else {
       // 不同天，重置dailyPoints
-      
       userPoints.points += pointsToAdd;
       if (excludeFromDailyLimit) {
         userPoints.dailyPoints = pointsToAdd;
         userPoints.lastSignedIn = today;
       }
       
-    console.log("开始计算等级");
-    const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+      console.log("开始计算等级");
+      const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
         
-          if (oldBadgeLevel !== newBadgeLevel) {
-              await assignBadge(userId, newBadgeLevel);
-              console.log("assigning");
-              console.log(oldBadgeLevel);
-              console.log(newBadgeLevel);
-          }
-      await wixData.update('UserPoints', userPoints);
+      if (oldBadgeLevel !== newBadgeLevel) {
+          await assignBadge(userId, newBadgeLevel);
+          console.log("分配新徽章", { oldBadgeLevel, newBadgeLevel });
+      }
+      await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
     }
+  }
+  } catch (error) {
+    logError('updateUserPoints', error, { userId, pointsToAdd, excludeFromDailyLimit });
+    throw error;
   }
 }
 
