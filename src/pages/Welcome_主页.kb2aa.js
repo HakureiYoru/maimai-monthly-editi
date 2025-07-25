@@ -26,7 +26,6 @@ function loadMemberData() {
         .count() // First count all members
         .then(totalCount => {
             if (totalCount === 0) {
-                console.log("没有找到任何用户。");
                 return;
             }
             // Calculate a random start within the total count
@@ -44,13 +43,11 @@ function loadMemberData() {
                     const randomIndex = Math.floor(Math.random() * membersWithCustomField.length);
                     const member = membersWithCustomField[randomIndex];
                     updateMemberUI(member);
-                } else {
-                    console.log("在随机选择的范围内没有找到符合条件的用户。");
                 }
             }
         })
         .catch(err => {
-            console.log("加载用户数据时出错：", err);
+            console.error("加载用户数据时出错：", err);
         });
 }
 
@@ -119,8 +116,6 @@ function displayRandomOngakiImage() {
             if (totalImages > 0) {
                 const randomIndex = Math.floor(Math.random() * totalImages);
                 $w("#image2").src = imageUrls[randomIndex]; // Set the image source directly
-            } else {
-                console.log("No images found in ongeki folder.");
             }
         })
         .catch(err => {

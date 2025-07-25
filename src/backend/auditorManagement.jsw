@@ -9,7 +9,7 @@ import { members as membersV2 } from 'wix-members.v2';
 import wixData from 'wix-data';
 import { COLLECTIONS } from 'backend/constants';
 import { safeJsonParse } from 'backend/utils';
-import { safeExecute, logError, logInfo } from 'backend/errorHandler';
+import { safeExecute, logError } from 'backend/errorHandler';
 
 // ==================== 审核员角色管理 ====================
 
@@ -21,7 +21,6 @@ import { safeExecute, logError, logInfo } from 'backend/errorHandler';
 export async function logMemberData(memberId) {
     return safeExecute(async () => {
         const member = await members.getMember(memberId);
-        logInfo('logMemberData', `Member Data: ${JSON.stringify(member)}`);
         return member;
     }, 'logMemberData', null);
 }
@@ -32,9 +31,7 @@ export async function logMemberData(memberId) {
  */
 export async function getCurrentMemberRoles() {
     return safeExecute(async () => {
-        logInfo('getCurrentMemberRoles', '开始获取当前成员角色');
         const roles = await currentMember.getRoles();
-        logInfo('getCurrentMemberRoles', `当前成员原始角色数据: ${JSON.stringify(roles)}`);
         return roles || [];
     }, 'getCurrentMemberRoles', []);
 }
@@ -70,7 +67,6 @@ export async function getUsersByRole(roleId) {
  */
 export async function isUserAuditor(userId = null) {
     return safeExecute(async () => {
-        logInfo('isUserAuditor', `开始检查用户权限 - userId: ${userId}`);
         
         // 海选组的具体Velo ID
         const seaSelectionGroupId = '573f8607-c036-4154-934a-b8c03526a639';
@@ -78,43 +74,23 @@ export async function isUserAuditor(userId = null) {
         let roles;
         if (userId) {
             // 检查特定用户的角色
-            logInfo('isUserAuditor', `获取特定用户的角色信息: ${userId}`);
             const member = await members.getMember(userId);
             roles = member.roles || [];
-            logInfo('isUserAuditor', `用户 ${userId} 的完整member数据: ${JSON.stringify(member)}`);
-            logInfo('isUserAuditor', `用户 ${userId} 的角色数组: ${JSON.stringify(roles)}`);
         } else {
             // 检查当前用户的角色
-            logInfo('isUserAuditor', '获取当前用户的角色信息');
             roles = await getCurrentMemberRoles();
-            logInfo('isUserAuditor', `当前用户的角色数组: ${JSON.stringify(roles)}`);
         }
-        
-        // 记录角色数组长度
-        logInfo('isUserAuditor', `共找到 ${roles.length} 个角色`);
         
         // 检查每个角色
         let foundSeaSelectionGroup = false;
         roles.forEach((role, index) => {
-            logInfo('isUserAuditor', `角色 ${index + 1}:`);
-            logInfo('isUserAuditor', `  - _id: "${role._id}"`);
-            logInfo('isUserAuditor', `  - id: "${role.id}"`);
-            logInfo('isUserAuditor', `  - name: "${role.name}"`);
-            logInfo('isUserAuditor', `  - title: "${role.title}"`);
-            logInfo('isUserAuditor', `  - 完整角色对象: ${JSON.stringify(role)}`);
             
             // 检查是否匹配海选组ID
             if (role._id === seaSelectionGroupId || role.id === seaSelectionGroupId) {
                 foundSeaSelectionGroup = true;
-                logInfo('isUserAuditor', `✅ 找到海选组角色！角色ID匹配: ${seaSelectionGroupId}`);
             }
         });
         
-        if (!foundSeaSelectionGroup) {
-            logInfo('isUserAuditor', `❌ 未找到海选组角色。期望的ID: ${seaSelectionGroupId}`);
-        }
-        
-        logInfo('isUserAuditor', `最终权限检查结果: ${foundSeaSelectionGroup}`);
         return foundSeaSelectionGroup;
     }, 'isUserAuditor', false);
 }
@@ -214,8 +190,6 @@ export async function approveSheet(sheetId, auditorId) {
 
         await wixData.update(COLLECTIONS.ENTER_CONTEST_034, currentItem);
 
-        logInfo('approveSheet', `作品 ${sheetId} 已被审核员 ${auditorId} 批准`);
-
         return {
             success: true,
             message: '作品审核成功',
@@ -266,8 +240,6 @@ export async function rejectSheet(sheetId, auditorId, reason = '') {
         }
 
         await wixData.update(COLLECTIONS.ENTER_CONTEST_034, currentItem);
-
-        logInfo('rejectSheet', `作品 ${sheetId} 已被审核员 ${auditorId} 拒绝，原因: ${reason}`);
 
         return {
             success: true,
@@ -399,7 +371,6 @@ export async function getAuditStatistics() {
 export async function deleteComment(commentId, auditorId, deleteReason = '') {
     return safeExecute(async () => {
         // 前端已经验证权限，这里直接执行删除操作
-        logInfo('deleteComment', `开始删除评论 - commentId: ${commentId}, auditorId: ${auditorId}`);
 
         // 获取评论信息用于日志记录和存档
         const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
@@ -420,8 +391,6 @@ export async function deleteComment(commentId, auditorId, deleteReason = '') {
         
         // 删除原评论
         await wixData.remove(COLLECTIONS.BOF_COMMENT, commentId);
-
-        logInfo('deleteComment', `评论 ${commentId} 已被审核员 ${auditorId} 删除，作品编号: ${comment.workNumber}，删除理由: ${deleteReason}`);
 
         return {
             success: true,
@@ -447,9 +416,7 @@ export async function deleteComment(commentId, auditorId, deleteReason = '') {
  */
 export async function getCurrentUserRoles() {
     return safeExecute(async () => {
-        logInfo('getCurrentUserRoles', '开始获取当前用户角色');
         const roles = await currentMember.getRoles();
-        logInfo('getCurrentUserRoles', `获取到用户角色: ${JSON.stringify(roles)}`);
         return roles || [];
     }, 'getCurrentUserRoles', []);
 }
@@ -460,12 +427,9 @@ export async function getCurrentUserRoles() {
  */
 export async function checkIsSeaSelectionMember() {
     return safeExecute(async () => {
-        logInfo('checkIsSeaSelectionMember', '开始检查海选组权限');
         const roles = await currentMember.getRoles();
-        logInfo('checkIsSeaSelectionMember', `检查海选组权限，获取到角色: ${JSON.stringify(roles)}`);
         
         const isSeaSelection = roles.some(role => role.title === '海选组');
-        logInfo('checkIsSeaSelectionMember', `海选组权限检查结果: ${isSeaSelection}`);
         
         return isSeaSelection;
     }, 'checkIsSeaSelectionMember', false);

@@ -27,7 +27,6 @@ $w.onReady(function () {
         const teamName = $w("#inputTeamName").value.trim();
 
         if (!teamName) {
-            console.log("请填写队伍名。");
             // 在这里添加用户提示
             return;
         }
@@ -40,7 +39,6 @@ $w.onReady(function () {
             .find();
 
         if (results.items.length > 0) {
-            console.log("当前用户已经提交过团队信息。");
             $w("#button4").disable();
             $w("#button4").label = "交过了别交了";
         } else {
@@ -70,7 +68,6 @@ $w.onReady(function () {
                         if (action === "confirm") {
                             wixData.insert("TeamMMFC", toInsert)
                                 .then((result) => {
-                                    console.log("团队信息提交成功", result);
                                     // 成功后的操作
                                 })
                                 .catch((err) => {
