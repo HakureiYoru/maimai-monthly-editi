@@ -76,8 +76,16 @@ $w.onReady(async function () {
         var averageScore = ratingData.averageScore;
         var newRating = (averageScore - 0) / (1000 - 0) * (5.0 - 1.0) + 1.0;
 
-        $item("#ratingsDisplay").rating = newRating;
-        $item("#ratingsDisplay").numRatings = ratingData.numRatings;
+        if (ratingData.numRatings >= 5) {
+            // 达到5人评分门槛，显示真实分数
+            $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${ratingData.numRatings}人评分)`;
+        } else if (ratingData.numRatings > 0) {
+            // 未达到5人评分门槛，隐藏分数
+            $item("#ratingsDisplay").text = `评分量不足(${ratingData.numRatings}人评分)`;
+        } else {
+            // 没有评分
+            $item("#ratingsDisplay").text = "暂无评分";
+        }
 
         // 获取并显示作者信息
         await displayAuthorInfo($item, itemData);
@@ -87,8 +95,6 @@ $w.onReady(async function () {
             try {
                 // 使用后端API检查用户是否为海选组成员
                 const isSeaSelectionMember = await checkIsSeaSelectionMember();
-                console.log(`当前用户ID: ${currentUserId}`);
-                console.log(`当前用户是否为海选组成员: ${isSeaSelectionMember}`);
                 if (isSeaSelectionMember) {
                     // 海选组成员显示并启用删除按钮
                     $item("#deleteComment").show();
@@ -134,12 +140,11 @@ $w.onReady(async function () {
                                     commentsCountByWorkNumber = await getAllCommentsCount();
                                     await loadData();
                                     
-                                    // 刷新repeater2显示
-                                    const currentPage = $w('#paginator').currentPage || 1;
-                                    const searchValue = $w("#input1").value;
-                                    const mainDropdownValue = $w("#dropdown1").value;
-                                    let sortByApproval = mainDropdownValue === "vote";
-                                    await updateRepeaterData(currentPage, searchValue, sortByApproval, mainDropdownValue);
+                                                    // 刷新repeater2显示
+                const currentPage = $w('#paginator').currentPage || 1;
+                const searchValue = $w("#input1").value;
+                const mainDropdownValue = $w("#dropdown1").value;
+                await updateRepeaterData(currentPage, searchValue, mainDropdownValue);
                                 } else {
                                     console.error('删除评论失败:', deleteResult.message);
                                 }
@@ -187,7 +192,7 @@ $w.onReady(async function () {
     });
     
     // 初始化数据
-    await updateRepeaterData(1);
+    await updateRepeaterData(1, "", "");
     
     // 设置搜索和分页事件
     setupSearchAndPaginationEvents();
@@ -228,10 +233,7 @@ function setupSearchAndPaginationEvents() {
         const dropdownValue = $w("#dropdown1").value;
         let sortByApproval = false;
 
-        if (dropdownValue === "vote") {
-            sortByApproval = true;
-        }
-        await updateRepeaterData(1, searchValue, sortByApproval, dropdownValue);
+        await updateRepeaterData(1, searchValue, dropdownValue);
     });
 
     // 分页器点击事件处理
@@ -239,12 +241,7 @@ function setupSearchAndPaginationEvents() {
         const pageNumber = event.target.currentPage;
         const searchValue = $w("#input1").value;
         const dropdownValue = $w("#dropdown1").value;
-        let sortByApproval = false;
-
-        if (dropdownValue === "vote") {
-            sortByApproval = true;
-        }
-        await updateRepeaterData(pageNumber, searchValue, sortByApproval, dropdownValue);
+        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
     });
 
     // 下拉菜单改变事件
@@ -252,13 +249,7 @@ function setupSearchAndPaginationEvents() {
         const searchValue = $w("#input1").value;
         const pageNumber = 1;
         const dropdownValue = $w("#dropdown1").value;
-        let sortByApproval = false;
-
-        if (dropdownValue === "vote") {
-            sortByApproval = true;
-        }
-
-        await updateRepeaterData(pageNumber, searchValue, sortByApproval, dropdownValue);
+        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
     });
 }
 
@@ -315,10 +306,7 @@ function setupSubmitButtonEvent() {
                 const currentPage = $w('#paginator').currentPage || 1;
                 const searchValue = $w("#input1").value;
                 const dropdownValue = $w("#dropdown1").value;
-                let sortByApproval = dropdownValue === "vote";
-                await updateRepeaterData(currentPage, searchValue, sortByApproval, dropdownValue);
-            } else {
-                console.log("Please fill in all the fields correctly and ensure the values are within the allowed range.");
+                await updateRepeaterData(currentPage, searchValue, dropdownValue);
             }
         } catch (err) {
             console.error(err);
@@ -471,7 +459,7 @@ function createDownloadHtml(downloadUrl, titleValue) {
 /**
  * 更新重复器数据
  */
-async function updateRepeaterData(pageNumber, searchValue, sortByApproval = false, dropdownValue) {
+async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
     $w('#loadingSpinner').show();
 
     let query = wixData.query('enterContest034');
@@ -495,8 +483,9 @@ async function updateRepeaterData(pageNumber, searchValue, sortByApproval = fals
     let items = results.items;
 
     // 应用排序
-    if (sortByApproval) {
-        items.sort((a, b) => b.sequenceId - a.sequenceId);
+    if (dropdownValue === "rating") {
+        // 基于评分排序
+        items = await sortByRating(items);
     }
 
     // 分页处理
@@ -717,24 +706,29 @@ async function updateItemEvaluationDisplay($item, itemData) {
             // 将100-1000分转换为1-5分显示
             const displayRating = Math.round(((averageScore - 100) / 900) * 4) + 1;
             
-            // 更新显示
-            $item("#approvalCountText").text = `${displayRating.toFixed(1)}★ (${evaluationCount}人评分)`;
-            
-            // 更新进度条
-            $item("#progressBar").value = Math.min(evaluationCount / 10, 1);
-            
-            // 根据平均分设置背景颜色
-            if (displayRating >= 4) {
-                $item("#box1").style.backgroundColor = 'rgba(135, 206, 235, 0.5)'; // 浅蓝色：高分
-            } else if (displayRating >= 3) {
-                $item("#box1").style.backgroundColor = 'rgba(144, 238, 144, 0.3)'; // 浅绿色：中等分
+            // 检查评分人数是否达到5人门槛
+            if (evaluationCount >= 5) {
+                // 达到5人评分门槛，显示真实分数
+                $item("#approvalCountText").text = `${displayRating.toFixed(1)}★ (${evaluationCount}人评分)`;
+                
+                // 根据平均分设置背景颜色
+                if (displayRating >= 4) {
+                    $item("#box1").style.backgroundColor = 'rgba(135, 206, 235, 0.5)'; // 浅蓝色：高分
+                } else if (displayRating >= 3) {
+                    $item("#box1").style.backgroundColor = 'rgba(144, 238, 144, 0.3)'; // 浅绿色：中等分
+                } else {
+                    $item("#box1").style.backgroundColor = 'rgba(255, 182, 193, 0.3)'; // 浅红色：低分
+                }
             } else {
-                $item("#box1").style.backgroundColor = 'rgba(255, 182, 193, 0.3)'; // 浅红色：低分
+                // 未达到5人评分门槛，隐藏分数
+                $item("#approvalCountText").text = `评分量不足(${evaluationCount}人评分)`;
+                $item("#box1").style.backgroundColor = 'rgba(255, 255, 0, 0.3)'; // 浅黄色：待定
             }
+            
+
         } else {
             // 没有评分时的显示
             $item("#approvalCountText").text = "暂无评分";
-            $item("#progressBar").value = 0;
             $item("#box1").style.backgroundColor = 'transparent';
         }
         
@@ -744,5 +738,38 @@ async function updateItemEvaluationDisplay($item, itemData) {
     } catch (error) {
         console.error('更新评分显示时出错:', error);
         $item("#approvalCountText").text = "评分加载失败";
+    }
+}
+
+/**
+ * 基于评分对作品进行排序
+ * @param {Array} items - 作品列表
+ * @returns {Promise<Array>} 排序后的作品列表
+ */
+async function sortByRating(items) {
+    try {
+        // 为每个作品获取评分数据
+        const itemsWithRating = await Promise.all(items.map(async (item) => {
+            const ratingData = await getRatingData(item.sequenceId);
+            const averageScore = ratingData.numRatings >= 5 ? ratingData.averageScore : 0;
+            
+            return {
+                ...item,
+                rating: averageScore,
+                numRatings: ratingData.numRatings
+            };
+        }));
+
+        // 按评分降序排序（高分在前）
+        return itemsWithRating.sort((a, b) => {
+            // 如果评分相同，按评分人数降序排序
+            if (a.rating === b.rating) {
+                return b.numRatings - a.numRatings;
+            }
+            return b.rating - a.rating;
+        });
+    } catch (error) {
+        console.error('排序时出错:', error);
+        return items; // 出错时返回原列表
     }
 }

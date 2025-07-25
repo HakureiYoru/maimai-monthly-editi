@@ -58,12 +58,8 @@ $w.onReady(async function () {
         try {
             // 获取用户输入的Bilibili链接
             const url = $w("#urlInput").value;
-            console.log("User input URL:", url); // 打印用户输入的URL
-
             // 调用后端函数生成嵌入代码
             const embedCode = await generateEmbedCode(url);
-            console.log("Generated embed code:", embedCode); // 打印生成的嵌入代码
-
             // 将嵌入代码显示在文本框中
             $w("#embedCodeOutput").value = embedCode;
         } catch (error) {
