@@ -4,7 +4,7 @@
  */
 
 import { ok, badRequest, notFound, serverError, response } from 'wix-http-functions';
-import { HTTP_HEADERS } from 'backend/constants';
+import { HTTP_HEADERS } from 'backend/constants.js';
 
 /**
  * 创建CORS预检响应
@@ -73,7 +73,7 @@ export function asyncErrorHandler(handler) {
         try {
             return await handler(request);
         } catch (error) {
-            console.error('Async error:', error);
+            logError('AsyncErrorHandler', error, { request: request.path });
             return createErrorResponse(`An error occurred: ${error.message}`);
         }
     };
@@ -111,15 +111,99 @@ export function validateNumberParam(value, fieldName) {
 }
 
 /**
- * 日志错误信息
+ * 统一错误日志记录
  * @param {string} operation - 操作名称
  * @param {Error} error - 错误对象
  * @param {Object} context - 错误上下文
  */
 export function logError(operation, error, context = {}) {
-    console.error(`Error in ${operation}:`, {
+    const timestamp = new Date().toISOString();
+    const errorInfo = {
+        timestamp,
+        operation,
         message: error.message,
         stack: error.stack,
-        context: context
-    });
+        context
+    };
+    
+    console.error(`[${timestamp}] Error in ${operation}:`, JSON.stringify(errorInfo, null, 2));
+}
+
+/**
+ * 统一信息日志记录
+ * @param {string} operation - 操作名称
+ * @param {string} message - 日志消息
+ * @param {Object} context - 上下文信息
+ */
+export function logInfo(operation, message, context = {}) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${operation}: ${message}`, context);
+}
+
+/**
+ * 统一警告日志记录
+ * @param {string} operation - 操作名称
+ * @param {string} message - 警告消息
+ * @param {Object} context - 上下文信息
+ */
+export function logWarning(operation, message, context = {}) {
+    const timestamp = new Date().toISOString();
+    console.warn(`[${timestamp}] Warning in ${operation}: ${message}`, context);
+}
+
+/**
+ * 安全执行函数，捕获并记录错误
+ * @param {Function} func - 要执行的函数
+ * @param {string} operationName - 操作名称
+ * @param {*} defaultValue - 出错时的默认返回值
+ * @returns {Promise<*>} 函数执行结果或默认值
+ */
+export async function safeExecute(func, operationName, defaultValue = null) {
+    try {
+        return await func();
+    } catch (error) {
+        logError(operationName, error);
+        return defaultValue;
+    }
+}
+
+/**
+ * 验证用户权限
+ * @param {Array} userRoles - 用户角色数组
+ * @param {Array<string>} requiredRoles - 需要的角色数组
+ * @returns {boolean} 是否有权限
+ */
+export function validateUserPermissions(userRoles, requiredRoles) {
+    if (!userRoles || !Array.isArray(userRoles)) {
+        return false;
+    }
+    
+    return requiredRoles.some(requiredRole => 
+        userRoles.some(userRole => userRole.title === requiredRole)
+    );
+}
+
+/**
+ * 创建分页查询结果
+ * @param {Array} items - 数据项
+ * @param {number} page - 当前页码
+ * @param {number} pageSize - 每页大小
+ * @returns {Object} 分页结果
+ */
+export function createPaginatedResponse(items, page = 1, pageSize = 20) {
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedItems = items.slice(startIndex, endIndex);
+    
+    return {
+        items: paginatedItems,
+        pagination: {
+            currentPage: page,
+            pageSize,
+            totalItems: items.length,
+            totalPages: Math.ceil(items.length / pageSize),
+            hasNext: endIndex < items.length,
+            hasPrevious: page > 1
+        }
+    };
 } 

@@ -2,8 +2,8 @@ import wixForum from 'wix-forum-backend';
 import wixData from 'wix-data';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 import { updateUserPoints } from 'backend/forumPoints.jsw';
-import { POINTS_CONFIG, EVENT_TYPES, COLLECTIONS } from 'backend/constants';
-import { logError } from 'backend/errorHandler';
+import { POINTS_CONFIG, EVENT_TYPES, COLLECTIONS } from 'backend/constants.js';
+import { logError } from 'backend/errorHandler.js';
 
 export function wixForum_onPostCreated(event) {
     const postId = event.postId;

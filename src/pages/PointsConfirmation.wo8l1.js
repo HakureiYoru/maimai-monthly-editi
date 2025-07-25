@@ -1,5 +1,5 @@
 import wixWindow from 'wix-window';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo'; // 确保从backend导入函数
+import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw'; // 确保从backend导入函数
 
 $w.onReady(async function () {
     // 获取传递到Lightbox的参数

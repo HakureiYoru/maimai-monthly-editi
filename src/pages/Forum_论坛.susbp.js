@@ -1,57 +1,50 @@
 import wixUsers from 'wix-users';
 import wixData from 'wix-data';
-import { updateUserPoints } from 'backend/forumPoints.jsw';
-import { getUserPointsRanking } from 'backend/forumPoints.jsw';
-import { currentMember } from 'wix-members';
-import { getUserPoints } from 'backend/forumPoints.jsw';
-import { getPointsForBadgeLevel, getBadgeLevelByPoints } from 'backend/forumPoints.jsw';
-import { generateEmbedCode } from 'backend/embedBilibili.jsw';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo';
-
-const DAILY_POINTS_LIMIT = 30;
+import { generateEmbedCode } from 'backend/mediaManagement.jsw';
+import { 
+    getUserDetailedPointsInfo, 
+    checkUserSignInStatus, 
+    getTopUsers, 
+    getFullUserRanking, 
+    getUserRanking 
+} from 'backend/pageUtils.jsw';
+import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
+import { TIME_CONFIG, QUERY_LIMITS } from 'public/constants.js';
 // 当页面加载时，显示当前用户的积分
 $w.onReady(async function () {
     const currentUser = wixUsers.currentUser;
+    
     if (currentUser.loggedIn) {
+        // 初始化用户信息显示
+        await Promise.all([
+            displayCurrentUserRanking(),
+            displayUserPointsAndRemaining(),
+            displayLastSignedIn()
+        ]);
 
-        await displayCurrentUserRanking();
-        await displayUserPointsAndRemaining();
-        await displayLastSignedIn();
-        setInterval(() => {
-            displayUserPointsAndRemaining();
-            displayLastSignedIn();
-        }, 5000);
-        const userId = currentUser.id;
-        const results = await wixData.query('UserPoints').eq('userId', userId).find();
-        if (results.items.length > 0) {
-            $w('#userTotalPoints').text = `积分: ${results.items[0].points}`;
-
-            // 检查用户今天是否已签到
-            const today = new Date();
-            const lastSignedInDate = new Date(results.items[0].lastSignedIn);
-            if (
-                lastSignedInDate.getDate() === today.getDate() &&
-                lastSignedInDate.getMonth() === today.getMonth() &&
-                lastSignedInDate.getFullYear() === today.getFullYear()
-            ) {
-                // 如果用户今天已签到，禁用签到按钮
-
-            }
-
-        } else {
-            $w('#userTotalPoints').text = '积分: 0';
-
-        }
+        // 设置定时器更新用户信息
+        setInterval(async () => {
+            await Promise.all([
+                displayUserPointsAndRemaining(),
+                displayLastSignedIn()
+            ]);
+        }, TIME_CONFIG.USER_INFO_UPDATE_INTERVAL);
     } else {
         $w('#userTotalPoints').text = '请登录查看积分';
+        $w('#userRemainingDailyPoints').text = '';
+        $w('#pointsNeededForNextLevel').text = '';
+        $w('#userPointsRanking').text = '请先登录以查看您的积分排名。';
     }
 
-    await displayTopUsers();
-    await displayAllUsersInTable();
+    // 初始化排行榜和时间显示
+    await Promise.all([
+        displayTopUsers(),
+        displayAllUsersInTable()
+    ]);
+    
     displayTimeRemaining();
-    setInterval(displayTimeRemaining, 1000);
-
-    setInterval(displayTopUsers, 60000);
+    setInterval(displayTimeRemaining, TIME_CONFIG.TIMER_UPDATE_INTERVAL);
+    setInterval(displayTopUsers, TIME_CONFIG.RANKING_UPDATE_INTERVAL);
     //setInterval(displayTimeRemaining, 1000); // 每隔1000毫秒（1秒）更新一次剩余时间
 
     /*
@@ -162,36 +155,26 @@ async function displayTimeRemaining() {
 
 async function displayUserPointsAndRemaining() {
     const currentUser = wixUsers.currentUser;
-    if (currentUser.loggedIn) {
-        const userId = currentUser.id;
-        const userPoints = await getUserPoints(userId);
-
-        if (userPoints) {
-            // 计算用户的徽章等级和距离下一个等级所需的积分
-            const badgeLevel = await getBadgeLevelByPoints(userPoints.points);
-            const nextBadgeLevel = badgeLevel + 1;
-            const pointsForNextLevel = await getPointsForBadgeLevel(nextBadgeLevel);
-            const oldLevel = await getPointsForBadgeLevel(badgeLevel);
-            const pointsNeededForNextLevel = pointsForNextLevel - userPoints.points;
-
-            // 更新进度条的值
-            const progress = 100 * (userPoints.points - oldLevel) / (pointsForNextLevel - oldLevel);
-            $w('#progressBar').value = progress;
-
-            const remainingDailyPoints = Math.max(DAILY_POINTS_LIMIT - userPoints.dailyPoints, 0);
-            $w('#userTotalPoints').text = `您的积分: ${userPoints.points}`;
-            $w('#userRemainingDailyPoints').text = `距离每日积分上限还剩: ${remainingDailyPoints}分`;
-            $w('#pointsNeededForNextLevel').text = `您现在的等级是${badgeLevel},距离下一个等级还差: ${pointsNeededForNextLevel}分`;
-        } else {
-            $w('#progressBar').value = 0;
-            $w('#userTotalPoints').text = '您的积分: 0';
-            $w('#userRemainingDailyPoints').text = `距离每日积分上限还剩: ${DAILY_POINTS_LIMIT}分`;
-            $w('#pointsNeededForNextLevel').text = `距离下一个等级还差: 30分`;
-        }
-    } else {
+    if (!currentUser.loggedIn) {
         $w('#userTotalPoints').text = '请登录查看积分';
         $w('#userRemainingDailyPoints').text = '';
         $w('#pointsNeededForNextLevel').text = '';
+        return;
+    }
+
+    try {
+        const userInfo = await getUserDetailedPointsInfo(currentUser.id);
+        
+        // 更新进度条
+        $w('#progressBar').value = userInfo.progress;
+        
+        // 更新文本显示
+        $w('#userTotalPoints').text = `您的积分: ${userInfo.points}`;
+        $w('#userRemainingDailyPoints').text = `距离每日积分上限还剩: ${userInfo.remainingDailyPoints}分`;
+        $w('#pointsNeededForNextLevel').text = `您现在的等级是${userInfo.badgeLevel},距离下一个等级还差: ${userInfo.pointsNeededForNextLevel}分`;
+    } catch (error) {
+        console.error('显示用户积分信息时出错:', error);
+        $w('#userTotalPoints').text = '积分信息加载失败';
     }
 }
 
@@ -215,70 +198,39 @@ async function displayLastSignedIn() {
 
 async function displayCurrentUserRanking() {
     const currentUser = wixUsers.currentUser;
-    if (currentUser.loggedIn) {
-        const userId = currentUser.id;
-        console.log('Current user ID:', userId); // 添加调试信息
-
-        // 查询 UserPoints 数据集并按 points 降序排列
-        const results = await wixData.query('UserPoints').descending('points').find();
-
-        if (results.items.length > 0) {
-            // 使用 findIndex() 方法查找当前用户在用户列表中的位置
-            const userRankingIndex = results.items.findIndex(user => user.userId === userId);
-            console.log('User ranking index:', userRankingIndex); // 添加调试信息
-
-            if (userRankingIndex !== -1) {
-                const userRanking = userRankingIndex + 1; // 将索引转换为排名
-                $w('#userPointsRanking').text = `您当前的积分排名：${userRanking}`;
-            } else {
-                $w('#userPointsRanking').text = '您还没有积分记录。';
-            }
-        } else {
-            $w('#userPointsRanking').text = '当前没有用户积分记录。';
-        }
-    } else {
+    if (!currentUser.loggedIn) {
         $w('#userPointsRanking').text = '请先登录以查看您的积分排名。';
+        return;
     }
-}
 
-async function getAllUsers() {
     try {
-        const results = await wixData.query('UserPoints').descending('points').limit(50).find();
-
-        if (results.items.length > 0) {
-            const users = results.items.map(user => ({
-                userId: user.userId,
-                points: user.points,
-            }));
-
-            const userInfos = await Promise.all(users.map(user => getUserPublicInfo(user.userId)));
-
-            // 过滤掉没有头像的用户
-            return userInfos.filter(userInfo => userInfo !== null).map((userInfo, index) => ({
-                ...userInfo,
-                points: users[index].points
-            }));
+        const ranking = await getUserRanking(currentUser.id);
+        if (ranking > 0) {
+            $w('#userPointsRanking').text = `您当前的积分排名：${ranking}`;
         } else {
-            return [];
+            $w('#userPointsRanking').text = '您还没有积分记录。';
         }
     } catch (error) {
-        console.error(error);
-        return [];
+        console.error('获取用户排名时出错:', error);
+        $w('#userPointsRanking').text = '排名信息加载失败。';
     }
 }
 
-// 使用从getAllUsers函数获取的数据来填充表格
+// 使用新的通用函数来填充表格
 async function displayAllUsersInTable() {
     try {
-        const users = await getAllUsers();
-
-        const tableData = users.map(user => ({
+        const users = await getFullUserRanking(QUERY_LIMITS.FORUM_RANKING_LIMIT);
+        // 过滤掉没有头像的用户
+        const validUsers = users.filter(user => user.profileImageUrl);
+        
+        const tableData = validUsers.map(user => ({
             name: user.name,
             points: user.points
         }));
 
         $w('#userTable').rows = tableData;
     } catch (error) {
-        console.error("Error displaying users in table:", error);
+        console.error("显示用户表格时出错:", error);
+        $w('#userTable').rows = [];
     }
 }

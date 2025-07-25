@@ -1,6 +1,10 @@
-import wixData from 'wix-data';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo';
 import wixWindow from 'wix-window';
+import { 
+    getFullUserRanking, 
+    getUserCommentStats,
+    updateUserPointsAdmin
+} from 'backend/pageUtils.jsw';
+import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
 $w.onReady(async function () {
     await displayAllUsersInTable();
@@ -56,41 +60,7 @@ $w.onReady(async function () {
 
 async function getAllUsers() {
     try {
-        const results = await wixData.query('UserPoints').descending('points').limit(100).find();
-        if (results.items.length > 0) {
-            const users = results.items.map(user => ({
-                userId: user.userId,
-                points: user.points,
-            }));
-
-            // 获取每个用户的公开信息
-            const userInfos = await Promise.all(users.map(user =>
-                getUserPublicInfo(user.userId).catch(() => null) // 如果发生错误，则返回null
-            ));
-
-            // 映射用户信息，使用占位符标记不存在的账号
-            return userInfos.map((userInfo, index) => {
-                if (userInfo) {
-                    // 用户信息存在
-                    return {
-                        ...userInfo,
-                        points: users[index].points,
-                        userId: users[index].userId
-                    };
-                } else {
-                    // 用户信息不存在，使用占位符
-                    return {
-                        name: '失效账号', // 占位符名称
-                        profileImageUrl: '', // 可以使用默认图片的URL
-                        userslug: '',
-                        points: users[index].points,
-                        userId: users[index].userId
-                    };
-                }
-            });
-        } else {
-            return [];
-        }
+        return await getFullUserRanking(100);
     } catch (error) {
         console.error("获取所有用户信息时发生错误", error);
         return [];
@@ -139,31 +109,18 @@ async function updatePoints() {
 
 // 执行积分更新的函数
 async function performUpdate(userId, pointsToAdd) {
-    // 查询当前用户的积分
-    const result = await wixData.query('UserPoints')
-        .eq('userId', userId)
-        .find();
-
-    if (result.items.length > 0) {
-        // 获取当前积分并计算新积分
-        const currentItem = result.items[0];
-        const newPoints = currentItem.points + pointsToAdd;
-
-        // 准备更新对象，保留所有其他字段不变
-        const updatedItem = {
-            ...currentItem,
-            points: newPoints
-        };
-
-        // 更新用户积分
-        await wixData.update('UserPoints', updatedItem);
-
-        // 更新成功，确保表格完全刷新
-        $w("#text10").text = `用户积分已更新为: ${newPoints}`;
-        refreshTableData(); // Call a new function to refresh the table data
-    } else {
-        // 没有找到用户
-        $w("#text10").text = "没有找到对应的用户";
+    try {
+        const result = await updateUserPointsAdmin(userId, pointsToAdd);
+        
+        if (result.success) {
+            $w("#text10").text = result.message;
+            refreshTableData(); // 刷新表格数据
+        } else {
+            $w("#text10").text = result.message;
+        }
+    } catch (error) {
+        console.error("更新积分时出错:", error);
+        $w("#text10").text = "积分更新失败";
     }
 }
 
@@ -184,69 +141,13 @@ async function refreshTableData() {
 }
 
 async function loadCommentCounts() {
-    let hasMore = true;
-    let skipCount = 0;
-    const commentsByOwner = {};
-
-    while (hasMore) {
-        try {
-            const results = await wixData.query('BOFcomment')
-                .skip(skipCount)
-                .find();
-
-            if (results.items.length > 0) {
-                results.items.forEach(comment => {
-                    const ownerId = comment._owner;
-                    const workNumber = comment.workNumber;
-
-                    if (!commentsByOwner[ownerId]) {
-                        commentsByOwner[ownerId] = new Set();
-                    }
-                    commentsByOwner[ownerId].add(workNumber);
-                });
-
-                skipCount += results.items.length;
-            } else {
-                hasMore = false;
-            }
-        } catch (error) {
-            console.error('Error fetching comments:', error);
-            hasMore = false;
-        }
+    try {
+        const commentStats = await getUserCommentStats();
+        
+        // 设置表格数据
+        $w('#commentTable').rows = commentStats;
+    } catch (error) {
+        console.error('加载评论统计时出错:', error);
+        $w('#commentTable').rows = [];
     }
-
-    // 获取用户信息并构建表格数据
-    for (let ownerId in commentsByOwner) {
-        try {
-            const userInfo = await getUserPublicInfo(ownerId);
-            commentsByOwner[ownerId] = {
-                count: commentsByOwner[ownerId].size,
-                name: userInfo ? userInfo.name : '失效账号',
-                photo: userInfo ? userInfo.profileImageUrl : '',
-                userslug: userInfo ? userInfo.userslug : ''
-            };
-        } catch (error) {
-            console.error('Error getting user info:', error);
-            commentsByOwner[ownerId] = {
-                count: commentsByOwner[ownerId].size,
-                name: '失效账号',
-                photo: '',
-                userslug: ''
-            };
-        }
-    }
-
-    const tableData = Object.keys(commentsByOwner)
-        .map(ownerId => ({
-            userId: ownerId,
-            name: commentsByOwner[ownerId].name,
-            uniqueWorkCount: commentsByOwner[ownerId].count,
-            photo: commentsByOwner[ownerId].photo,
-            userslug: commentsByOwner[ownerId].userslug
-        }))
-        // 添加排序，按uniqueWorkCount降序
-        .sort((a, b) => b.uniqueWorkCount - a.uniqueWorkCount);
-
-    $w('#commentTable').rows = tableData;
-
 }

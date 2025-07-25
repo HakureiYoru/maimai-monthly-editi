@@ -1,7 +1,7 @@
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
-import { getUserRankAndVoteWeight } from 'backend/getUserPublicInfo';
-import { checkIfUserVoted, getVotingResults } from 'backend/voteApi.jsw';
+import { getUserRankAndVoteWeight } from 'backend/getUserPublicInfo.jsw';
+import { checkIfUserVoted, getVotingResults } from 'backend/contestManagement.jsw';
 import Chart from 'chart.js/auto';
 
 

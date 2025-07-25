@@ -1,10 +1,10 @@
 /**
  * 通用工具函数模块
- * 提供项目中常用的工具函数
+ * 提供项目中常用的工具函数，减少代码重复
  */
 
 import wixData from 'wix-data';
-import { POINTS_CONFIG, APPROVAL_CONFIG } from 'backend/constants';
+import { POINTS_CONFIG, APPROVAL_CONFIG, COLLECTIONS } from 'backend/constants.js';
 
 /**
  * 从URL中提取用户slug
@@ -36,7 +36,7 @@ export function extractSlugFromURL(url) {
  * @returns {number} 总分
  */
 export function calculateTotalPp(order, performance2, performance3) {
-    return order + performance2 + performance3;
+    return (order || 0) + (performance2 || 0) + (performance3 || 0);
 }
 
 /**
@@ -151,4 +151,170 @@ export function groupByField(items, groupBy, valueField = null) {
         acc[key].push(value);
         return acc;
     }, {});
+}
+
+/**
+ * 检查用户是否具有指定角色
+ * @param {Array} userRoles - 用户角色数组
+ * @param {string} roleName - 要检查的角色名称
+ * @returns {boolean} 是否具有该角色
+ */
+export function hasRole(userRoles, roleName) {
+    return userRoles && userRoles.some(role => role.title === roleName);
+}
+
+/**
+ * 格式化进度奖励消息
+ * @param {number} progressValue - 进度百分比
+ * @returns {string} 奖励消息
+ */
+export function formatProgressRewardMessage(progressValue) {
+    if (progressValue >= 90) {
+        return "您已经评论了绝大部分作品，小小蓝白会给予您800积分奖励~";
+    } else if (progressValue >= 60) {
+        return "您的评论已过大半，小小蓝白会给予您600积分奖励~";
+    } else if (progressValue >= 40) {
+        return "您已评论了接近半数的作品，小小蓝白会给予您400积分奖励~";
+    } else {
+        return "继续评论更多作品以获得更多奖励~";
+    }
+}
+
+/**
+ * 生成安全的RGB颜色值
+ * @param {number} score - 分数
+ * @param {number} maxScore - 最大分数，默认1000
+ * @returns {string} RGB颜色字符串
+ */
+export function generateScoreBasedColor(score, maxScore = 1000) {
+    const normalizedScore = Math.max(0, Math.min(score, maxScore));
+    const redAmount = Math.floor(normalizedScore / maxScore * 255);
+    return `rgb(${redAmount}, 0, 0)`;
+}
+
+/**
+ * 创建统一的查询选项
+ * @param {boolean} suppressAuth - 是否忽略权限设置
+ * @returns {Object} 查询选项对象
+ */
+export function createQueryOptions(suppressAuth = true) {
+    return suppressAuth ? { suppressAuth: true } : {};
+}
+
+/**
+ * 验证必需字段
+ * @param {Object} data - 要验证的数据对象
+ * @param {Array<string>} requiredFields - 必需字段数组
+ * @returns {Array<string>} 缺失的字段数组
+ */
+export function validateRequiredFields(data, requiredFields) {
+    return requiredFields.filter(field => 
+        data[field] === undefined || 
+        data[field] === null || 
+        data[field] === ''
+    );
+}
+
+/**
+ * 防抖函数
+ * @param {Function} func - 要防抖的函数
+ * @param {number} wait - 等待时间（毫秒）
+ * @returns {Function} 防抖后的函数
+ */
+export function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// ==================== 文件处理工具 ====================
+
+/**
+ * 获取远程文件内容
+ * @param {string} url - 文件URL
+ * @returns {Promise<string>} 文件内容
+ */
+export async function getFileContent(url) {
+    const { fetch } = await import('wix-fetch');
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.text();
+}
+
+/**
+ * 检查文件是否存在
+ * @param {string} url - 文件URL
+ * @returns {Promise<boolean>} 文件是否存在
+ */
+export async function checkFileExists(url) {
+    try {
+        const { fetch } = await import('wix-fetch');
+        const response = await fetch(url, { method: 'HEAD' });
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * 获取文件基本信息
+ * @param {string} url - 文件URL
+ * @returns {Promise<Object>} 文件信息
+ */
+export async function getFileInfo(url) {
+    try {
+        const { fetch } = await import('wix-fetch');
+        const response = await fetch(url, { method: 'HEAD' });
+        
+        return {
+            url,
+            exists: response.ok,
+            contentType: response.headers.get('content-type'),
+            contentLength: parseInt(response.headers.get('content-length') || '0'),
+            lastModified: response.headers.get('last-modified')
+        };
+    } catch (error) {
+        return {
+            url,
+            exists: false,
+            contentType: null,
+            contentLength: 0,
+            lastModified: null,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * 下载并解析JSON文件
+ * @param {string} url - JSON文件URL
+ * @returns {Promise<Object>} 解析后的JSON对象
+ */
+export async function downloadJsonFile(url) {
+    const content = await getFileContent(url);
+    return safeJsonParse(content, {});
+}
+
+/**
+ * 批量检查文件是否存在
+ * @param {Array<string>} urls - 文件URL数组
+ * @returns {Promise<Array<Object>>} 文件状态数组
+ */
+export async function batchCheckFiles(urls) {
+    const promises = urls.map(async (url) => {
+        const exists = await checkFileExists(url);
+        return { url, exists };
+    });
+    
+    return Promise.all(promises);
 } 

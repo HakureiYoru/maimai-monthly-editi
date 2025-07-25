@@ -2,6 +2,8 @@ import { getUserInfoBySlug, getUserPublicInfo, extractSlugFromURL } from 'backen
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
 import wixWindow from 'wix-window';
+import { getTeamMemberInfo } from 'backend/pageUtils.jsw';
+import { QUERY_LIMITS } from 'public/constants.js';
 
 let TeamLinks = [];
 $w.onReady(function () {
@@ -244,7 +246,7 @@ async function loadCurrentUserLink() {
 
 async function displayTeams() {
     try {
-        const results = await wixData.query('TeamMMFC').limit(500)
+        const results = await wixData.query('TeamMMFC').limit(QUERY_LIMITS.TEAM_QUERY_LIMIT)
             .find();
 
         const teamsData = results.items.map(team => {

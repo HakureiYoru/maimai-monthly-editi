@@ -1,14 +1,14 @@
-import { updateUserPoints } from 'backend/forumPoints.jsw';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
+// 注意：如遇到 IDE 标红（Cannot find module 'backend/xxx.jsw'），可忽略。Wix Velo 环境下路径无误。
+// @ts-ignore
+import { getUserPublicInfo, getUserInfoBySlug } from 'backend/getUserPublicInfo.jsw';
 import wixData from 'wix-data';
-import { getUserInfoBySlug } from 'backend/getUserPublicInfo';
 import { 
     extractSlugFromURL, 
     calculateTotalPp, 
     getMaxSequenceId 
 } from 'backend/utils';
-import { COLLECTIONS } from 'backend/constants';
-import { logError } from 'backend/errorHandler';
+import { COLLECTIONS } from 'backend/constants.js';
+import { logError } from 'backend/errorHandler.js';
 
 /**
  * Team数据插入前的处理

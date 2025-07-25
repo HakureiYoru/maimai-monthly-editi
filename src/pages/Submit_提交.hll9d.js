@@ -1,8 +1,8 @@
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
-import { getCurrentMemberRoles } from 'backend/auditorRole';
+import { getCurrentMemberRoles } from 'backend/auditorManagement.jsw';
 import { getUserInfoBySlug, getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
-import { getFileDownloadUrlAndContent } from 'backend/getMediaDownloadUrls.jsw'; // 确保导入函数
+import { getFileDownloadUrlAndContent } from 'backend/mediaManagement.jsw'; // 确保导入函数
 import { fetch } from 'wix-fetch';
 
 async function isAdmin() {
@@ -66,17 +66,69 @@ $w.onReady(async function () {
 
 });
 
-// function checkIfUserRegistered() {
-//     wixData.query('jobApplication089')
-//         .eq("_owner", wixUsers.currentUser.id)
-//         .find()
-//         .then(results => {
-//             if (results.items.length > 0) {
+
+
+//以下是个人战限定函数 现在不需要报名也能提交，但是要用 loadCurrentUserLink获取到链接了才能提交
+
+
+function checkIfUserRegistered() {  
+    wixData.query('jobApplication089')
+        .eq("_owner", wixUsers.currentUser.id)
+        .find()
+        .then(results => {
+            if (results.items.length > 0) {
+                $w("#button1").enable();
+                $w("#button1").label = "提交作品";
+            } else {
+                $w("#button1").enable();
+                $w("#button1").label = "提交作品";
+                // $w("#button1").disable();
+                // $w("#button1").label = "没报名";
+            }
+        })
+        .catch(err => {
+            console.error("检查用户是否报名时出错:", err);
+        });
+}
+
+
+
+
+// 以下是小队战限定
+// async function checkIfUserRegistered() {
+//     const userLink = await loadCurrentUserLink();
+//     if (!userLink) {
+//         console.log("无法获取用户链接，可能用户未注册");
+//         $w("#button1").disable();
+//         $w("#button1").label = "未找到用户";
+//         return;
+//     }
+
+//     // 并发执行针对每个成员字段的查询
+//     const memberQueries = [
+//         wixData.query('TeamMMFC').eq("member1", userLink),
+//         wixData.query('TeamMMFC').eq("member2", userLink),
+//         wixData.query('TeamMMFC').eq("Member3", userLink)  
+//     ];
+
+//     Promise.all(memberQueries.map(query => query.find()))
+//         .then(resultsArray => {
+//             const found = resultsArray.some(results => results.items.length > 0);
+//             if (found) {
 //                 $w("#button1").enable();
 //                 $w("#button1").label = "提交作品";
+
+//                 // 设置表单中的团队名
+//                 for (let results of resultsArray) {
+//                     if (results.items.length > 0) {
+//                         console.log(results.items[0].teamname);
+//                         $w("#team").value = results.items[0].teamname;
+//                         break;  // 找到就填写并停止循环
+//                     }
+//                 }
 //             } else {
 //                 $w("#button1").disable();
-//                 $w("#button1").label = "没报名";
+//                 $w("#button1").label = "未查询到队伍";
 //             }
 //         })
 //         .catch(err => {
@@ -84,46 +136,9 @@ $w.onReady(async function () {
 //         });
 // }
 
-async function checkIfUserRegistered() {
-    const userLink = await loadCurrentUserLink();
-    if (!userLink) {
-        console.log("无法获取用户链接，可能用户未注册");
-        $w("#button1").disable();
-        $w("#button1").label = "未找到用户";
-        return;
-    }
 
-    // 并发执行针对每个成员字段的查询
-    const memberQueries = [
-        wixData.query('TeamMMFC').eq("member1", userLink),
-        wixData.query('TeamMMFC').eq("member2", userLink),
-        wixData.query('TeamMMFC').eq("Member3", userLink)  
-    ];
 
-    Promise.all(memberQueries.map(query => query.find()))
-        .then(resultsArray => {
-            const found = resultsArray.some(results => results.items.length > 0);
-            if (found) {
-                $w("#button1").enable();
-                $w("#button1").label = "提交作品";
 
-                // 设置表单中的团队名
-                for (let results of resultsArray) {
-                    if (results.items.length > 0) {
-                        console.log(results.items[0].teamname);
-                        $w("#team").value = results.items[0].teamname;
-                        break;  // 找到就填写并停止循环
-                    }
-                }
-            } else {
-                $w("#button1").disable();
-                $w("#button1").label = "未查询到队伍";
-            }
-        })
-        .catch(err => {
-            console.error("检查用户是否报名时出错:", err);
-        });
-}
 
 // 新函数用于获取当前用户的链接
 async function loadCurrentUserLink() {

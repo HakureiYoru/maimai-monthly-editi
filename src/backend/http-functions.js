@@ -1,6 +1,8 @@
-import { getEnterContest034Data } from 'backend/enterContest034Api.jsw';
+// @ts-ignore
+import { getEnterContest034Data } from 'backend/contestManagement.jsw';
 import wixData from 'wix-data';
-import { getFileDownloadUrlAndContent } from 'backend/getMediaDownloadUrls.jsw';
+// @ts-ignore
+import { getFileDownloadUrlAndContent } from 'backend/mediaManagement.jsw';
 import { mediaManager } from 'wix-media-backend';
 import { 
     createOptionsResponse, 

@@ -1,0 +1,502 @@
+/**
+ * 比赛管理模块
+ * 整合了投票系统、比赛数据查询和参赛作品管理功能
+ */
+
+import wixData from 'wix-data';
+import { COLLECTIONS, QUERY_LIMITS } from 'backend/constants';
+import { logError, logInfo, safeExecute } from 'backend/errorHandler';
+import { createQueryOptions, groupByField, safeJsonParse } from 'backend/utils';
+
+// ==================== 投票系统 ====================
+
+/**
+ * 检查用户是否已投票
+ * @param {string} userId - 用户ID
+ * @returns {Promise<boolean>} 是否已投票
+ */
+export async function checkIfUserVoted(userId) {
+    return safeExecute(async () => {
+        const results = await wixData.query(COLLECTIONS.FORMS_ENTER_CONTEST_07)
+            .eq('_owner', userId)
+            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+            .find(createQueryOptions());
+        return results.items.length > 0;
+    }, 'checkIfUserVoted', false);
+}
+
+/**
+ * 提交用户投票
+ * @param {string} userId - 用户ID
+ * @param {string} choice - 投票选择
+ * @param {number} weight - 投票权重
+ * @param {string} voterInfo - 投票者信息
+ * @returns {Promise<Object>} 投票结果
+ */
+export async function submitVote(userId, choice, weight = 1, voterInfo = '') {
+    return safeExecute(async () => {
+        // 检查是否已经投票
+        const hasVoted = await checkIfUserVoted(userId);
+        if (hasVoted) {
+            return {
+                success: false,
+                message: '您已经投过票了',
+                voteId: null
+            };
+        }
+
+        // 创建投票记录
+        const voteData = {
+            選項按鈕欄: choice,
+            yourId的複本: weight.toString(),
+            簡短答案欄: voterInfo,
+            submitDate: new Date()
+        };
+
+        const result = await wixData.save(COLLECTIONS.FORMS_ENTER_CONTEST_07, voteData);
+        
+        logInfo('submitVote', `用户 ${userId} 投票成功，选择: ${choice}，权重: ${weight}`);
+        
+        return {
+            success: true,
+            message: '投票提交成功',
+            voteId: result._id
+        };
+    }, 'submitVote', {
+        success: false,
+        message: '投票提交失败',
+        voteId: null
+    });
+}
+
+/**
+ * 获取投票结果统计
+ * @returns {Promise<Object>} 投票结果数据
+ */
+export async function getVotingResults() {
+    return safeExecute(async () => {
+        const results = await wixData.query(COLLECTIONS.FORMS_ENTER_CONTEST_07)
+            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+            .find(createQueryOptions());
+        
+        const votes = results.items;
+        const voteCounts = {};
+        const userVotes = {};
+        const weightDistribution = {};
+
+        // 处理投票数据
+        votes.forEach(vote => {
+            const choice = vote.選項按鈕欄;
+            const weight = Number(vote.yourId的複本) || 1;
+            const voterInfo = vote.簡短答案欄;
+
+            // 累计投票权重
+            voteCounts[choice] = (voteCounts[choice] || 0) + weight;
+            
+            // 收集投票者信息
+            if (!userVotes[choice]) {
+                userVotes[choice] = [];
+            }
+            userVotes[choice].push(voterInfo);
+            
+            // 记录权重分布
+            if (!weightDistribution[choice]) {
+                weightDistribution[choice] = [];
+            }
+            weightDistribution[choice].push(weight);
+        });
+
+        const labels = Object.keys(voteCounts);
+        const data = Object.values(voteCounts);
+        const voters = labels.map(label => 
+            userVotes[label] ? userVotes[label].join(', ') : ''
+        );
+        
+        const weightData = labels.map(label => ({
+            label,
+            data: weightDistribution[label] || []
+        }));
+
+        return {
+            labels,
+            datasets: [{ label: 'Votes', data }],
+            voters,
+            weightData,
+            totalVotes: votes.length,
+            uniqueChoices: labels.length,
+            summary: {
+                totalWeightedVotes: data.reduce((sum, count) => sum + count, 0),
+                averageWeight: votes.length > 0 ? 
+                    data.reduce((sum, count) => sum + count, 0) / votes.length : 0,
+                topChoice: labels.length > 0 ? 
+                    labels[data.indexOf(Math.max(...data))] : null
+            }
+        };
+    }, 'getVotingResults', {
+        labels: [],
+        datasets: [{ label: 'Votes', data: [] }],
+        voters: [],
+        weightData: [],
+        totalVotes: 0,
+        uniqueChoices: 0,
+        summary: {
+            totalWeightedVotes: 0,
+            averageWeight: 0,
+            topChoice: null
+        }
+    });
+}
+
+/**
+ * 获取详细投票分析
+ * @returns {Promise<Object>} 详细投票分析数据
+ */
+export async function getDetailedVotingAnalysis() {
+    return safeExecute(async () => {
+        const votingResults = await getVotingResults();
+        const { labels, weightData, totalVotes } = votingResults;
+        
+        // 计算每个选项的统计信息
+        const analysisData = labels.map(label => {
+            const weights = weightData.find(w => w.label === label)?.data || [];
+            const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+            const avgWeight = weights.length > 0 ? totalWeight / weights.length : 0;
+            const maxWeight = weights.length > 0 ? Math.max(...weights) : 0;
+            const minWeight = weights.length > 0 ? Math.min(...weights) : 0;
+            
+            return {
+                choice: label,
+                voteCount: weights.length,
+                totalWeight,
+                averageWeight: Math.round(avgWeight * 100) / 100,
+                maxWeight,
+                minWeight,
+                percentage: totalVotes > 0 ? Math.round((weights.length / totalVotes) * 100) : 0,
+                weightPercentage: votingResults.summary.totalWeightedVotes > 0 ? 
+                    Math.round((totalWeight / votingResults.summary.totalWeightedVotes) * 100) : 0
+            };
+        });
+        
+        // 按总权重排序
+        analysisData.sort((a, b) => b.totalWeight - a.totalWeight);
+        
+        return {
+            choices: analysisData,
+            totals: votingResults.summary,
+            metadata: {
+                lastUpdated: new Date(),
+                dataSource: 'Forms/enterContest07'
+            }
+        };
+    }, 'getDetailedVotingAnalysis', {
+        choices: [],
+        totals: { totalWeightedVotes: 0, averageWeight: 0, topChoice: null },
+        metadata: { lastUpdated: new Date(), dataSource: 'Forms/enterContest07' }
+    });
+}
+
+// ==================== 比赛数据管理 ====================
+
+/**
+ * 获取比赛034的所有数据
+ * @param {number} limit - 查询限制
+ * @returns {Promise<Array>} 比赛数据数组
+ */
+export async function getEnterContest034Data(limit = QUERY_LIMITS.CONTEST_QUERY_LIMIT) {
+    return safeExecute(async () => {
+        const results = await wixData.query(COLLECTIONS.ENTER_CONTEST_034)
+            .limit(limit)
+            .find();
+            
+        logInfo('getEnterContest034Data', `获取到 ${results.items.length} 条比赛数据`);
+        return results.items;
+    }, 'getEnterContest034Data', []);
+}
+
+/**
+ * 获取已过审的比赛作品
+ * @param {number} minApprovals - 最少审核通过数
+ * @returns {Promise<Array>} 已过审作品列表
+ */
+export async function getApprovedContestEntries(minApprovals = 3) {
+    return safeExecute(async () => {
+        const allEntries = await getEnterContest034Data();
+        
+        const approvedEntries = allEntries.filter(entry => {
+            const approvedBy = safeJsonParse(entry.approvedByString, []);
+            return approvedBy.length >= minApprovals;
+        });
+        
+        return approvedEntries.map(entry => ({
+            id: entry._id,
+            title: entry.firstName || '',
+            sequenceId: entry.sequenceId || '',
+            submittedDate: entry._createdDate,
+            approvedBy: safeJsonParse(entry.approvedByString, []),
+            approvalCount: safeJsonParse(entry.approvedByString, []).length,
+            author: entry._owner,
+            ...entry
+        }));
+    }, 'getApprovedContestEntries', []);
+}
+
+/**
+ * 获取待审核的比赛作品
+ * @param {number} maxApprovals - 最大审核数（少于此数的视为待审核）
+ * @returns {Promise<Array>} 待审核作品列表
+ */
+export async function getPendingContestEntries(maxApprovals = 3) {
+    return safeExecute(async () => {
+        const allEntries = await getEnterContest034Data();
+        
+        const pendingEntries = allEntries.filter(entry => {
+            const approvedBy = safeJsonParse(entry.approvedByString, []);
+            const disBy = safeJsonParse(entry.disByString, []);
+            
+            // 如果拒绝数过多，则不算待审核
+            if (disBy.length >= 2) return false;
+            
+            return approvedBy.length < maxApprovals;
+        });
+        
+        return pendingEntries.map(entry => ({
+            id: entry._id,
+            title: entry.firstName || '',
+            sequenceId: entry.sequenceId || '',
+            submittedDate: entry._createdDate,
+            approvedBy: safeJsonParse(entry.approvedByString, []),
+            disBy: safeJsonParse(entry.disByString, []),
+            approvalCount: safeJsonParse(entry.approvedByString, []).length,
+            rejectionCount: safeJsonParse(entry.disByString, []).length,
+            author: entry._owner,
+            ...entry
+        }));
+    }, 'getPendingContestEntries', []);
+}
+
+/**
+ * 根据条件查询比赛作品
+ * @param {Object} filters - 查询条件
+ * @returns {Promise<Array>} 符合条件的作品列表
+ */
+export async function queryContestEntries(filters = {}) {
+    return safeExecute(async () => {
+        let query = wixData.query(COLLECTIONS.ENTER_CONTEST_034);
+        
+        // 应用基本过滤器
+        if (filters.author) {
+            query = query.eq('_owner', filters.author);
+        }
+        
+        if (filters.sequenceId) {
+            query = query.eq('sequenceId', filters.sequenceId);
+        }
+        
+        if (filters.title) {
+            query = query.contains('firstName', filters.title);
+        }
+        
+        if (filters.startDate) {
+            query = query.ge('_createdDate', filters.startDate);
+        }
+        
+        if (filters.endDate) {
+            query = query.le('_createdDate', filters.endDate);
+        }
+        
+        // 执行查询
+        const results = await query
+            .limit(filters.limit || QUERY_LIMITS.CONTEST_QUERY_LIMIT)
+            .find();
+        
+        // 应用高级过滤器（需要在客户端过滤）
+        let filteredItems = results.items;
+        
+        if (filters.minApprovals !== undefined) {
+            filteredItems = filteredItems.filter(entry => {
+                const approvedBy = safeJsonParse(entry.approvedByString, []);
+                return approvedBy.length >= filters.minApprovals;
+            });
+        }
+        
+        if (filters.maxRejections !== undefined) {
+            filteredItems = filteredItems.filter(entry => {
+                const disBy = safeJsonParse(entry.disByString, []);
+                return disBy.length <= filters.maxRejections;
+            });
+        }
+        
+        return filteredItems.map(entry => ({
+            id: entry._id,
+            title: entry.firstName || '',
+            sequenceId: entry.sequenceId || '',
+            submittedDate: entry._createdDate,
+            approvedBy: safeJsonParse(entry.approvedByString, []),
+            disBy: safeJsonParse(entry.disByString, []),
+            approvalCount: safeJsonParse(entry.approvedByString, []).length,
+            rejectionCount: safeJsonParse(entry.disByString, []).length,
+            author: entry._owner,
+            rawData: entry
+        }));
+    }, 'queryContestEntries', []);
+}
+
+/**
+ * 获取比赛统计信息
+ * @returns {Promise<Object>} 比赛统计数据
+ */
+export async function getContestStatistics() {
+    return safeExecute(async () => {
+        const allEntries = await getEnterContest034Data();
+        
+        let totalEntries = allEntries.length;
+        let approvedEntries = 0;
+        let rejectedEntries = 0;
+        let pendingEntries = 0;
+        
+        const authorStats = {};
+        const approvalDistribution = {};
+        
+        allEntries.forEach(entry => {
+            const approvedBy = safeJsonParse(entry.approvedByString, []);
+            const disBy = safeJsonParse(entry.disByString, []);
+            const author = entry._owner;
+            
+            // 统计状态
+            if (approvedBy.length >= 3) {
+                approvedEntries++;
+            } else if (disBy.length >= 2) {
+                rejectedEntries++;
+            } else {
+                pendingEntries++;
+            }
+            
+            // 统计作者
+            if (!authorStats[author]) {
+                authorStats[author] = { total: 0, approved: 0, rejected: 0, pending: 0 };
+            }
+            authorStats[author].total++;
+            
+            if (approvedBy.length >= 3) authorStats[author].approved++;
+            else if (disBy.length >= 2) authorStats[author].rejected++;
+            else authorStats[author].pending++;
+            
+            // 统计审核分布
+            const approvalCount = approvedBy.length;
+            if (!approvalDistribution[approvalCount]) {
+                approvalDistribution[approvalCount] = 0;
+            }
+            approvalDistribution[approvalCount]++;
+        });
+        
+        // 计算作者排名
+        const topAuthors = Object.entries(authorStats)
+            .map(([author, stats]) => ({
+                author,
+                ...stats,
+                approvalRate: stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0
+            }))
+            .sort((a, b) => b.approved - a.approved)
+            .slice(0, 10);
+        
+        return {
+            overview: {
+                totalEntries,
+                approvedEntries,
+                rejectedEntries,
+                pendingEntries,
+                approvalRate: totalEntries > 0 ? Math.round((approvedEntries / totalEntries) * 100) : 0
+            },
+            approvalDistribution,
+            topAuthors,
+            metadata: {
+                lastUpdated: new Date(),
+                dataSource: COLLECTIONS.ENTER_CONTEST_034
+            }
+        };
+    }, 'getContestStatistics', {
+        overview: {
+            totalEntries: 0,
+            approvedEntries: 0,
+            rejectedEntries: 0,
+            pendingEntries: 0,
+            approvalRate: 0
+        },
+        approvalDistribution: {},
+        topAuthors: [],
+        metadata: {
+            lastUpdated: new Date(),
+            dataSource: COLLECTIONS.ENTER_CONTEST_034
+        }
+    });
+}
+
+// ==================== 作品管理工具 ====================
+
+/**
+ * 根据ID获取比赛作品详情
+ * @param {string} entryId - 作品ID
+ * @returns {Promise<Object|null>} 作品详情
+ */
+export async function getContestEntryById(entryId) {
+    return safeExecute(async () => {
+        const entry = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, entryId);
+        
+        if (!entry) return null;
+        
+        return {
+            id: entry._id,
+            title: entry.firstName || '',
+            sequenceId: entry.sequenceId || '',
+            submittedDate: entry._createdDate,
+            approvedBy: safeJsonParse(entry.approvedByString, []),
+            disBy: safeJsonParse(entry.disByString, []),
+            viewedBy: safeJsonParse(entry.viewedBy, []),
+            approvalCount: safeJsonParse(entry.approvedByString, []).length,
+            rejectionCount: safeJsonParse(entry.disByString, []).length,
+            viewCount: safeJsonParse(entry.viewedBy, []).length,
+            author: entry._owner,
+            files: {
+                maidata: entry.maidata的複本,
+                track: entry.track的複本,
+                video: entry.inVideo的複本,
+                other: entry.上傳檔案欄
+            },
+            rawData: entry
+        };
+    }, 'getContestEntryById', null);
+}
+
+/**
+ * 更新作品状态
+ * @param {string} entryId - 作品ID
+ * @param {Object} updates - 更新内容
+ * @returns {Promise<Object>} 更新结果
+ */
+export async function updateContestEntry(entryId, updates) {
+    return safeExecute(async () => {
+        const currentEntry = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, entryId);
+        
+        if (!currentEntry) {
+            return {
+                success: false,
+                message: '作品不存在'
+            };
+        }
+        
+        const updatedEntry = { ...currentEntry, ...updates };
+        await wixData.update(COLLECTIONS.ENTER_CONTEST_034, updatedEntry);
+        
+        logInfo('updateContestEntry', `作品 ${entryId} 已更新`);
+        
+        return {
+            success: true,
+            message: '作品更新成功',
+            entryId
+        };
+    }, 'updateContestEntry', {
+        success: false,
+        message: '作品更新失败',
+        entryId: null
+    });
+} 

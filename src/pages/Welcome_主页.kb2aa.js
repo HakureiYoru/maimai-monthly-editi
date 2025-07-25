@@ -1,27 +1,25 @@
 import wixData from 'wix-data';
-import { getOngakiImageUrls } from 'backend/media.jsw';
+import { getOngakiImageUrls } from 'backend/mediaManagement.jsw';
+import { getApplicationStats } from 'backend/pageUtils.jsw';
 
-$w.onReady(function () {
-    loadMemberData();
-    displayRandomOngakiImage();
-    wixData.query('jobApplication089')
-        .limit(1000) // 增加限制以尽可能查询更多数据
-        .find() // 获取数据集中的数据
-        .then(results => {
-            // 从结果中提取 _owner 字段的值，并存入一个新数组
-            const owners = results.items.map(item => item._owner);
-            // 使用 Set 来过滤数组中的重复项，获取唯一的 _owner
-            const uniqueOwners = new Set(owners);
-            // 获取唯一 _owner 的数量
-            let uniqueOwnersCount = uniqueOwners.size;
-            // 更新文本元件内容显示不同用户的数量
-            $w("#applyNumber").text = `${uniqueOwnersCount}`;
-        })
-        .catch(err => {
-            console.error('查询失败', err);
-        });
-
+$w.onReady(async function () {
+    // 并行加载数据
+    await Promise.all([
+        loadMemberData(),
+        displayRandomOngakiImage(),
+        loadApplicationStats()
+    ]);
 });
+
+async function loadApplicationStats() {
+    try {
+        const applicationCount = await getApplicationStats();
+        $w("#applyNumber").text = `${applicationCount}`;
+    } catch (error) {
+        console.error('加载申请统计时出错:', error);
+        $w("#applyNumber").text = '0';
+    }
+}
 
 function loadMemberData() {
     wixData.query("Members/PublicData")

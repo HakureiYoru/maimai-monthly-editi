@@ -1,6 +1,0 @@
-import { fetch } from 'wix-fetch';
-
-export async function getFileContent(url) {
-    const response = await fetch(url);
-    return await response.text();
-}

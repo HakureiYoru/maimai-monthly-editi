@@ -1,8 +1,0 @@
-import wixData from 'wix-data';
-
-// 获取 contact114 数据集中的所有数据
-export async function getEnterContest034Data() {
-  const results = await wixData.query('enterContest034').limit(500).find(); // 设置限制为200条
-  //console.log(results);
-  return results.items;
-}
