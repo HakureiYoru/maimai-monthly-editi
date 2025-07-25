@@ -60,6 +60,9 @@ $w.onReady(async function () {
         // 更新按钮状态
         await updateButtonStatus($item, itemData._id, checkboxChecked);
         
+        // 检查并显示是否已评论
+        await updateCommentStatus($item, itemData);
+        
         // 设置事件监听器
         setupItemEventListeners($item, itemData, downloadUrl);
     });
@@ -131,20 +134,7 @@ $w.onReady(async function () {
                                 if (deleteResult.success) {
                                     
                                     // 刷新评论显示
-                                    const dropdownValue = $w("#dropdownFilter").value;
-                                    if (dropdownValue && dropdownValue !== "114514") {
-                                        await setDropdownValue(parseInt(dropdownValue));
-                                    }
-                                    
-                                    // 更新评论计数和数据
-                                    commentsCountByWorkNumber = await getAllCommentsCount();
-                                    await loadData();
-                                    
-                                                    // 刷新repeater2显示
-                const currentPage = $w('#paginator').currentPage || 1;
-                const searchValue = $w("#input1").value;
-                const mainDropdownValue = $w("#dropdown1").value;
-                await updateRepeaterData(currentPage, searchValue, mainDropdownValue);
+                                    await refreshRepeaters();
                                 } else {
                                     console.error('删除评论失败:', deleteResult.message);
                                 }
@@ -180,14 +170,8 @@ $w.onReady(async function () {
             const textValue = $item("#text15").text;
             $w("#input1").value = textValue;
 
-            const searchValue = $w("#input1").value;
-            const dropdownValue = $w("#dropdown1").value;
-            let sortByApproval = false;
-
-            if (dropdownValue === "vote") {
-                sortByApproval = true;
-            }
-            await updateRepeaterData(1, searchValue, sortByApproval, dropdownValue);
+            // 统一刷新两个repeater
+            await refreshRepeaters();
         });
     });
     
@@ -203,6 +187,9 @@ $w.onReady(async function () {
     // 设置下拉筛选器事件
     setupDropdownFilterEvent();
     
+    // 设置作品选择事件
+    setupWorkSelectionEvent();
+    
     // 加载数据
     await loadData();
 });
@@ -211,132 +198,81 @@ $w.onReady(async function () {
 // 初始化函数
 // ================================
 
-
-
-// ================================
-// 重复器设置函数
-// ================================
-
-
-
-// ================================
-// 事件设置函数
-// ================================
-
 /**
- * 设置搜索和分页事件
+ * 检查并显示是否已评论
  */
-function setupSearchAndPaginationEvents() {
-    // 搜索框输入事件处理
-    $w("#input1").onInput(async () => {
-        const searchValue = $w("#input1").value;
-        const dropdownValue = $w("#dropdown1").value;
-        let sortByApproval = false;
-
-        await updateRepeaterData(1, searchValue, dropdownValue);
-    });
-
-    // 分页器点击事件处理
-    $w("#paginator, #paginator2").onClick(async (event) => {
-        const pageNumber = event.target.currentPage;
-        const searchValue = $w("#input1").value;
-        const dropdownValue = $w("#dropdown1").value;
-        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
-    });
-
-    // 下拉菜单改变事件
-    $w("#dropdown1").onChange(async () => {
-        const searchValue = $w("#input1").value;
-        const pageNumber = 1;
-        const dropdownValue = $w("#dropdown1").value;
-        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
-    });
-}
-
-/**
- * 设置提交按钮事件
- */
-function setupSubmitButtonEvent() {
-    $w("#submit").onClick(async () => {
+async function updateCommentStatus($item, itemData) {
+    if (currentUserId) {
         try {
-            // 获取用户输入的数据
-            const workNumber = parseInt($w("#inputNumber").value);
-            const score = parseInt($w("#inputScore").value);
-            const comment = $w("#Comment").value;
-
-            // 验证输入
-            const isWorkNumberValid = $w("#inputNumber").valid;
-            const isScoreValid = $w("#inputScore").valid;
-            const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
-            const isScoreInRange = score >= 100 && score <= 1000;
-
-            if (workNumber && score && comment && isWorkNumberValid && isScoreValid && isWorkNumberInRange && isScoreInRange) {
-                // 创建新的数据对象
-                let toInsert = {
-                    "workNumber": workNumber,
-                    "score": score,
-                    "comment": comment
-                };
-
-                // 插入数据
-                await wixData.insert("BOFcomment", toInsert);
-
-                // 更新用户积分
-                if (currentUserId) {
-                    try {
-                        await updateUserPoints(currentUserId, 1, false, false);
-                    } catch (error) {
-                        console.error('Error updating user points:', error);
-                    }
-                }
-
-                // 清空输入框
-                $w("#inputNumber").value = "";
-                $w("#inputScore").value = "";
-                $w("#Comment").value = "";
-
-                // 刷新数据和显示
-                $w('#dataset1').refresh();
-                await loadData();
-                
-                // 更新评论计数
-                commentsCountByWorkNumber = await getAllCommentsCount();
-                
-                // 刷新repeater2显示以更新评分信息
-                const currentPage = $w('#paginator').currentPage || 1;
-                const searchValue = $w("#input1").value;
-                const dropdownValue = $w("#dropdown1").value;
-                await updateRepeaterData(currentPage, searchValue, dropdownValue);
+            const results = await wixData.query("BOFcomment")
+                .eq("workNumber", itemData.sequenceId)
+                .eq("_owner", currentUserId)
+                .find();
+            
+            if (results.items.length > 0) {
+                // 用户已评论这个作品
+                $item("#ifComment").text = "已评论";
+                $item("#ifComment").style.color = "#228B22"; // 绿色字体
+            } else {
+                // 用户未评论这个作品
+                $item("#ifComment").text = "未评论";
+                $item("#ifComment").style.color = "#FF4500"; // 红色字体
             }
         } catch (err) {
-            console.error(err);
+            console.error("检查评论状态失败", err);
+            $item("#ifComment").text = "检查失败";
+            $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
         }
-    });
+    } else {
+        $item("#ifComment").text = "未登录";
+        $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
+    }
 }
-
 /**
- * 设置下拉筛选器事件
+ * 设置作品选择事件
  */
-function setupDropdownFilterEvent() {
-    $w("#dropdownFilter").onChange(async () => {
-        let selectedValue = $w("#dropdownFilter").value;
-
-        if (selectedValue === "114514") {
+function setupWorkSelectionEvent() {
+    $w("#inputNumber").onChange(async () => {
+        const workNumber = parseInt($w("#inputNumber").value);
+        if (workNumber && currentUserId) {
             try {
-                // 查询当前用户的评论
                 const results = await wixData.query("BOFcomment")
+                    .eq("workNumber", workNumber)
                     .eq("_owner", currentUserId)
                     .find();
                 
-                $w("#repeater1").data = results.items;
-                $w("#repeater1").forEachItem(($item, itemData, index) => {
-                    // 这里可以根据需要更新每个重复项内的元素
-                });
+                if (results.items.length > 0) {
+                    // 用户已经评论过这个作品
+                    $w("#Comment").value = results.items[0].comment;
+                    $w("#inputScore").value = results.items[0].score;
+                    $w("#submit").disable();
+                    $w("#submit").label = "已评论";
+                    $w("#Comment").disable();
+                    $w("#inputScore").disable();
+                } else {
+                    // 用户未评论过这个作品
+                    $w("#Comment").value = "";
+                    $w("#inputScore").value = "";
+                    $w("#submit").enable();
+                    $w("#submit").label = "提交评论";
+                    $w("#Comment").enable();
+                    $w("#inputScore").enable();
+                }
+                
+                // 设置dropdownFilter的值并更新repeater1显示该作品的评论
+                $w("#dropdownFilter").value = workNumber.toString();
+                await setDropdownValue(workNumber);
             } catch (err) {
                 console.error("查询评论失败", err);
             }
-        } else {
-            // 待定
+        } else if (!workNumber) {
+            // 如果没有选择作品，重置所有控件
+            $w("#Comment").value = "";
+            $w("#inputScore").value = "";
+            $w("#submit").enable();
+            $w("#submit").label = "提交评论";
+            $w("#Comment").enable();
+            $w("#inputScore").enable();
         }
     });
 }
@@ -344,6 +280,46 @@ function setupDropdownFilterEvent() {
 // ================================
 // 辅助函数
 // ================================
+
+/**
+ * 统一刷新两个repeater的函数
+ */
+async function refreshRepeaters() {
+    try {
+        // 刷新repeater2显示
+        const currentPage = $w('#paginator').currentPage || 1;
+        const searchValue = $w("#input1").value;
+        const dropdownValue = $w("#dropdown1").value;
+        await updateRepeaterData(currentPage, searchValue, dropdownValue);
+        
+        // 刷新repeater1显示（评论列表）
+        const dropdownFilterValue = $w("#dropdownFilter").value;
+        if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+            await setDropdownValue(parseInt(dropdownFilterValue));
+        } else if (dropdownFilterValue === "114514") {
+            // 刷新当前用户的评论
+            try {
+                const results = await wixData.query("BOFcomment")
+                    .eq("_owner", currentUserId)
+                    .find();
+                
+                $w("#repeater1").data = results.items;
+            } catch (err) {
+                console.error("刷新用户评论失败", err);
+            }
+        }
+        
+        // 更新评论计数
+        commentsCountByWorkNumber = await getAllCommentsCount();
+        
+        // 重新加载数据
+        await loadData();
+        
+        console.log("Repeaters刷新完成");
+    } catch (error) {
+        console.error("刷新Repeaters时发生错误:", error);
+    }
+}
 
 /**
  * 解析并显示难度等级
@@ -657,8 +633,6 @@ async function getAllCommentsCount() {
     return commentsCountByWorkNumber;
 }
 
-
-
 /**
  * 设置下拉菜单值并查询评论
  */
@@ -772,4 +746,137 @@ async function sortByRating(items) {
         console.error('排序时出错:', error);
         return items; // 出错时返回原列表
     }
+}
+
+// ================================
+// 事件设置函数
+// ================================
+
+/**
+ * 设置搜索和分页事件
+ */
+function setupSearchAndPaginationEvents() {
+    // 搜索框输入事件处理
+    $w("#input1").onInput(async () => {
+        const searchValue = $w("#input1").value;
+        const dropdownValue = $w("#dropdown1").value;
+
+        await updateRepeaterData(1, searchValue, dropdownValue);
+    });
+
+    // 分页器点击事件处理
+    $w("#paginator, #paginator2").onClick(async (event) => {
+        const pageNumber = event.target.currentPage;
+        const searchValue = $w("#input1").value;
+        const dropdownValue = $w("#dropdown1").value;
+        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
+    });
+
+    // 下拉菜单改变事件
+    $w("#dropdown1").onChange(async () => {
+        const searchValue = $w("#input1").value;
+        const pageNumber = 1;
+        const dropdownValue = $w("#dropdown1").value;
+        await updateRepeaterData(pageNumber, searchValue, dropdownValue);
+    });
+}
+
+/**
+ * 设置提交按钮事件
+ */
+function setupSubmitButtonEvent() {
+    $w("#submit").onClick(async () => {
+        try {
+            // 获取用户输入的数据
+            const workNumber = parseInt($w("#inputNumber").value);
+            const score = parseInt($w("#inputScore").value);
+            const comment = $w("#Comment").value;
+
+            // 验证输入
+            const isWorkNumberValid = $w("#inputNumber").valid;
+            const isScoreValid = $w("#inputScore").valid;
+            const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
+            const isScoreInRange = score >= 100 && score <= 1000;
+
+            // 额外检查：确保用户没有重复评论
+            if (currentUserId) {
+                const existingComment = await wixData.query("BOFcomment")
+                    .eq("workNumber", workNumber)
+                    .eq("_owner", currentUserId)
+                    .find();
+                
+                if (existingComment.items.length > 0) {
+                    console.log('用户已经评论过这个作品，阻止重复提交');
+                    return; // 阻止重复提交
+                }
+            }
+
+            if (workNumber && score && comment && isWorkNumberValid && isScoreValid && isWorkNumberInRange && isScoreInRange) {
+                // 创建新的数据对象
+                let toInsert = {
+                    "workNumber": workNumber,
+                    "score": score,
+                    "comment": comment
+                };
+
+                // 插入数据
+                await wixData.insert("BOFcomment", toInsert);
+
+                // 更新用户积分
+                if (currentUserId) {
+                    try {
+                        await updateUserPoints(currentUserId, 1, false, false);
+                    } catch (error) {
+                        console.error('Error updating user points:', error);
+                    }
+                }
+
+                // 清空输入框
+                $w("#inputNumber").value = "";
+                $w("#inputScore").value = "";
+                $w("#Comment").value = "";
+
+                // 重置提交按钮状态
+                $w("#submit").enable();
+                $w("#submit").label = "提交评论";
+                $w("#Comment").enable();
+                $w("#inputScore").enable();
+
+                // 刷新数据和显示
+                $w('#dataset1').refresh();
+                
+                // 统一刷新两个repeater
+                await refreshRepeaters();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    });
+}
+
+/**
+ * 设置下拉筛选器事件
+ */
+function setupDropdownFilterEvent() {
+    $w("#dropdownFilter").onChange(async () => {
+        let selectedValue = $w("#dropdownFilter").value;
+
+        if (selectedValue === "114514") {
+            try {
+                // 查询当前用户的评论
+                const results = await wixData.query("BOFcomment")
+                    .eq("_owner", currentUserId)
+                    .find();
+                
+                $w("#repeater1").data = results.items;
+                $w("#repeater1").forEachItem(($item, itemData, index) => {
+                    // 这里可以根据需要更新每个重复项内的元素
+                });
+            } catch (err) {
+                console.error("查询评论失败", err);
+            }
+        } else {
+            // 待定
+        }
+    });
 }
