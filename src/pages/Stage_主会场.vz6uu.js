@@ -69,32 +69,63 @@ $w.onReady(async function () {
 
     // 设置重复器1的onItemReady事件（评论显示）
     $w("#repeater1").onItemReady(async ($item, itemData, index) => {
-        // 设置评分背景颜色
-        const score = parseInt(itemData.score);
-        const redAmount = Math.floor(score / 1000 * 255);
-        $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
-
-        // 获取并显示评分数据
-        const ratingData = await getRatingData(itemData.workNumber);
-        var averageScore = ratingData.averageScore;
-        var newRating = (averageScore - 0) / (1000 - 0) * (5.0 - 1.0) + 1.0;
-
-        if (ratingData.numRatings >= 5) {
-            // 达到5人评分门槛，显示真实分数
-            $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${ratingData.numRatings}人评分)`;
-        } else if (ratingData.numRatings > 0) {
-            // 未达到5人评分门槛，隐藏分数
-            $item("#ratingsDisplay").text = `评分量不足(${ratingData.numRatings}人评分)`;
+        // 检查是否为楼中楼回复
+        if (itemData.replyTo) {
+            // 楼中楼回复显示
+            $item("#showScore").text = "Re";
+            $item("#showBackground").style.backgroundColor = "#1E3A8A"; // 深蓝色
+            
+            // 确保楼中楼回复隐藏所有不需要的功能
+            $item("#deleteComment").hide();
+            $item("#viewRepliesButton").hide();
+            if ($item("#replyCountText")) {
+                $item("#replyCountText").hide();
+            }
         } else {
-            // 没有评分
-            $item("#ratingsDisplay").text = "暂无评分";
+            // 普通评论显示评分背景颜色和分数
+            const score = parseInt(itemData.score);
+            const redAmount = Math.floor(score / 1000 * 255);
+            $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
+            $item("#showScore").text = score.toString(); // 显示实际分数
+            
+            // 确保普通评论的元素显示正常
+            if ($item("#replyCountText")) {
+                $item("#replyCountText").show();
+            }
+            $item("#viewRepliesButton").show();
+        }
+
+        // 获取并显示评分数据（楼中楼回复不显示评分信息）
+        if (!itemData.replyTo) {
+            const ratingData = await getRatingData(itemData.workNumber);
+            var averageScore = ratingData.averageScore;
+            var newRating = (averageScore - 0) / (1000 - 0) * (5.0 - 1.0) + 1.0;
+
+            if (ratingData.numRatings >= 5) {
+                // 达到5人评分门槛，显示真实分数
+                $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${ratingData.numRatings}人评分)`;
+            } else if (ratingData.numRatings > 0) {
+                // 未达到5人评分门槛，隐藏分数
+                $item("#ratingsDisplay").text = `评分量不足(${ratingData.numRatings}人评分)`;
+            } else {
+                // 没有评分
+                $item("#ratingsDisplay").text = "暂无评分";
+            }
+        } else {
+            // 楼中楼回复不显示评分信息
+            $item("#ratingsDisplay").text = "";
         }
 
         // 获取并显示作者信息
         await displayAuthorInfo($item, itemData);
         
-        // 设置删除评论按钮权限
-        if (currentUserId) {
+        // 获取并显示回复数量（只对主评论显示）
+        if (!itemData.replyTo) {
+            await displayReplyCount($item, itemData._id);
+        }
+        
+        // 设置删除评论按钮权限（楼中楼回复不显示删除按钮）
+        if (currentUserId && !itemData.replyTo) {
             try {
                 // 使用后端API检查用户是否为海选组成员
                 const isSeaSelectionMember = await checkIsSeaSelectionMember();
@@ -105,43 +136,7 @@ $w.onReady(async function () {
                 
                     // 设置删除按钮事件
                     $item("#deleteComment").onClick(async () => {
-                        // 弹出确认对话框
-                        const result = await wixWindow.openLightbox("DeleteConfirmation", {
-                            commentId: itemData._id,
-                            workNumber: itemData.workNumber,
-                            score: itemData.score,
-                            comment: itemData.comment
-                        });
-                        
-                        // 检查结果格式，支持新旧两种格式
-                        let shouldDelete = false;
-                        let deleteReason = '';
-                        
-                        if (typeof result === 'string' && result === 'confirm') {
-                            // 旧格式：直接返回字符串
-                            shouldDelete = true;
-                            deleteReason = '未填写删除理由';
-                        } else if (result && typeof result === 'object' && result.action === 'confirm') {
-                            // 新格式：返回对象
-                            shouldDelete = true;
-                            deleteReason = result.reason || '未填写删除理由';
-                        }
-                        
-                        if (shouldDelete) {
-                            try {
-                                // 删除评论，传递删除理由
-                                const deleteResult = await deleteComment(itemData._id, currentUserId, deleteReason);
-                                if (deleteResult.success) {
-                                    
-                                    // 刷新评论显示
-                                    await refreshRepeaters();
-                                } else {
-                                    console.error('删除评论失败:', deleteResult.message);
-                                }
-                            } catch (error) {
-                                console.error('删除评论时发生错误:', error);
-                            }
-                        }
+                        await handleDeleteComment(itemData);
                     });
                 } else {
                     // 非海选组成员隐藏并禁用删除按钮
@@ -153,8 +148,8 @@ $w.onReady(async function () {
                 $item("#deleteComment").hide();
                 $item("#deleteComment").disable();
             }
-        } else {
-            // 未登录用户隐藏并禁用删除按钮
+        } else if (!itemData.replyTo) {
+            // 未登录用户隐藏并禁用删除按钮（只对主评论）
             $item("#deleteComment").hide();
             $item("#deleteComment").disable();
         }
@@ -162,7 +157,7 @@ $w.onReady(async function () {
         // 设置评论查看事件
         $item('#checkText2').onClick(() => {
             const descriptionText = $item('#CommentBox').value;
-            wixWindow.openLightbox("TextPopup", { content: descriptionText });
+            showTextPopup(descriptionText);
         });
 
         // 设置搜索作者事件
@@ -173,6 +168,13 @@ $w.onReady(async function () {
             // 统一刷新两个repeater
             await refreshRepeaters();
         });
+        
+        // 设置查看回复按钮事件（只对主评论）
+        if (!itemData.replyTo) {
+            $item("#viewRepliesButton").onClick(async () => {
+                await showCommentReplies(itemData._id, itemData.workNumber, itemData.comment);
+            });
+        }
     });
     
     // 初始化数据
@@ -207,6 +209,7 @@ async function updateCommentStatus($item, itemData) {
             const results = await wixData.query("BOFcomment")
                 .eq("workNumber", itemData.sequenceId)
                 .eq("_owner", currentUserId)
+                .isEmpty("replyTo")  // 只检查主评论
                 .find();
             
             if (results.items.length > 0) {
@@ -239,6 +242,7 @@ function setupWorkSelectionEvent() {
                 const results = await wixData.query("BOFcomment")
                     .eq("workNumber", workNumber)
                     .eq("_owner", currentUserId)
+                    .isEmpty("replyTo")  // 只检查主评论
                     .find();
                 
                 if (results.items.length > 0) {
@@ -275,6 +279,95 @@ function setupWorkSelectionEvent() {
             $w("#inputScore").enable();
         }
     });
+}
+
+// ================================
+// Lightbox 弹窗管理函数
+// ================================
+
+/**
+ * 显示文本弹窗的通用函数
+ */
+function showTextPopup(content) {
+    wixWindow.openLightbox("TextPopup", { content: content });
+}
+
+/**
+ * 处理删除评论的通用函数
+ */
+async function handleDeleteComment(itemData) {
+    try {
+        // 弹出确认对话框
+        const result = await wixWindow.openLightbox("DeleteConfirmation", {
+            commentId: itemData._id,
+            workNumber: itemData.workNumber,
+            score: itemData.score,
+            comment: itemData.comment
+        });
+        
+        // 检查结果格式，支持新旧两种格式
+        let shouldDelete = false;
+        let deleteReason = '';
+        
+        if (typeof result === 'string' && result === 'confirm') {
+            // 旧格式：直接返回字符串
+            shouldDelete = true;
+            deleteReason = '未填写删除理由';
+        } else if (result && typeof result === 'object' && result.action === 'confirm') {
+            // 新格式：返回对象
+            shouldDelete = true;
+            deleteReason = result.reason || '未填写删除理由';
+        }
+        
+        if (shouldDelete) {
+            try {
+                // 删除评论，传递删除理由
+                const deleteResult = await deleteComment(itemData._id, currentUserId, deleteReason);
+                if (deleteResult.success) {
+                    // 刷新评论显示
+                    await refreshRepeaters();
+                } else {
+                    console.error('删除评论失败:', deleteResult.message);
+                }
+            } catch (error) {
+                console.error('删除评论时发生错误:', error);
+            }
+        }
+    } catch (error) {
+        console.error('处理删除评论时发生错误:', error);
+    }
+}
+
+/**
+ * 显示评论回复的通用函数
+ */
+async function showCommentReplies(commentId, workNumber, originalComment) {
+    try {
+        console.log("准备显示回复，评论ID:", commentId);
+        
+        // 获取该评论的所有回复
+        const replies = await wixData.query("BOFcomment")
+            .eq("replyTo", commentId)
+            .ascending("_createdDate")
+            .find();
+        
+        console.log("查询到的回复数据:", replies.items.length, "条");
+        
+        // 打开回复弹窗，传递原评论和回复数据
+        const result = await wixWindow.openLightbox("CommentReplies", {
+            commentId: commentId,
+            workNumber: workNumber,
+            originalComment: originalComment,
+            replies: replies.items
+        });
+        
+        // 如果用户在弹窗中添加了新回复，刷新显示
+        if (result && result.refresh) {
+            await refreshRepeaters();
+        }
+    } catch (err) {
+        console.error("显示评论回复失败", err);
+    }
 }
 
 // ================================
@@ -368,6 +461,31 @@ async function displayAuthorInfo($item, itemData) {
 }
 
 /**
+ * 显示回复数量
+ */
+async function displayReplyCount($item, commentId) {
+    try {
+        const replies = await wixData.query("BOFcomment")
+            .eq("replyTo", commentId)
+            .find();
+        const replyCount = replies.items.length;
+        
+        // 假设在repeater1的设计中有一个显示回复数量的文本元素
+        if (replyCount > 0) {
+            $item("#replyCountText").text = `${replyCount}条回复`;
+            $item("#replyCountText").show();
+        } else {
+            $item("#replyCountText").text = "";
+            $item("#replyCountText").hide();
+        }
+    } catch (err) {
+        console.error("获取回复数量失败", err);
+        $item("#replyCountText").text = "";
+        $item("#replyCountText").hide();
+    }
+}
+
+/**
  * 设置项目事件监听器
  */
 function setupItemEventListeners($item, itemData, downloadUrl) {
@@ -379,7 +497,7 @@ function setupItemEventListeners($item, itemData, downloadUrl) {
     // 查看描述事件
     $item('#checkText').onClick(() => {
         const descriptionText = $item('#descriptionBox').value;
-        wixWindow.openLightbox("TextPopup", { content: descriptionText });
+        showTextPopup(descriptionText);
     });
 
     // 评审功能已移除，用户可通过主会场下方的评论区进行评分
@@ -535,6 +653,7 @@ async function updateButtonStatus($item, sheetId, checkboxChecked) {
 async function getRatingData(workNumber) {
     const results = await wixData.query("BOFcomment")
         .eq("workNumber", workNumber)
+        .isEmpty("replyTo")  // 只计算主评论的评分
         .find();
 
     const numRatings = results.items.length;
@@ -557,10 +676,11 @@ async function loadData() {
     let hasMore = true;
     let skipCount = 0;
 
-    // 收集所有评论来计算平均分数
+    // 收集所有主评论来计算平均分数
     while (hasMore) {
         try {
             const res = await wixData.query('BOFcomment')
+                .isEmpty("replyTo")  // 只收集主评论数据
                 .skip(skipCount)
                 .find();
             
@@ -612,6 +732,7 @@ async function getAllCommentsCount() {
     while (hasMore) {
         try {
             const res = await wixData.query('BOFcomment')
+                .isEmpty("replyTo")  // 只统计主评论数量
                 .skip(skipCount)
                 .find();
             
@@ -640,8 +761,10 @@ async function setDropdownValue(sequenceId) {
     $w("#dropdownFilter").value = sequenceId.toString();
 
     try {
+        // 查询主评论和楼中楼回复
         const results = await wixData.query("BOFcomment")
             .eq("workNumber", sequenceId)
+            .ascending("_createdDate")  // 按时间顺序显示
             .find();
         
         $w("#repeater1").data = results.items;
@@ -664,9 +787,10 @@ async function updateItemEvaluationDisplay($item, itemData) {
     try {
         const workNumber = itemData.sequenceId;
         
-        // 查询该作品的所有评分
+        // 查询该作品的所有主评论评分
         const results = await wixData.query("BOFcomment")
             .eq("workNumber", workNumber)
+            .isEmpty("replyTo")  // 只统计主评论的评分
             .find();
         
         const evaluations = results.items;
@@ -798,11 +922,12 @@ function setupSubmitButtonEvent() {
             const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
             const isScoreInRange = score >= 100 && score <= 1000;
 
-            // 额外检查：确保用户没有重复评论
+            // 额外检查：确保用户没有重复评论主评论
             if (currentUserId) {
                 const existingComment = await wixData.query("BOFcomment")
                     .eq("workNumber", workNumber)
                     .eq("_owner", currentUserId)
+                    .isEmpty("replyTo")  // 只检查主评论
                     .find();
                 
                 if (existingComment.items.length > 0) {
@@ -863,9 +988,10 @@ function setupDropdownFilterEvent() {
 
         if (selectedValue === "114514") {
             try {
-                // 查询当前用户的评论
+                // 查询当前用户的所有评论（包括主评论和楼中楼回复）
                 const results = await wixData.query("BOFcomment")
                     .eq("_owner", currentUserId)
+                    .ascending("_createdDate")
                     .find();
                 
                 $w("#repeater1").data = results.items;
