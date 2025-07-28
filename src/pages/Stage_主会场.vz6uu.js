@@ -14,11 +14,83 @@ let commentsCountByWorkNumber = {};
 const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
 let titleValue;
 const currentUserId = wixUsers.currentUser.id;
+let isUserVerified = false; // 用户验证状态
+
+// ================================
+// 用户验证函数
+// ================================
+
+/**
+ * 检查用户是否已验证（填写了谱面网站）
+ */
+async function checkUserVerification() {
+    if (!currentUserId) {
+        isUserVerified = false;
+        return false;
+    }
+    
+    try {
+        const results = await wixData.query("Members/PublicData")
+            .eq("_id", currentUserId)
+            .find();
+        
+        if (results.items.length > 0) {
+            const member = results.items[0];
+            isUserVerified = !!(member["custom_pu-mian-fa-bu-wang-zhi"]);
+            return isUserVerified;
+        } else {
+            isUserVerified = false;
+            return false;
+        }
+    } catch (error) {
+        console.error("检查用户验证状态失败：", error);
+        isUserVerified = false;
+        return false;
+    }
+}
+
+/**
+ * 更新评论控件的验证状态
+ */
+function updateCommentControlsVerificationStatus() {
+    if (!currentUserId) {
+        // 未登录用户
+        $w("#submit").disable();
+        $w("#submit").label = "未登录";
+        $w("#Comment").disable();
+        $w("#inputScore").disable();
+        return;
+    }
+    
+    if (!isUserVerified) {
+        // 未验证用户
+        $w("#submit").disable();
+        $w("#submit").label = "未验证";
+        $w("#Comment").disable();
+        $w("#inputScore").disable();
+    } else {
+        // 已验证用户，恢复正常功能
+        const workNumber = parseInt($w("#inputNumber").value);
+        if (workNumber) {
+            // 如果已选择作品，重新检查该作品的评论状态
+            $w("#inputNumber").fireEvent("change");
+        } else {
+            $w("#submit").enable();
+            $w("#submit").label = "提交评论";
+            $w("#Comment").enable();
+            $w("#inputScore").enable();
+        }
+    }
+}
 
 // ================================
 // 页面初始化
 // ================================
 $w.onReady(async function () {
+    // 检查用户验证状态
+    await checkUserVerification();
+    updateCommentControlsVerificationStatus();
+    
     // 初始化评论数据和重复器
     commentsCountByWorkNumber = await getAllCommentsCount();
 
@@ -82,11 +154,32 @@ $w.onReady(async function () {
                 $item("#replyCountText").hide();
             }
         } else {
-            // 普通评论显示评分背景颜色和分数
-            const score = parseInt(itemData.score);
-            const redAmount = Math.floor(score / 1000 * 255);
-            $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
-            $item("#showScore").text = score.toString(); // 显示实际分数
+            // 普通评论，先检查是否为作者自评
+            let isAuthorComment = false;
+            try {
+                const workResults = await wixData.query("enterContest034")
+                    .eq("sequenceId", itemData.workNumber)
+                    .find();
+                
+                if (workResults.items.length > 0) {
+                    const workOwner = workResults.items[0]._owner;
+                    isAuthorComment = (itemData._owner === workOwner);
+                }
+            } catch (error) {
+                console.error("检查作者身份失败", error);
+            }
+            
+            if (isAuthorComment) {
+                // 作者自评显示"Sc"
+                $item("#showScore").text = "Sc";
+                $item("#showBackground").style.backgroundColor = "#8A2BE2"; // 紫色背景
+            } else {
+                // 普通评论显示评分背景颜色和分数
+                const score = parseInt(itemData.score);
+                const redAmount = Math.floor(score / 1000 * 255);
+                $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
+                $item("#showScore").text = score.toString(); // 显示实际分数
+            }
             
             // 确保普通评论的元素显示正常
             if ($item("#replyCountText")) {
@@ -204,30 +297,37 @@ $w.onReady(async function () {
  * 检查并显示是否已评论
  */
 async function updateCommentStatus($item, itemData) {
-    if (currentUserId) {
-        try {
-            const results = await wixData.query("BOFcomment")
-                .eq("workNumber", itemData.sequenceId)
-                .eq("_owner", currentUserId)
-                .isEmpty("replyTo")  // 只检查主评论
-                .find();
-            
-            if (results.items.length > 0) {
-                // 用户已评论这个作品
-                $item("#ifComment").text = "已评论";
-                $item("#ifComment").style.color = "#228B22"; // 绿色字体
-            } else {
-                // 用户未评论这个作品
-                $item("#ifComment").text = "未评论";
-                $item("#ifComment").style.color = "#FF4500"; // 红色字体
-            }
-        } catch (err) {
-            console.error("检查评论状态失败", err);
-            $item("#ifComment").text = "检查失败";
-            $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
-        }
-    } else {
+    if (!currentUserId) {
         $item("#ifComment").text = "未登录";
+        $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
+        return;
+    }
+    
+    if (!isUserVerified) {
+        $item("#ifComment").text = "未验证";
+        $item("#ifComment").style.color = "#FF0000"; // 红色字体
+        return;
+    }
+    
+    try {
+        const results = await wixData.query("BOFcomment")
+            .eq("workNumber", itemData.sequenceId)
+            .eq("_owner", currentUserId)
+            .isEmpty("replyTo")  // 只检查主评论
+            .find();
+        
+        if (results.items.length > 0) {
+            // 用户已评论这个作品
+            $item("#ifComment").text = "已评论";
+            $item("#ifComment").style.color = "#228B22"; // 绿色字体
+        } else {
+            // 用户未评论这个作品
+            $item("#ifComment").text = "未评论";
+            $item("#ifComment").style.color = "#FF4500"; // 橙色字体
+        }
+    } catch (err) {
+        console.error("检查评论状态失败", err);
+        $item("#ifComment").text = "检查失败";
         $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
     }
 }
@@ -237,30 +337,74 @@ async function updateCommentStatus($item, itemData) {
 function setupWorkSelectionEvent() {
     $w("#inputNumber").onChange(async () => {
         const workNumber = parseInt($w("#inputNumber").value);
-        if (workNumber && currentUserId) {
+        
+        // 首先检查用户验证状态
+        if (!currentUserId) {
+            $w("#Comment").value = "";
+            $w("#inputScore").value = "";
+            $w("#submit").disable();
+            $w("#submit").label = "未登录";
+            $w("#Comment").disable();
+            $w("#inputScore").disable();
+            return;
+        }
+        
+        if (!isUserVerified) {
+            $w("#Comment").value = "";
+            $w("#inputScore").value = "";
+            $w("#submit").disable();
+            $w("#submit").label = "未验证";
+            $w("#Comment").disable();
+            $w("#inputScore").disable();
+            return;
+        }
+        
+        if (workNumber && currentUserId && isUserVerified) {
             try {
-                const results = await wixData.query("BOFcomment")
-                    .eq("workNumber", workNumber)
-                    .eq("_owner", currentUserId)
-                    .isEmpty("replyTo")  // 只检查主评论
+                // 先检查是否为作者自己的作品
+                const workResults = await wixData.query("enterContest034")
+                    .eq("sequenceId", workNumber)
                     .find();
                 
-                if (results.items.length > 0) {
-                    // 用户已经评论过这个作品
-                    $w("#Comment").value = results.items[0].comment;
-                    $w("#inputScore").value = results.items[0].score;
-                    $w("#submit").disable();
-                    $w("#submit").label = "已评论";
-                    $w("#Comment").disable();
-                    $w("#inputScore").disable();
-                } else {
-                    // 用户未评论过这个作品
+                let isAuthor = false;
+                if (workResults.items.length > 0) {
+                    const workOwner = workResults.items[0]._owner;
+                    isAuthor = (currentUserId === workOwner);
+                }
+                
+                if (isAuthor) {
+                    // 如果是作者自己的作品，允许无限次评论
                     $w("#Comment").value = "";
                     $w("#inputScore").value = "";
                     $w("#submit").enable();
-                    $w("#submit").label = "提交评论";
+                    $w("#submit").label = "自评";
                     $w("#Comment").enable();
                     $w("#inputScore").enable();
+                } else {
+                    // 非作者，检查是否已经评论过
+                    const results = await wixData.query("BOFcomment")
+                        .eq("workNumber", workNumber)
+                        .eq("_owner", currentUserId)
+                        .isEmpty("replyTo")  // 只检查主评论
+                        .find();
+                    
+                    if (results.items.length > 0) {
+                        // 用户已经评论过这个作品
+                        $w("#Comment").value = results.items[0].comment;
+                        $w("#inputScore").value = results.items[0].score;
+                        $w("#submit").disable();
+                        $w("#submit").label = "已评论";
+                        $w("#Comment").disable();
+                        $w("#inputScore").disable();
+                    } else {
+                        // 用户未评论过这个作品
+                        $w("#Comment").value = "";
+                        $w("#inputScore").value = "";
+                        $w("#submit").enable();
+                        $w("#submit").label = "提交评论";
+                        $w("#Comment").enable();
+                        $w("#inputScore").enable();
+                    }
                 }
                 
                 // 设置dropdownFilter的值并更新repeater1显示该作品的评论
@@ -648,7 +792,7 @@ async function updateButtonStatus($item, sheetId, checkboxChecked) {
 }
 
 /**
- * 获取评分数据
+ * 获取评分数据（排除作者自评）
  */
 async function getRatingData(workNumber) {
     const results = await wixData.query("BOFcomment")
@@ -656,9 +800,22 @@ async function getRatingData(workNumber) {
         .isEmpty("replyTo")  // 只计算主评论的评分
         .find();
 
-    const numRatings = results.items.length;
-    const totalScore = results.items.reduce((total, item) => total + item.score, 0);
-    const averageScore = totalScore / numRatings;
+    // 获取作品的所有者ID
+    const workResults = await wixData.query("enterContest034")
+        .eq("sequenceId", workNumber)
+        .find();
+    
+    let workOwnerId = null;
+    if (workResults.items.length > 0) {
+        workOwnerId = workResults.items[0]._owner;
+    }
+
+    // 过滤掉作者自己的评分
+    const validRatings = results.items.filter(item => item._owner !== workOwnerId);
+    
+    const numRatings = validRatings.length;
+    const totalScore = validRatings.reduce((total, item) => total + item.score, 0);
+    const averageScore = numRatings > 0 ? totalScore / numRatings : 0;
 
     return {
         numRatings,
@@ -667,7 +824,7 @@ async function getRatingData(workNumber) {
 }
 
 /**
- * 加载数据到HTML表格
+ * 加载数据到HTML表格（排除作者自评）
  */
 async function loadData() {
     const commentsCountByWorkNumber = await getAllCommentsCount();
@@ -693,11 +850,22 @@ async function loadData() {
         }
     }
 
-    // 计算每个作品的平均分
+    // 获取所有作品的所有者信息
+    const allWorks = await wixData.query("enterContest034").find();
+    const workOwnerMap = {};
+    allWorks.items.forEach(work => {
+        workOwnerMap[work.sequenceId] = work._owner;
+    });
+
+    // 计算每个作品的平均分（排除作者自评）
     const scoresSum = totalItems.reduce((acc, item) => {
-        if (!acc[item.workNumber]) acc[item.workNumber] = { totalScore: 0, count: 0 };
-        acc[item.workNumber].totalScore += item.score;
-        acc[item.workNumber].count += 1;
+        const workOwnerId = workOwnerMap[item.workNumber];
+        // 只统计非作者的评分
+        if (item._owner !== workOwnerId) {
+            if (!acc[item.workNumber]) acc[item.workNumber] = { totalScore: 0, count: 0 };
+            acc[item.workNumber].totalScore += item.score;
+            acc[item.workNumber].count += 1;
+        }
         return acc;
     }, {});
 
@@ -781,26 +949,18 @@ async function setDropdownValue(sequenceId) {
 
 
 /**
- * 更新作品评分显示
+ * 更新作品评分显示（排除作者自评）
  */
 async function updateItemEvaluationDisplay($item, itemData) {
     try {
         const workNumber = itemData.sequenceId;
         
-        // 查询该作品的所有主评论评分
-        const results = await wixData.query("BOFcomment")
-            .eq("workNumber", workNumber)
-            .isEmpty("replyTo")  // 只统计主评论的评分
-            .find();
-        
-        const evaluations = results.items;
-        const evaluationCount = evaluations.length;
+        // 使用getRatingData函数获取评分数据（已排除作者自评）
+        const ratingData = await getRatingData(workNumber);
+        const evaluationCount = ratingData.numRatings;
+        const averageScore = ratingData.averageScore;
         
         if (evaluationCount > 0) {
-            // 计算平均分
-            const totalScore = evaluations.reduce((sum, item) => sum + item.score, 0);
-            const averageScore = totalScore / evaluationCount;
-            
             // 将100-1000分转换为1-5分显示
             const displayRating = Math.round(((averageScore - 100) / 900) * 4) + 1;
             
@@ -822,8 +982,6 @@ async function updateItemEvaluationDisplay($item, itemData) {
                 $item("#approvalCountText").text = `评分量不足(${evaluationCount}人评分)`;
                 $item("#box1").style.backgroundColor = 'rgba(255, 255, 0, 0.3)'; // 浅黄色：待定
             }
-            
-
         } else {
             // 没有评分时的显示
             $item("#approvalCountText").text = "暂无评分";
@@ -840,13 +998,13 @@ async function updateItemEvaluationDisplay($item, itemData) {
 }
 
 /**
- * 基于评分对作品进行排序
+ * 基于评分对作品进行排序（排除作者自评）
  * @param {Array} items - 作品列表
  * @returns {Promise<Array>} 排序后的作品列表
  */
 async function sortByRating(items) {
     try {
-        // 为每个作品获取评分数据
+        // 为每个作品获取评分数据（getRatingData函数已经排除了作者自评）
         const itemsWithRating = await Promise.all(items.map(async (item) => {
             const ratingData = await getRatingData(item.sequenceId);
             const averageScore = ratingData.numRatings >= 5 ? ratingData.averageScore : 0;
@@ -911,6 +1069,17 @@ function setupSearchAndPaginationEvents() {
 function setupSubmitButtonEvent() {
     $w("#submit").onClick(async () => {
         try {
+            // 首先验证用户状态
+            if (!currentUserId) {
+                console.log('用户未登录');
+                return;
+            }
+            
+            if (!isUserVerified) {
+                console.log('用户未验证，无法提交评论');
+                return;
+            }
+            
             // 获取用户输入的数据
             const workNumber = parseInt($w("#inputNumber").value);
             const score = parseInt($w("#inputScore").value);
@@ -922,18 +1091,33 @@ function setupSubmitButtonEvent() {
             const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
             const isScoreInRange = score >= 100 && score <= 1000;
 
-            // 额外检查：确保用户没有重复评论主评论
+            // 额外检查：确保用户没有重复评论主评论（除非是作者自己）
             if (currentUserId) {
-                const existingComment = await wixData.query("BOFcomment")
-                    .eq("workNumber", workNumber)
-                    .eq("_owner", currentUserId)
-                    .isEmpty("replyTo")  // 只检查主评论
+                // 先检查是否为作者自己的作品
+                const workResults = await wixData.query("enterContest034")
+                    .eq("sequenceId", workNumber)
                     .find();
                 
-                if (existingComment.items.length > 0) {
-                    console.log('用户已经评论过这个作品，阻止重复提交');
-                    return; // 阻止重复提交
+                let isAuthor = false;
+                if (workResults.items.length > 0) {
+                    const workOwner = workResults.items[0]._owner;
+                    isAuthor = (currentUserId === workOwner);
                 }
+                
+                if (!isAuthor) {
+                    // 如果不是作者，检查是否已经评论过
+                    const existingComment = await wixData.query("BOFcomment")
+                        .eq("workNumber", workNumber)
+                        .eq("_owner", currentUserId)
+                        .isEmpty("replyTo")  // 只检查主评论
+                        .find();
+                    
+                    if (existingComment.items.length > 0) {
+                        console.log('用户已经评论过这个作品，阻止重复提交');
+                        return; // 阻止重复提交
+                    }
+                }
+                // 如果是作者，允许多次评论，不进行重复检查
             }
 
             if (workNumber && score && comment && isWorkNumberValid && isScoreValid && isWorkNumberInRange && isScoreInRange) {
@@ -987,6 +1171,19 @@ function setupDropdownFilterEvent() {
         let selectedValue = $w("#dropdownFilter").value;
 
         if (selectedValue === "114514") {
+            // 检查用户验证状态
+            if (!currentUserId) {
+                console.log("用户未登录，无法查看个人评论");
+                $w("#repeater1").data = [];
+                return;
+            }
+            
+            if (!isUserVerified) {
+                console.log("用户未验证，无法查看个人评论");
+                $w("#repeater1").data = [];
+                return;
+            }
+            
             try {
                 // 查询当前用户的所有评论（包括主评论和楼中楼回复）
                 const results = await wixData.query("BOFcomment")
