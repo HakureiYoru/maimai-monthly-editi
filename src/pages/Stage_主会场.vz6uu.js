@@ -273,6 +273,9 @@ $w.onReady(async function () {
     // 初始化数据
     await updateRepeaterData(1, "", "");
     
+    // 初始化评论显示（显示所有评论）
+    await loadAllFormalComments();
+    
     // 设置搜索和分页事件
     setupSearchAndPaginationEvents();
     
@@ -281,6 +284,9 @@ $w.onReady(async function () {
     
     // 设置下拉筛选器事件
     setupDropdownFilterEvent();
+    
+    // 设置评分勾选框事件
+    setupScoreCheckboxEvent();
     
     // 设置作品选择事件
     setupWorkSelectionEvent();
@@ -534,16 +540,11 @@ async function refreshRepeaters() {
         if (dropdownFilterValue && dropdownFilterValue !== "114514") {
             await setDropdownValue(parseInt(dropdownFilterValue));
         } else if (dropdownFilterValue === "114514") {
-            // 刷新当前用户的评论
-            try {
-                const results = await wixData.query("BOFcomment")
-                    .eq("_owner", currentUserId)
-                    .find();
-                
-                $w("#repeater1").data = results.items;
-            } catch (err) {
-                console.error("刷新用户评论失败", err);
-            }
+            // 刷新当前用户的评论（考虑筛选状态）
+            await loadUserComments();
+        } else {
+            // 刷新所有作品的评论（考虑筛选状态）
+            await loadAllFormalComments();
         }
         
         // 更新评论计数
@@ -935,7 +936,37 @@ async function setDropdownValue(sequenceId) {
             .ascending("_createdDate")  // 按时间顺序显示
             .find();
         
-        $w("#repeater1").data = results.items;
+        let commentsToShow = results.items;
+        
+        // 如果勾选了正式评论筛选
+        if (isScoreFilterEnabled()) {
+            // 获取该作品的所有者信息
+            const workResults = await wixData.query("enterContest034")
+                .eq("sequenceId", sequenceId)
+                .find();
+            
+            let workOwnerId = null;
+            if (workResults.items.length > 0) {
+                workOwnerId = workResults.items[0]._owner;
+            }
+            
+            // 过滤掉自评和楼中楼
+            commentsToShow = results.items.filter(comment => {
+                // 排除楼中楼回复
+                if (comment.replyTo) {
+                    return false;
+                }
+                
+                // 排除自评（评论者是作品所有者）
+                if (comment._owner === workOwnerId) {
+                    return false;
+                }
+                
+                return true;
+            });
+        }
+        
+        $w("#repeater1").data = commentsToShow;
         $w("#repeater1").forEachItem(($item, itemData, index) => {
             // 这里可以根据需要更新每个重复项内的元素
         });
@@ -1164,6 +1195,150 @@ function setupSubmitButtonEvent() {
 }
 
 /**
+ * 获取评分筛选勾选框状态
+ */
+function isScoreFilterEnabled() {
+    try {
+        return $w("#scoreCheckbox").checked;
+    } catch (error) {
+        console.error("获取勾选框状态失败:", error);
+        return false;
+    }
+}
+
+/**
+ * 设置评分勾选框事件
+ */
+function setupScoreCheckboxEvent() {
+    $w("#scoreCheckbox").onChange(async (event) => {
+        try {
+            // 获取勾选框的当前状态
+            const isChecked = event.target.checked;
+            console.log(`正式评论筛选已${isChecked ? '启用' : '禁用'}`);
+            
+            // 当勾选框状态改变时，重新加载当前显示的评论
+            const dropdownFilterValue = $w("#dropdownFilter").value;
+            
+            if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+                // 如果选择了特定作品，重新加载该作品的评论
+                await setDropdownValue(parseInt(dropdownFilterValue));
+            } else if (dropdownFilterValue === "114514") {
+                // 如果选择的是"我的评论"，重新加载用户评论
+                await loadUserComments();
+            } else {
+                // 如果没有选择特定作品，显示所有作品的评论（支持正式评论筛选）
+                await loadAllFormalComments();
+            }
+        } catch (error) {
+            console.error("处理勾选框状态变化时出错:", error);
+        }
+    });
+}
+
+/**
+ * 加载所有作品的正式评论
+ */
+async function loadAllFormalComments() {
+    try {
+        // 查询所有主评论（限制数量以提升性能）
+        const results = await wixData.query("BOFcomment")
+            .isEmpty("replyTo")  // 只获取主评论
+            .descending("_createdDate")  // 按时间倒序，最新的在前
+            .limit(500)  // 限制最多500条评论
+            .find();
+        
+        let commentsToShow = results.items;
+        
+        // 如果勾选了正式评论筛选
+        if (isScoreFilterEnabled()) {
+            // 获取所有作品的所有者信息
+            const allWorks = await wixData.query("enterContest034").find();
+            const workOwnerMap = {};
+            allWorks.items.forEach(work => {
+                workOwnerMap[work.sequenceId] = work._owner;
+            });
+            
+            // 过滤掉自评
+            commentsToShow = results.items.filter(comment => {
+                // 排除自评（评论者是作品所有者）
+                const workOwnerId = workOwnerMap[comment.workNumber];
+                return comment._owner !== workOwnerId;
+            });
+        }
+        
+        $w("#repeater1").data = commentsToShow;
+        $w("#repeater1").forEachItem(($item, itemData, index) => {
+            // 这里可以根据需要更新每个重复项内的元素
+        });
+        
+        console.log(`已加载${commentsToShow.length}条${isScoreFilterEnabled() ? '正式' : ''}评论`);
+    } catch (err) {
+        console.error("加载所有评论失败", err);
+    }
+}
+
+/**
+ * 加载用户评论（考虑筛选状态）
+ */
+async function loadUserComments() {
+    // 检查用户验证状态
+    if (!currentUserId) {
+        console.log("用户未登录，无法查看个人评论");
+        $w("#repeater1").data = [];
+        return;
+    }
+    
+    if (!isUserVerified) {
+        console.log("用户未验证，无法查看个人评论");
+        $w("#repeater1").data = [];
+        return;
+    }
+    
+    try {
+        // 查询当前用户的所有评论
+        const results = await wixData.query("BOFcomment")
+            .eq("_owner", currentUserId)
+            .ascending("_createdDate")
+            .find();
+        
+        let commentsToShow = results.items;
+        
+        // 如果勾选了正式评论筛选
+        if (isScoreFilterEnabled()) {
+            // 获取所有作品的所有者信息
+            const allWorks = await wixData.query("enterContest034").find();
+            const workOwnerMap = {};
+            allWorks.items.forEach(work => {
+                workOwnerMap[work.sequenceId] = work._owner;
+            });
+            
+            // 过滤掉自评和楼中楼
+            commentsToShow = results.items.filter(comment => {
+                // 排除楼中楼回复
+                if (comment.replyTo) {
+                    return false;
+                }
+                
+                // 排除自评（评论者是作品所有者）
+                const workOwnerId = workOwnerMap[comment.workNumber];
+                if (comment._owner === workOwnerId) {
+                    return false;
+                }
+                
+                return true;
+            });
+        }
+        
+        $w("#repeater1").data = commentsToShow;
+        $w("#repeater1").forEachItem(($item, itemData, index) => {
+            // 这里可以根据需要更新每个重复项内的元素
+        });
+    } catch (err) {
+        console.error("查询评论失败", err);
+    }
+}
+
+/**
  * 设置下拉筛选器事件
  */
 function setupDropdownFilterEvent() {
@@ -1171,35 +1346,14 @@ function setupDropdownFilterEvent() {
         let selectedValue = $w("#dropdownFilter").value;
 
         if (selectedValue === "114514") {
-            // 检查用户验证状态
-            if (!currentUserId) {
-                console.log("用户未登录，无法查看个人评论");
-                $w("#repeater1").data = [];
-                return;
-            }
-            
-            if (!isUserVerified) {
-                console.log("用户未验证，无法查看个人评论");
-                $w("#repeater1").data = [];
-                return;
-            }
-            
-            try {
-                // 查询当前用户的所有评论（包括主评论和楼中楼回复）
-                const results = await wixData.query("BOFcomment")
-                    .eq("_owner", currentUserId)
-                    .ascending("_createdDate")
-                    .find();
-                
-                $w("#repeater1").data = results.items;
-                $w("#repeater1").forEachItem(($item, itemData, index) => {
-                    // 这里可以根据需要更新每个重复项内的元素
-                });
-            } catch (err) {
-                console.error("查询评论失败", err);
-            }
+            // 加载用户评论（考虑筛选状态）
+            await loadUserComments();
+        } else if (selectedValue && selectedValue !== "") {
+            // 选择了特定作品
+            await setDropdownValue(parseInt(selectedValue));
         } else {
-            // 待定
+            // 没有选择或选择了空值，显示所有评论
+            await loadAllFormalComments();
         }
     });
 }
