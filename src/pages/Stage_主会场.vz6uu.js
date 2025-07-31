@@ -174,11 +174,20 @@ $w.onReady(async function () {
                 $item("#showScore").text = "Sc";
                 $item("#showBackground").style.backgroundColor = "#8A2BE2"; // 紫色背景
             } else {
-                // 普通评论显示评分背景颜色和分数
-                const score = parseInt(itemData.score);
-                const redAmount = Math.floor(score / 1000 * 255);
-                $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
-                $item("#showScore").text = score.toString(); // 显示实际分数
+                // 普通评论：检查当前用户是否对该作品有正式评分
+                const userHasFormalRating = await checkUserHasFormalRating(itemData.workNumber);
+                
+                if (userHasFormalRating) {
+                    // 用户已有正式评分，显示评分背景颜色和分数
+                    const score = parseInt(itemData.score);
+                    const redAmount = Math.floor(score / 1000 * 255);
+                    $item("#showBackground").style.backgroundColor = `rgb(${redAmount}, 0, 0)`;
+                    $item("#showScore").text = score.toString(); // 显示实际分数
+                } else {
+                    // 用户未有正式评分，隐藏分数显示
+                    $item("#showBackground").style.backgroundColor = "#A9A9A9"; // 灰色背景
+                    $item("#showScore").text = "?"; // 显示问号而不是分数
+                }
             }
             
             // 确保普通评论的元素显示正常
@@ -190,19 +199,28 @@ $w.onReady(async function () {
 
         // 获取并显示评分数据（楼中楼回复不显示评分信息）
         if (!itemData.replyTo) {
-            const ratingData = await getRatingData(itemData.workNumber);
-            var averageScore = ratingData.averageScore;
-            var newRating = (averageScore - 0) / (1000 - 0) * (5.0 - 1.0) + 1.0;
+            // 检查当前用户是否对该作品有正式评分
+            const userHasFormalRating = await checkUserHasFormalRating(itemData.workNumber);
+            
+            if (userHasFormalRating) {
+                // 用户已有正式评分，显示评分信息
+                const ratingData = await getRatingData(itemData.workNumber);
+                var averageScore = ratingData.averageScore;
+                var newRating = (averageScore - 0) / (1000 - 0) * (5.0 - 1.0) + 1.0;
 
-            if (ratingData.numRatings >= 5) {
-                // 达到5人评分门槛，显示真实分数
-                $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${ratingData.numRatings}人评分)`;
-            } else if (ratingData.numRatings > 0) {
-                // 未达到5人评分门槛，隐藏分数
-                $item("#ratingsDisplay").text = `评分量不足(${ratingData.numRatings}人评分)`;
+                if (ratingData.numRatings >= 5) {
+                    // 达到5人评分门槛，显示真实分数
+                    $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${ratingData.numRatings}人评分)`;
+                } else if (ratingData.numRatings > 0) {
+                    // 未达到5人评分门槛，隐藏分数
+                    $item("#ratingsDisplay").text = `评分量不足(${ratingData.numRatings}人评分)`;
+                } else {
+                    // 没有评分
+                    $item("#ratingsDisplay").text = "暂无评分";
+                }
             } else {
-                // 没有评分
-                $item("#ratingsDisplay").text = "暂无评分";
+                // 用户未有正式评分，隐藏分数显示
+                $item("#ratingsDisplay").text = "提交您的评分以查看评分";
             }
         } else {
             // 楼中楼回复不显示评分信息
@@ -523,6 +541,47 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
 // ================================
 // 辅助函数
 // ================================
+
+/**
+ * 检查当前用户是否对某个作品有正式评分评价
+ * @param {number} workNumber - 作品编号
+ * @returns {Promise<boolean>} 是否有正式评分
+ */
+async function checkUserHasFormalRating(workNumber) {
+    // 如果用户未登录或未验证，返回false
+    if (!currentUserId || !isUserVerified) {
+        return false;
+    }
+    
+    try {
+        // 获取作品的所有者信息
+        const workResults = await wixData.query("enterContest034")
+            .eq("sequenceId", workNumber)
+            .find();
+        
+        let workOwnerId = null;
+        if (workResults.items.length > 0) {
+            workOwnerId = workResults.items[0]._owner;
+        }
+        
+        // 查询当前用户对该作品的主评论
+        const userComments = await wixData.query("BOFcomment")
+            .eq("workNumber", workNumber)
+            .eq("_owner", currentUserId)
+            .isEmpty("replyTo")  // 只查主评论
+            .find();
+        
+        // 检查是否有正式评分（非自评的主评论）
+        const hasFormalRating = userComments.items.some(comment => {
+            return comment._owner !== workOwnerId; // 不是自评
+        });
+        
+        return hasFormalRating;
+    } catch (error) {
+        console.error("检查用户正式评分状态失败:", error);
+        return false;
+    }
+}
 
 /**
  * 统一刷新两个repeater的函数
@@ -985,6 +1044,16 @@ async function setDropdownValue(sequenceId) {
 async function updateItemEvaluationDisplay($item, itemData) {
     try {
         const workNumber = itemData.sequenceId;
+        
+        // 检查当前用户是否对该作品有正式评分
+        const userHasFormalRating = await checkUserHasFormalRating(workNumber);
+        
+        if (!userHasFormalRating) {
+            // 用户未有正式评分，隐藏评分信息
+            $item("#approvalCountText").text = "";
+            $item("#box1").style.backgroundColor = 'transparent';
+            return;
+        }
         
         // 使用getRatingData函数获取评分数据（已排除作者自评）
         const ratingData = await getRatingData(workNumber);
