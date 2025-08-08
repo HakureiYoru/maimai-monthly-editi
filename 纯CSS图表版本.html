@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作品评分排行榜</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Dancing+Script:wght@700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: transparent;
+      font-family: 'Noto Sans SC', sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+      background: rgba(250, 250, 250, 0.83);
+      border-radius: 25px;
+      padding: 25px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(173, 216, 230, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 182, 193, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 40% 60%, rgba(144, 238, 144, 0.08) 0%, transparent 50%);
+    }
+
+    .chart-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .main-title {
+      font-family: 'Dancing Script', cursive;
+      font-size: clamp(28px, 4vw, 48px);
+      background: linear-gradient(135deg, #4A90E2, #7B68EE, #FF69B4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      text-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      font-weight: 700;
+    }
+
+    .subtitle {
+      font-size: clamp(14px, 2vw, 18px);
+      color: #666;
+      font-weight: 300;
+      letter-spacing: 1px;
+    }
+
+    .chart-container {
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .loading-spinner {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 400px;
+      font-size: 18px;
+      color: #7B68EE;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(123, 104, 238, 0.1);
+      border-left-color: #7B68EE;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 15px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .chart-legend {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+
+    .score-color {
+      background: linear-gradient(135deg, #4A90E2, #357ABD);
+    }
+
+    .comment-color {
+      background: linear-gradient(135deg, #FF6B9D, #E55A87);
+    }
+
+    /* 移除柱状图相关CSS样式 */
+
+    /* 卡片式排行榜 */
+    .ranking-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .rank-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(250, 250, 250, 0.8));
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .rank-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    /* 未评分作品的灰色样式 */
+    .rank-card.no-rating {
+      background: linear-gradient(135deg, rgba(169, 169, 169, 0.6), rgba(211, 211, 211, 0.6));
+      opacity: 0.7;
+    }
+
+    .rank-card.no-rating .work-number {
+      color: #999 !important;
+    }
+
+    .rank-card.no-rating .metric-value {
+      color: #999 !important;
+    }
+
+    .rank-card.no-rating::before {
+      background: #999 !important;
+    }
+
+    .rank-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--rank-color);
+    }
+
+    .rank-number {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--rank-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .work-number {
+      font-size: 32px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, var(--rank-color), var(--rank-color-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .metrics {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .metric {
+      flex: 1;
+      text-align: center;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .score-value {
+      color: #4A90E2;
+    }
+
+    .comment-value {
+      color: #FF6B9D;
+    }
+
+    .stats-info {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(123, 104, 238, 0.1);
+      border-radius: 16px;
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      border: 1px solid rgba(123, 104, 238, 0.2);
+    }
+
+    .view-toggle {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    .toggle-btn {
+      padding: 10px 20px;
+      border: 2px solid #4A90E2;
+      background: transparent;
+      color: #4A90E2;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .toggle-btn.active {
+      background: #4A90E2;
+      color: white;
+    }
+
+    .toggle-btn:hover {
+      background: #4A90E2;
+      color: white;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+
+    .no-data-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      
+      .container {
+        padding: 15px;
+        margin: 5px;
+      }
+      
+      .chart-container {
+        padding: 20px;
+        margin: 10px 0;
+      }
+      
+      .chart-header {
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+      
+      .chart-legend {
+        gap: 15px;
+      }
+      
+      .legend-item {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+
+      .ranking-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 10px;
+        margin: 2px;
+      }
+      
+      .chart-header {
+        padding: 10px;
+        margin-bottom: 15px;
+      }
+      
+      .chart-container {
+        padding: 15px;
+      }
+      
+      .chart-legend {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .view-toggle {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="chart-header">
+      <h1 class="main-title">🎵 作品评分排行榜 🎵</h1>
+      <p class="subtitle">基于评论热度和评分的综合排名</p>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-color score-color"></div>
+          <span>平均评分</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color comment-color"></div>
+          <span>评论数量</span>
+        </div>
+      </div>
+
+      <div class="view-toggle">
+        <button class="toggle-btn active" onclick="switchSort('comments')">按评论数量</button>
+        <button class="toggle-btn" onclick="switchSort('score')">按评分排序</button>
+      </div>
+      
+      <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner"></div>
+        正在加载数据...
+      </div>
+
+      <!-- 卡片式排行榜 -->
+      <div id="cardView" class="ranking-grid" style="display: none;"></div>
+
+      <!-- 移除柱状图视图 -->
+
+      <div class="no-data" id="noData" style="display: none;">
+        <div class="no-data-icon">📊</div>
+        <h3>暂无数据</h3>
+        <p>等待评论数据加载中...</p>
+      </div>
+      
+      <div class="stats-info" id="statsInfo" style="display: none;">
+        <span id="statsText"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chartData = null;
+    let currentView = 'cards';
+    let sortMode = 'comments'; // 'comments' 或 'score'
+
+    function log(message) {
+      console.log(`[纯CSS图表] ${message}`);
+    }
+
+    function switchSort(mode) {
+      sortMode = mode;
+      
+      // 更新按钮状态
+      document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // 如果有数据，重新渲染
+      if (chartData) {
+        renderChart(chartData);
+      }
+    }
+
+    function hideLoadingSpinner() {
+      document.getElementById('loadingSpinner').style.display = 'none';
+      document.getElementById('noData').style.display = 'none';
+    }
+
+    function showNoData() {
+      document.getElementById('loadingSpinner').style.display = 'none';
+      document.getElementById('cardView').style.display = 'none';
+      document.getElementById('noData').style.display = 'block';
+      document.getElementById('statsInfo').style.display = 'none';
+    }
+
+    function showStatsInfo(data) {
+      const statsInfo = document.getElementById('statsInfo');
+      const statsText = document.getElementById('statsText');
+      
+      const totalWorks = data.length;
+      const totalComments = data.reduce((sum, item) => sum + item.count, 0);
+      const avgScore = data.reduce((sum, item) => sum + item.score, 0) / totalWorks;
+      
+      statsText.textContent = `共显示 ${totalWorks} 个作品 • 总评论数: ${totalComments} • 平均评分: ${avgScore.toFixed(1)}`;
+      statsInfo.style.display = 'block';
+    }
+
+    function getRankColor(rank) {
+      switch(rank) {
+        case 1: return { color: '#FFD700', light: '#FFF8DC' }; // 金色
+        case 2: return { color: '#C0C0C0', light: '#F5F5F5' }; // 银色
+        case 3: return { color: '#CD7F32', light: '#F4E4BC' }; // 铜色
+        default: return { color: '#4A90E2', light: '#E3F2FD' }; // 蓝色
+      }
+    }
+
+    function createCardView(data) {
+      const cardView = document.getElementById('cardView');
+      cardView.innerHTML = '';
+
+      // 根据排序模式和评分状态对数据进行排序
+      let sortedData = [...data];
+      
+      // 分离已评分和未评分的作品
+      const ratedWorks = sortedData.filter(item => item.hasUserRating);
+      const unratedWorks = sortedData.filter(item => !item.hasUserRating);
+      
+      // 对已评分作品进行排序
+      if (sortMode === 'score') {
+        ratedWorks.sort((a, b) => b.score - a.score);
+      } else {
+        ratedWorks.sort((a, b) => b.count - a.count);
+      }
+      
+      // 对未评分作品进行排序（按编号大小排序）
+      unratedWorks.sort((a, b) => parseInt(a.workNumber) - parseInt(b.workNumber));
+      
+      // 合并数据：已评分的在前，未评分的在后
+      const finalData = [...ratedWorks, ...unratedWorks];
+
+      finalData.forEach((item, index) => {
+        const rank = index + 1;
+        const colors = getRankColor(rank);
+        
+        const card = document.createElement('div');
+        card.className = item.hasUserRating ? 'rank-card' : 'rank-card no-rating';
+        card.style.setProperty('--rank-color', colors.color);
+        card.style.setProperty('--rank-color-light', colors.light);
+        
+        // 对于未评分的作品，显示"?"而不是评分
+        const scoreDisplay = item.hasUserRating ? Math.round(item.score) : '?';
+        
+        card.innerHTML = `
+          <div class="rank-number">${rank}</div>
+          <div class="work-number">#${item.workNumber}</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">平均评分</div>
+              <div class="metric-value score-value">${scoreDisplay}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">评论数量</div>
+              <div class="metric-value comment-value">${item.count}</div>
+            </div>
+          </div>
+        `;
+
+        // 添加点击事件
+        card.onclick = () => {
+          log(`点击了作品 #${item.workNumber}`);
+        };
+
+        cardView.appendChild(card);
+      });
+    }
+
+    // 移除柱状图函数
+
+    function renderChart(data) {
+      hideLoadingSpinner();
+      
+      createCardView(data);
+      document.getElementById('cardView').style.display = 'grid';
+      
+      showStatsInfo(data);
+    }
+
+    function processMessage(data) {
+      try {
+        log(`接收到数据: ${data.workNumbers?.length || 0} 个作品`);
+        
+        if (data && data.workNumbers && data.scores && data.commentsCounts && data.userRatings) {
+          // 数据处理和排序
+          let combined = data.commentsCounts.map((count, index) => ({ 
+            count, 
+            score: data.scores[index] || 0, 
+            workNumber: data.workNumbers[index],
+            hasUserRating: data.userRatings[index] || false, // 用户是否评过该作品
+            index 
+          }));
+          
+          // 过滤掉无效数据
+          combined = combined.filter(item => item.workNumber && item.count > 0);
+          
+          // 取前20名以显示更多作品
+          combined = combined.slice(0, 20);
+
+          if (combined.length === 0) {
+            showNoData();
+            return;
+          }
+
+          chartData = combined;
+          renderChart(combined);
+          
+          const ratedCount = combined.filter(item => item.hasUserRating).length;
+          const unratedCount = combined.length - ratedCount;
+          log(`图表创建成功，显示 ${combined.length} 个作品（已评分: ${ratedCount}, 未评分: ${unratedCount}）`);
+        } else {
+          log('数据格式不正确');
+          showNoData();
+        }
+      } catch (error) {
+        log('处理数据时出错: ' + error.message);
+        showNoData();
+      }
+    }
+
+    // 页面加载
+    document.addEventListener('DOMContentLoaded', () => {
+      log('纯CSS图表页面加载完成');
+      
+      // 向父页面发送就绪消息
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'chart-ready' }, '*');
+          log('已向父页面发送就绪消息');
+        }
+      } catch (error) {
+        log('发送就绪消息失败: ' + error.message);
+      }
+      
+      // 5秒后显示测试数据
+      setTimeout(() => {
+        if (!chartData) {
+          log('5秒后仍未收到数据，显示测试图表');
+          const testData = {
+            workNumbers: ['1', '2', '3', '4', '5', '213', '42', '88', '156', '77'],
+            scores: [850, 750, 920, 680, 780, 962, 690, 810, 745, 665],
+            commentsCounts: [15, 8, 23, 5, 12, 7, 9, 11, 6, 4],
+            userRatings: [true, false, true, false, true, true, false, true, false, false]
+          };
+          processMessage(testData);
+        }
+      }, 5000);
+    });
+
+    // 多种消息监听方式
+    window.addEventListener('message', (event) => {
+      log('接收到消息');
+      processMessage(event.data);
+    });
+
+    window.receiveChartData = function(data) {
+      log('直接函数调用收到数据');
+      processMessage(data);
+    };
+
+    // 全局变量轮询
+    setInterval(() => {
+      if (window.chartData && !window.chartDataProcessed) {
+        log('轮询检测到全局变量数据');
+        processMessage(window.chartData);
+        window.chartDataProcessed = true;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
+
