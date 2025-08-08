@@ -15,6 +15,8 @@ const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
 let titleValue;
 const currentUserId = wixUsers.currentUser.id;
 let isUserVerified = false; // 用户验证状态
+let chartReady = false; // 图表是否就绪
+let chartDataBuffer = null; // 暂存图表数据
 
 // ================================
 // 用户验证函数
@@ -83,6 +85,8 @@ function updateCommentControlsVerificationStatus() {
     }
 }
 
+
+
 // ================================
 // 页面初始化
 // ================================
@@ -90,6 +94,22 @@ $w.onReady(async function () {
     // 检查用户验证状态
     await checkUserVerification();
     updateCommentControlsVerificationStatus();
+    
+    // 监听来自html2图表的消息
+    if (typeof window !== 'undefined') {
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'chart-ready') {
+                console.log('收到图表就绪消息');
+                chartReady = true;
+                // 如果有缓存的数据，立即发送
+                if (chartDataBuffer) {
+                    console.log('发送缓存的图表数据');
+                    sendChartData(chartDataBuffer);
+                    chartDataBuffer = null;
+                }
+            }
+        });
+    }
     
     // 初始化评论数据和重复器
     commentsCountByWorkNumber = await getAllCommentsCount();
@@ -751,6 +771,93 @@ function createDownloadHtml(downloadUrl, titleValue) {
 }
 
 // ================================
+// 图表数据发送函数
+// ================================
+
+/**
+ * 发送数据到图表
+ */
+function sendChartData(data) {
+    try {
+        // 检查html2元件是否存在
+        if (!$w('#html2')) {
+            console.error('html2元件不存在');
+            return false;
+        }
+        
+        console.log('准备发送图表数据:', { 
+            作品数量: data.workNumbers.length, 
+            最高评分: data.scores.length > 0 ? Math.max(...data.scores.filter(s => s > 0)) : 0,
+            最多评论: data.commentsCounts.length > 0 ? Math.max(...data.commentsCounts) : 0,
+            用户已评分作品数: data.userRatings ? data.userRatings.filter(r => r).length : 0
+        });
+        
+        const chartPayload = {
+            workNumbers: data.workNumbers,
+            scores: data.scores,
+            commentsCounts: data.commentsCounts,
+            userRatings: data.userRatings
+        };
+        
+        let success = false;
+        
+        // 方式1: 标准postMessage
+        try {
+            $w('#html2').postMessage(chartPayload);
+            console.log('方式1: postMessage发送成功');
+            success = true;
+        } catch (error) {
+            console.error('方式1: postMessage发送失败:', error);
+        }
+        
+        // 方式2: 通过全局变量（备用方案）
+        try {
+            // 尝试获取iframe的window对象
+            const iframe = document.querySelector('#html2 iframe') || 
+                         document.querySelector('iframe[id*="html2"]') ||
+                         document.querySelector('iframe');
+            
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.chartData = chartPayload;
+                iframe.contentWindow.chartDataProcessed = false;
+                console.log('方式2: 全局变量设置成功');
+                success = true;
+            }
+        } catch (error) {
+            console.error('方式2: 全局变量设置失败:', error);
+        }
+        
+        // 方式3: 直接调用函数（如果可以访问）
+        try {
+            setTimeout(() => {
+                const iframe = document.querySelector('#html2 iframe') || 
+                             document.querySelector('iframe[id*="html2"]') ||
+                             document.querySelector('iframe');
+                
+                if (iframe && iframe.contentWindow && iframe.contentWindow.receiveChartData) {
+                    iframe.contentWindow.receiveChartData(chartPayload);
+                    console.log('方式3: 直接函数调用成功');
+                    success = true;
+                }
+            }, 100);
+        } catch (error) {
+            console.error('方式3: 直接函数调用失败:', error);
+        }
+        
+        if (success) {
+            console.log('图表数据发送完成');
+        } else {
+            console.error('所有发送方式都失败了');
+        }
+        
+        return success;
+    } catch (error) {
+        console.error('发送图表数据时发生错误:', error);
+        return false;
+    }
+}
+
+// ================================
 // 数据处理函数
 // ================================
 
@@ -938,15 +1045,42 @@ async function loadData() {
         };
     });
 
+    // 检查当前用户对每个作品的评分状态
+    const userRatings = await Promise.all(uniqueItems.map(async (item) => {
+        return await checkUserHasFormalRating(parseInt(item.workNumber));
+    }));
+
     const workNumbers = uniqueItems.map(item => item.workNumber);
     const scores = uniqueItems.map(item => item.score);
     const commentsCounts = uniqueItems.map(item => item.commentCount);
 
-    $w('#html2').postMessage({
+    // 准备图表数据
+    const chartData = {
         workNumbers: workNumbers,
         scores: scores,
-        commentsCounts: commentsCounts
-    });
+        commentsCounts: commentsCounts,
+        userRatings: userRatings
+    };
+    
+    // 如果图表已就绪，直接发送数据
+    if (chartReady) {
+        console.log('图表已就绪，立即发送数据');
+        sendChartData(chartData);
+    } else {
+        // 图表未就绪，缓存数据
+        console.log('图表未就绪，缓存数据等待发送');
+        chartDataBuffer = chartData;
+        
+        // 备用方案：延迟3秒强制发送（以防消息机制失效）
+        setTimeout(() => {
+            if (chartDataBuffer) {
+                console.log('强制发送缓存的图表数据');
+                sendChartData(chartDataBuffer);
+                chartDataBuffer = null;
+                chartReady = true; // 标记为已发送
+            }
+        }, 3000);
+    }
 }
 
 /**

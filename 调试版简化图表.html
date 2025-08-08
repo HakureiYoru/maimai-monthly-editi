@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>调试版图表</title>
+  <style>
+    body {
+      background: transparent;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      margin: 0;
+    }
+    
+    .debug-container {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    
+    .loading {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .data-info {
+      background: #e2e3e5;
+      color: #383d41;
+      border: 1px solid #d6d8db;
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    
+    canvas {
+      width: 100% !important;
+      height: 300px !important;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+  <script src="https://unpkg.com/chart.js@4.4.0/dist/chart.min.js"></script>
+</head>
+<body>
+  <div class="debug-container">
+    <h2>🔧 图表调试模式</h2>
+    <div id="status" class="status loading">等待数据中...</div>
+    <div id="dataInfo" class="data-info" style="display: none;"></div>
+    <canvas id="debugChart" style="display: none;"></canvas>
+    
+    <h3>🕒 消息日志:</h3>
+    <div id="messageLog" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f8f9fa;"></div>
+  </div>
+
+  <script>
+    let chart = null;
+    let messageCount = 0;
+    
+    function log(message, type = 'info') {
+      messageCount++;
+      const timestamp = new Date().toLocaleTimeString();
+      const logDiv = document.getElementById('messageLog');
+      const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+      logDiv.innerHTML += `<div style="color: ${color};">[${timestamp}] ${message}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(`[调试图表] ${message}`);
+    }
+    
+    function updateStatus(message, type = 'loading') {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+    }
+    
+    function showDataInfo(data) {
+      const dataDiv = document.getElementById('dataInfo');
+      dataDiv.style.display = 'block';
+      dataDiv.textContent = `接收到的数据:
+作品数量: ${data.workNumbers?.length || 0}
+评分数量: ${data.scores?.length || 0}  
+评论数量: ${data.commentsCounts?.length || 0}
+示例作品: ${data.workNumbers?.slice(0, 3).join(', ') || '无'}
+示例评分: ${data.scores?.slice(0, 3).join(', ') || '无'}
+示例评论数: ${data.commentsCounts?.slice(0, 3).join(', ') || '无'}`;
+    }
+    
+    function createDebugChart(workNumbers, scores, commentsCounts) {
+      try {
+        log('开始创建图表...', 'info');
+        
+        if (!workNumbers || !scores || !commentsCounts) {
+          throw new Error('数据不完整');
+        }
+        
+        // 检查Chart.js是否加载
+        if (typeof Chart === 'undefined') {
+          log('Chart.js未加载，尝试创建简单图表', 'error');
+          createSimpleChart(workNumbers, scores, commentsCounts);
+          return;
+        }
+        
+        // 取前10个数据点
+        const maxItems = 10;
+        const labels = workNumbers.slice(0, maxItems).map(n => `#${n}`);
+        const scoreData = scores.slice(0, maxItems);
+        const commentData = commentsCounts.slice(0, maxItems);
+        
+        const ctx = document.getElementById('debugChart').getContext('2d');
+        
+        if (chart) {
+          chart.destroy();
+        }
+        
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: '评分',
+                data: scoreData,
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+                yAxisID: 'y-score'
+              },
+              {
+                label: '评论数',
+                data: commentData,
+                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1,
+                yAxisID: 'y-comment'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              'y-score': {
+                type: 'linear',
+                position: 'left',
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: '评分'
+                }
+              },
+              'y-comment': {
+                type: 'linear',
+                position: 'right',
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: '评论数'
+                },
+                grid: {
+                  drawOnChartArea: false
+                }
+              }
+            }
+          }
+        });
+        
+        document.getElementById('debugChart').style.display = 'block';
+        updateStatus('图表创建成功！', 'success');
+        log('图表创建成功', 'success');
+        
+      } catch (error) {
+        updateStatus('图表创建失败: ' + error.message, 'error');
+        log('图表创建失败，尝试备用方案: ' + error.message, 'error');
+        createSimpleChart(workNumbers, scores, commentsCounts);
+      }
+    }
+    
+    function createSimpleChart(workNumbers, scores, commentsCounts) {
+      try {
+        log('创建简单HTML图表...', 'info');
+        
+        // 取前10个数据点
+        const maxItems = 10;
+        const items = workNumbers.slice(0, maxItems).map((num, i) => ({
+          workNumber: num,
+          score: scores[i] || 0,
+          comments: commentsCounts[i] || 0
+        }));
+        
+        // 按评论数排序
+        items.sort((a, b) => b.comments - a.comments);
+        
+        const canvas = document.getElementById('debugChart');
+        canvas.style.display = 'none';
+        
+        // 创建HTML表格图表
+        const chartHtml = `
+          <div style="margin-top: 20px;">
+            <h3>📊 作品排行榜</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px;">
+              ${items.map((item, index) => `
+                <div style="
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  padding: 15px;
+                  border-radius: 8px;
+                  min-width: 120px;
+                  text-align: center;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                ">
+                  <div style="font-size: 18px; font-weight: bold;">作品 #${item.workNumber}</div>
+                  <div style="margin: 8px 0; font-size: 14px;">评分: ${Math.round(item.score)}</div>
+                  <div style="font-size: 14px;">评论: ${item.comments}条</div>
+                  <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">第${index + 1}名</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        
+        const container = canvas.parentNode;
+        const chartDiv = document.createElement('div');
+        chartDiv.innerHTML = chartHtml;
+        container.appendChild(chartDiv);
+        
+        updateStatus('简单图表创建成功！', 'success');
+        log('简单图表创建成功', 'success');
+        
+      } catch (error) {
+        updateStatus('所有图表方案都失败: ' + error.message, 'error');
+        log('所有图表方案都失败: ' + error.message, 'error');
+      }
+    }
+    
+    function processMessage(data) {
+      try {
+        log(`接收到消息: ${JSON.stringify(data).substring(0, 100)}...`);
+        
+        if (data && data.workNumbers && data.scores && data.commentsCounts) {
+          log('数据格式正确，开始处理', 'success');
+          showDataInfo(data);
+          createDebugChart(data.workNumbers, data.scores, data.commentsCounts);
+        } else {
+          log('数据格式不正确或缺少必要字段', 'error');
+        }
+      } catch (error) {
+        log('处理消息时出错: ' + error.message, 'error');
+      }
+    }
+    
+    // 页面加载
+    document.addEventListener('DOMContentLoaded', () => {
+      log('调试图表页面加载完成');
+      updateStatus('等待父页面数据...', 'loading');
+      
+      // 向父页面发送就绪消息
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'chart-ready' }, '*');
+          log('已向父页面发送就绪消息');
+        }
+      } catch (error) {
+        log('发送就绪消息失败: ' + error.message, 'error');
+      }
+      
+      // 5秒后显示测试数据
+      setTimeout(() => {
+        if (!chart) {
+          log('5秒后仍未收到数据，显示测试图表');
+          updateStatus('显示测试数据', 'loading');
+          const testData = {
+            workNumbers: ['1', '2', '3', '4', '5'],
+            scores: [850, 750, 920, 680, 780],
+            commentsCounts: [15, 8, 23, 5, 12]
+          };
+          processMessage(testData);
+        }
+      }, 5000);
+    });
+    
+    // 多种消息监听方式
+    window.addEventListener('message', (event) => {
+      log(`标准消息监听收到: origin=${event.origin}`);
+      processMessage(event.data);
+    });
+    
+    window.receiveChartData = function(data) {
+      log('直接函数调用收到数据');
+      processMessage(data);
+    };
+    
+    // 全局变量轮询
+    setInterval(() => {
+      if (window.chartData && !window.chartDataProcessed) {
+        log('轮询检测到全局变量数据');
+        processMessage(window.chartData);
+        window.chartDataProcessed = true;
+      }
+    }, 1000);
+    
+    // 让父页面能够访问这个函数
+    window.debugChart = {
+      processMessage: processMessage,
+      log: log
+    };
+    
+  </script>
+</body>
+</html>
