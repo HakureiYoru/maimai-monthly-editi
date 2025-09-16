@@ -155,12 +155,39 @@ $w.onReady(async function () {
         // 检查并显示是否已评论
         await updateCommentStatus($item, itemData);
         
+        // 如果作品已淘汰，应用灰色显示效果
+        if (itemData.isDq === true) {
+            // 设置整体容器为灰色透明度
+            $item("#container2").style.opacity = "0.5";
+            $item("#container2").style.filter = "grayscale(100%)";
+            // 也可以设置背景色为灰色
+            $item("#container2").style.backgroundColor = "rgba(128, 128, 128, 0.2)";
+        }
+        
         // 设置事件监听器
         setupItemEventListeners($item, itemData, downloadUrl);
     });
 
     // 设置重复器1的onItemReady事件（评论显示）
     $w("#repeater1").onItemReady(async ($item, itemData, index) => {
+        // 检查作品是否已淘汰，如果是，为评论添加前缀
+        let commentText = itemData.comment;
+        try {
+            const workResults = await wixData.query("enterContest034")
+                .eq("sequenceId", itemData.workNumber)
+                .find();
+            
+            if (workResults.items.length > 0 && workResults.items[0].isDq === true) {
+                // 作品已淘汰，添加前缀
+                commentText = "*该作品已淘汰*" + commentText;
+            }
+        } catch (error) {
+            console.error("检查作品淘汰状态失败", error);
+        }
+        
+        // 更新评论显示内容
+        $item("#CommentBox").value = commentText;
+        
         // 检查是否为楼中楼回复
         if (itemData.replyTo) {
             // 楼中楼回复显示
@@ -339,14 +366,24 @@ $w.onReady(async function () {
 
 /**
  * 检查并显示是否已评论
+ * 优先级顺序：已淘汰 > 未登录 > 未验证 > 评论状态
  */
 async function updateCommentStatus($item, itemData) {
-    if (!currentUserId) {
-        $item("#ifComment").text = "未登录";
-        $item("#ifComment").style.color = "#A9A9A9"; // 灰色字体
+    // 最高优先级：检查作品是否已淘汰
+    if (itemData.isDq === true) {
+        $item("#ifComment").text = "已淘汰";
+        $item("#ifComment").style.color = "#808080"; // 深灰色字体
         return;
     }
     
+    // 第二优先级：检查用户登录状态
+    if (!currentUserId) {
+        $item("#ifComment").text = "未登录";
+        $item("#ifComment").style.color = "#A9A9A9"; // 浅灰色字体
+        return;
+    }
+    
+    // 第三优先级：检查用户验证状态
     if (!isUserVerified) {
         $item("#ifComment").text = "未验证";
         $item("#ifComment").style.color = "#FF0000"; // 红色字体
@@ -382,38 +419,53 @@ function setupWorkSelectionEvent() {
     $w("#inputNumber").onChange(async () => {
         const workNumber = parseInt($w("#inputNumber").value);
         
-        // 首先检查用户验证状态
-        if (!currentUserId) {
-            $w("#Comment").value = "";
-            $w("#inputScore").value = "";
-            $w("#submit").disable();
-            $w("#submit").label = "未登录";
-            $w("#Comment").disable();
-            $w("#inputScore").disable();
-            return;
-        }
-        
-        if (!isUserVerified) {
-            $w("#Comment").value = "";
-            $w("#inputScore").value = "";
-            $w("#submit").disable();
-            $w("#submit").label = "未验证";
-            $w("#Comment").disable();
-            $w("#inputScore").disable();
-            return;
-        }
-        
-        if (workNumber && currentUserId && isUserVerified) {
+        // 如果选择了作品，先检查作品状态
+        if (workNumber) {
             try {
-                // 先检查是否为作者自己的作品
+                // 获取作品信息
                 const workResults = await wixData.query("enterContest034")
                     .eq("sequenceId", workNumber)
                     .find();
                 
                 let isAuthor = false;
+                let isWorkDQ = false;
                 if (workResults.items.length > 0) {
                     const workOwner = workResults.items[0]._owner;
                     isAuthor = (currentUserId === workOwner);
+                    isWorkDQ = workResults.items[0].isDq === true;
+                }
+                
+                // 最高优先级：如果作品已淘汰，禁用评论功能
+                if (isWorkDQ) {
+                    $w("#Comment").value = "";
+                    $w("#inputScore").value = "";
+                    $w("#submit").disable();
+                    $w("#submit").label = "作品已淘汰";
+                    $w("#Comment").disable();
+                    $w("#inputScore").disable();
+                    return;
+                }
+                
+                // 第二优先级：检查用户登录状态
+                if (!currentUserId) {
+                    $w("#Comment").value = "";
+                    $w("#inputScore").value = "";
+                    $w("#submit").disable();
+                    $w("#submit").label = "未登录";
+                    $w("#Comment").disable();
+                    $w("#inputScore").disable();
+                    return;
+                }
+                
+                // 第三优先级：检查用户验证状态
+                if (!isUserVerified) {
+                    $w("#Comment").value = "";
+                    $w("#inputScore").value = "";
+                    $w("#submit").disable();
+                    $w("#submit").label = "未验证";
+                    $w("#Comment").disable();
+                    $w("#inputScore").disable();
+                    return;
                 }
                 
                 if (isAuthor) {
@@ -457,14 +509,29 @@ function setupWorkSelectionEvent() {
             } catch (err) {
                 console.error("查询评论失败", err);
             }
-        } else if (!workNumber) {
-            // 如果没有选择作品，重置所有控件
+        } else {
+            // 如果没有选择作品，根据用户状态设置控件
             $w("#Comment").value = "";
             $w("#inputScore").value = "";
-            $w("#submit").enable();
-            $w("#submit").label = "提交评论";
-            $w("#Comment").enable();
-            $w("#inputScore").enable();
+            
+            // 按优先级检查用户状态
+            if (!currentUserId) {
+                $w("#submit").disable();
+                $w("#submit").label = "未登录";
+                $w("#Comment").disable();
+                $w("#inputScore").disable();
+            } else if (!isUserVerified) {
+                $w("#submit").disable();
+                $w("#submit").label = "未验证";
+                $w("#Comment").disable();
+                $w("#inputScore").disable();
+            } else {
+                // 用户已登录且已验证，启用控件
+                $w("#submit").enable();
+                $w("#submit").label = "提交评论";
+                $w("#Comment").enable();
+                $w("#inputScore").enable();
+            }
         }
     });
 }
@@ -875,10 +942,11 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
 
     let results = await query.limit(1000).find();
 
-    // 更新下拉菜单选项
+    // 更新下拉菜单选项（过滤掉已淘汰的作品）
+    const filteredItems = results.items.filter(item => item.isDq !== true);
     const options = [
         { "label": "Please Choose ID", "value": "" }
-    ].concat(results.items.map(item => {
+    ].concat(filteredItems.map(item => {
         return { "label": item.sequenceId + " - " + item.firstName, "value": item.sequenceId.toString() };
     }));
 
@@ -1325,17 +1393,25 @@ function setupSubmitButtonEvent() {
             const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
             const isScoreInRange = score >= 100 && score <= 1000;
 
-            // 额外检查：确保用户没有重复评论主评论（除非是作者自己）
+            // 额外检查：确保用户没有重复评论主评论（除非是作者自己）以及作品未被淘汰
             if (currentUserId) {
-                // 先检查是否为作者自己的作品
+                // 先检查是否为作者自己的作品以及作品是否已淘汰
                 const workResults = await wixData.query("enterContest034")
                     .eq("sequenceId", workNumber)
                     .find();
                 
                 let isAuthor = false;
+                let isWorkDQ = false;
                 if (workResults.items.length > 0) {
                     const workOwner = workResults.items[0]._owner;
                     isAuthor = (currentUserId === workOwner);
+                    isWorkDQ = workResults.items[0].isDq === true;
+                }
+                
+                // 如果作品已淘汰，阻止提交评论
+                if (isWorkDQ) {
+                    console.log('作品已淘汰，阻止提交评论');
+                    return;
                 }
                 
                 if (!isAuthor) {
