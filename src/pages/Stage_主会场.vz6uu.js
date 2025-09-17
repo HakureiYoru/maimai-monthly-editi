@@ -709,19 +709,13 @@ async function displayAuthorInfo($item, itemData) {
       }
     }
 
-    if (contestItem && contestOwnerId) {
+    // 设置text15显示作品标题
+    if (contestItem && contestItem.firstName) {
       $item("#text15").text = contestItem.firstName;
-
-      // 检查是否为作者自评，设置深蓝色背景
-      if (itemData._owner === contestOwnerId) {
-        $item("#container3").style.backgroundColor = "#1E3A8A";
-      } else {
-        // 非作者评论保持默认背景
-        $item("#container3").style.backgroundColor = "";
-      }
     } else {
-      $item("#text15").text = "Unknown";
+      $item("#text15").text = "未知作品";
     }
+   
   } catch (error) {
     console.error("显示作者信息失败:", error);
     $item("#text15").text = "Unknown";
