@@ -1,0 +1,683 @@
+/**
+ * 评分任务管理系统 - 后端核心算法
+ * 
+ * 功能：
+ * 1. 基于冷门权重的任务分配
+ * 2. 单任务推送机制
+ * 3. 自动同步用户评分记录
+ */
+
+import wixData from 'wix-data';
+
+const COLLECTIONS = {
+  USER_TASKS: 'UserRatingTasks',
+  COMMENTS: 'BOFcomment',
+  WORKS: 'enterContest034',
+  REGISTRATIONS: 'jobApplication089'
+};
+
+const TARGET_RATING_COUNT = 20; // 目标评分数
+const TARGET_USER_COMPLETION = 20; // 用户目标完成数
+
+/**
+ * 获取用户任务数据（主入口）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Object>} 任务数据
+ */
+export async function getUserTaskData(userId) {
+  try {
+    // 1. 获取或创建用户任务记录
+    let taskRecord = await getUserTaskRecord(userId);
+    
+    // 2. 同步用户实际评分记录
+    const actualRatings = await getUserCompletedRatings(userId);
+    const mergedCompleted = [...new Set([...taskRecord.completedTasks, ...actualRatings])];
+    
+    // 3. 更新任务记录（如果有新的评分）
+    if (mergedCompleted.length > taskRecord.completedTasks.length) {
+      taskRecord.completedTasks = mergedCompleted;
+      taskRecord.totalCompleted = mergedCompleted.length;
+      await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+    }
+    
+    // 4. 检查当前任务状态
+    let currentTaskInfo = null;
+    
+    if (!taskRecord.currentTask || taskRecord.currentTask.status === 'completed') {
+      // 没有任务或已完成，分配新任务
+      if (taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
+        const newTask = await assignNextTask(userId, taskRecord);
+        if (newTask) {
+          currentTaskInfo = {
+            workNumber: newTask.workNumber,
+            weight: newTask.weight,
+            currentRatings: newTask.currentRatings,
+            assignedDate: new Date(),
+            status: 'pending'
+          };
+          
+          // 更新记录
+          taskRecord.currentTask = currentTaskInfo;
+          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+        }
+      }
+    } else {
+      // 有待完成任务，更新其实时信息
+      const workInfo = await getWorkInfo(taskRecord.currentTask.workNumber);
+      if (workInfo) {
+        currentTaskInfo = {
+          ...taskRecord.currentTask,
+          weight: calculateColdnessWeight(workInfo),
+          currentRatings: await getWorkValidRatingCount(workInfo.sequenceId)
+        };
+      } else {
+        // 作品可能被删除或淘汰，分配新任务
+        const newTask = await assignNextTask(userId, taskRecord);
+        if (newTask) {
+          currentTaskInfo = {
+            workNumber: newTask.workNumber,
+            weight: newTask.weight,
+            currentRatings: newTask.currentRatings,
+            assignedDate: new Date(),
+            status: 'pending'
+          };
+          taskRecord.currentTask = currentTaskInfo;
+          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+        }
+      }
+    }
+    
+    // 5. 生成建议任务列表（最多3条）
+    const suggestedTasks = await getSuggestedTasks(userId, taskRecord, 3);
+
+    return {
+      currentTask: currentTaskInfo,
+      suggestedTasks,
+      completedTasks: taskRecord.completedTasks.sort((a, b) => b - a),
+      totalCompleted: taskRecord.totalCompleted,
+      targetCompletion: TARGET_USER_COMPLETION
+    };
+    
+  } catch (error) {
+    console.error('获取用户任务数据失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 计算建议任务列表（最多 limit 条）
+ * @param {string} userId
+ * @param {object} taskRecord
+ * @param {number} limit
+ * @returns {Promise<Array<{workNumber:number, weight:number, currentRatings:number}>>}
+ */
+async function getSuggestedTasks(userId, taskRecord, limit = 3) {
+  try {
+    const completedWorks = taskRecord.completedTasks || [];
+    const userOwnWork = await getUserOwnWork(userId);
+
+    const allWorksResult = await wixData
+      .query(COLLECTIONS.WORKS)
+      .ne('isDq', true)
+      .limit(1000)
+      .find();
+
+    const candidateWorks = [];
+    for (const work of allWorksResult.items) {
+      if (completedWorks.includes(work.sequenceId) || work.sequenceId === userOwnWork) {
+        continue;
+      }
+      const coldnessWeight = calculateColdnessWeight(work);
+      if (coldnessWeight <= 0) continue;
+      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
+      candidateWorks.push({
+        workNumber: work.sequenceId,
+        weight: coldnessWeight,
+        currentRatings: validRatingCount,
+        submissionDate: work._createdDate
+      });
+    }
+
+    if (candidateWorks.length === 0) return [];
+    candidateWorks.sort((a, b) => b.weight - a.weight);
+    return candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
+  } catch (e) {
+    console.error('获取建议任务失败:', e);
+    return [];
+  }
+}
+
+/**
+ * 标记任务完成
+ * @param {string} userId - 用户ID
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<Object>} 完成结果
+ */
+export async function markTaskCompleted(userId, workNumber) {
+  try {
+    const taskRecord = await getUserTaskRecord(userId);
+    
+    // 检查这个作品是否在当前任务或建议任务中
+    const suggestedTasks = await getSuggestedTasks(userId, taskRecord, 3);
+    const isInTaskList = 
+      (taskRecord.currentTask && taskRecord.currentTask.workNumber === workNumber) ||
+      suggestedTasks.some(t => t.workNumber === workNumber);
+    
+    // 只有在任务列表中的作品才计入完成
+    let taskCompleted = false;
+    if (isInTaskList) {
+      // 添加到完成列表（去重）
+      if (!taskRecord.completedTasks.includes(workNumber)) {
+        taskRecord.completedTasks.push(workNumber);
+        taskRecord.totalCompleted = taskRecord.completedTasks.length;
+        taskCompleted = true;
+      }
+      
+      // 标记当前任务为完成
+      if (taskRecord.currentTask && taskRecord.currentTask.workNumber === workNumber) {
+        taskRecord.currentTask.status = 'completed';
+      }
+      
+      await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+      
+      // 自动分配下一个任务
+      if (taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
+        const nextTask = await assignNextTask(userId, taskRecord);
+        if (nextTask) {
+          taskRecord.currentTask = {
+            workNumber: nextTask.workNumber,
+            weight: nextTask.weight,
+            currentRatings: nextTask.currentRatings,
+            assignedDate: new Date(),
+            status: 'pending'
+          };
+          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      taskCompleted: taskCompleted,
+      isInTaskList: isInTaskList,
+      completedCount: taskRecord.totalCompleted
+    };
+    
+  } catch (error) {
+    console.error('标记任务完成失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 为用户分配下一个任务
+ * @param {string} userId - 用户ID
+ * @param {Object} taskRecord - 用户任务记录
+ * @returns {Promise<Object|null>} 新任务信息
+ */
+async function assignNextTask(userId, taskRecord) {
+  try {
+    // 1. 获取用户已完成的作品列表
+    const completedWorks = taskRecord.completedTasks || [];
+    
+    // 2. 获取用户自己的作品（排除）
+    const userOwnWork = await getUserOwnWork(userId);
+    
+    // 3. 获取所有活跃作品
+    const allWorksResult = await wixData
+      .query(COLLECTIONS.WORKS)
+      .ne('isDq', true)
+      .limit(1000)
+      .find();
+    
+    // 4. 计算候选作品的冷门权重
+    const candidateWorks = [];
+    
+    for (const work of allWorksResult.items) {
+      // 排除已评分和自己的作品
+      if (completedWorks.includes(work.sequenceId) || 
+          work.sequenceId === userOwnWork) {
+        continue;
+      }
+      
+      // 计算冷门权重
+      const coldnessWeight = calculateColdnessWeight(work);
+      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
+      
+      // 只考虑未达标的作品（权重>0）
+      if (coldnessWeight > 0) {
+        candidateWorks.push({
+          workNumber: work.sequenceId,
+          weight: coldnessWeight,
+          currentRatings: validRatingCount,
+          submissionDate: work._createdDate
+        });
+      }
+    }
+    
+    // 5. 没有候选作品
+    if (candidateWorks.length === 0) {
+      return null;
+    }
+    
+    // 6. 按权重排序
+    candidateWorks.sort((a, b) => b.weight - a.weight);
+    
+    // 7. 从前5个高权重作品中随机选择（避免集中）
+    const topCount = Math.min(5, candidateWorks.length);
+    const topCandidates = candidateWorks.slice(0, topCount);
+    const selectedIndex = Math.floor(Math.random() * topCandidates.length);
+    const selectedWork = topCandidates[selectedIndex];
+    
+    return {
+      workNumber: selectedWork.workNumber,
+      weight: selectedWork.weight,
+      currentRatings: selectedWork.currentRatings
+    };
+    
+  } catch (error) {
+    console.error('分配任务失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 计算作品的冷门权重（0-100）
+ * 权重越高表示越冷门，越需要关注
+ * 
+ * @param {Object} work - 作品对象
+ * @returns {number} 冷门权重
+ */
+function calculateColdnessWeight(work) {
+  const daysSinceSubmission = getDaysSinceSubmission(work);
+  const currentRatings = work.currentRatingCount || 0;
+  
+  // 已达标，权重为0
+  if (currentRatings >= TARGET_RATING_COUNT) {
+    return 0;
+  }
+  
+  // 计算期望评分数（基于时间的线性模型）
+  let expectedRatings = 0;
+  if (daysSinceSubmission <= 7) {
+    expectedRatings = Math.floor(daysSinceSubmission * 1.43); // 7天达到10个
+  } else if (daysSinceSubmission <= 30) {
+    expectedRatings = 10 + Math.floor((daysSinceSubmission - 7) * 0.43); // 30天达到20个
+  } else {
+    expectedRatings = TARGET_RATING_COUNT;
+  }
+  
+  // 计算评分缺口
+  const deficit = Math.max(0, expectedRatings - currentRatings);
+  
+  // 基础权重：缺口比例
+  const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
+  const baseWeight = deficitRatio * 60; // 最大60分
+  
+  // 时间紧迫度加成
+  let urgencyBonus = 0;
+  if (daysSinceSubmission > 7 && currentRatings < 10) {
+    urgencyBonus = 20;
+  }
+  if (daysSinceSubmission > 14 && currentRatings < 15) {
+    urgencyBonus = 30;
+  }
+  if (daysSinceSubmission > 21 && currentRatings < 18) {
+    urgencyBonus = 40;
+  }
+  
+  // 总权重
+  const totalWeight = Math.min(100, baseWeight + urgencyBonus);
+  
+  return Math.round(totalWeight);
+}
+
+/**
+ * 获取用户任务记录
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Object>} 任务记录
+ */
+async function getUserTaskRecord(userId) {
+  try {
+    const results = await wixData
+      .query(COLLECTIONS.USER_TASKS)
+      .eq('userId', userId)
+      .find();
+    
+    if (results.items.length === 0) {
+      // 创建新记录
+      const newRecord = {
+        userId: userId,
+        currentTask: null,
+        completedTasks: [],
+        totalCompleted: 0
+      };
+      
+      const inserted = await wixData.insert(COLLECTIONS.USER_TASKS, newRecord);
+      return inserted;
+    }
+    
+    return results.items[0];
+    
+  } catch (error) {
+    console.error('获取用户任务记录失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 获取用户已完成的评分作品列表
+ * @param {string} userId - 用户ID
+ * @returns {Promise<number[]>} 作品序号数组
+ */
+async function getUserCompletedRatings(userId) {
+  try {
+    let allComments = [];
+    let hasMore = true;
+    let skipCount = 0;
+    const limit = 100;
+    
+    while (hasMore) {
+      const results = await wixData
+        .query(COLLECTIONS.COMMENTS)
+        .eq('_owner', userId)
+        .isEmpty('replyTo')
+        .skip(skipCount)
+        .limit(limit)
+        .find();
+      
+      allComments = allComments.concat(results.items);
+      skipCount += results.items.length;
+      hasMore = results.items.length === limit;
+    }
+    
+    // 提取作品序号（去重）
+    const workNumbers = [...new Set(allComments.map(c => c.workNumber))];
+    return workNumbers;
+    
+  } catch (error) {
+    console.error('获取用户评分记录失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 获取作品信息
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<Object|null>} 作品信息
+ */
+async function getWorkInfo(workNumber) {
+  try {
+    const results = await wixData
+      .query(COLLECTIONS.WORKS)
+      .eq('sequenceId', workNumber)
+      .find();
+    
+    if (results.items.length > 0) {
+      return results.items[0];
+    }
+    return null;
+    
+  } catch (error) {
+    console.error('获取作品信息失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 获取作品的有效评分数（排除作者自评）
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<number>} 有效评分数
+ */
+async function getWorkValidRatingCount(workNumber) {
+  try {
+    // 获取所有评论
+    const comments = await wixData
+      .query(COLLECTIONS.COMMENTS)
+      .eq('workNumber', workNumber)
+      .isEmpty('replyTo')
+      .find();
+    
+    // 获取作品所有者
+    const work = await getWorkInfo(workNumber);
+    if (!work) return 0;
+    
+    const workOwnerId = work._owner;
+    
+    // 排除作者自评
+    const validRatings = comments.items.filter(c => c._owner !== workOwnerId);
+    
+    return validRatings.length;
+    
+  } catch (error) {
+    console.error('获取作品评分数失败:', error);
+    return 0;
+  }
+}
+
+/**
+ * 获取用户自己的作品序号
+ * @param {string} userId - 用户ID
+ * @returns {Promise<number|null>} 作品序号
+ */
+async function getUserOwnWork(userId) {
+  try {
+    const results = await wixData
+      .query(COLLECTIONS.WORKS)
+      .eq('_owner', userId)
+      .find();
+    
+    return results.items.length > 0 ? results.items[0].sequenceId : null;
+    
+  } catch (error) {
+    console.error('获取用户作品失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 计算作品提交天数
+ * @param {Object} work - 作品对象
+ * @returns {number} 天数
+ */
+function getDaysSinceSubmission(work) {
+  const now = new Date();
+  const submissionDate = new Date(work._createdDate);
+  const diffTime = Math.abs(now - submissionDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+/**
+ * 同步所有用户的评分记录（定时任务）
+ * 每日运行一次
+ */
+export async function syncAllUserRatings() {
+  try {
+    console.log('开始同步所有用户评分记录...');
+    
+    // 获取所有已报名用户
+    const registeredUsers = await getRegisteredUsers();
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of registeredUsers) {
+      try {
+        const taskRecord = await getUserTaskRecord(user.userId);
+        const actualRatings = await getUserCompletedRatings(user.userId);
+        
+        // 合并记录
+        const mergedCompleted = [...new Set([...taskRecord.completedTasks, ...actualRatings])];
+        
+        if (mergedCompleted.length > taskRecord.completedTasks.length) {
+          taskRecord.completedTasks = mergedCompleted;
+          taskRecord.totalCompleted = mergedCompleted.length;
+          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+        }
+        
+        // 如果没有当前任务，分配一个
+        if ((!taskRecord.currentTask || taskRecord.currentTask.status === 'completed') &&
+            taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
+          await assignNextTask(user.userId, taskRecord);
+        }
+        
+        successCount++;
+        
+      } catch (error) {
+        console.error(`同步用户 ${user.userId} 失败:`, error);
+        errorCount++;
+      }
+    }
+    
+    console.log(`同步完成: 成功 ${successCount}, 失败 ${errorCount}`);
+    
+    return {
+      success: true,
+      successCount,
+      errorCount
+    };
+    
+  } catch (error) {
+    console.error('同步评分记录失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 获取所有已报名的参赛用户
+ * @returns {Promise<Array>} 用户列表
+ */
+async function getRegisteredUsers() {
+  try {
+    let allRegistrations = [];
+    let hasMore = true;
+    let skipCount = 0;
+    const limit = 100;
+    
+    while (hasMore) {
+      const results = await wixData
+        .query(COLLECTIONS.REGISTRATIONS)
+        .skip(skipCount)
+        .limit(limit)
+        .find();
+      
+      allRegistrations = allRegistrations.concat(results.items);
+      skipCount += results.items.length;
+      hasMore = results.items.length === limit;
+    }
+    
+    // 提取用户ID（去重）
+    const userIds = [...new Set(allRegistrations.map(reg => reg._owner).filter(id => id))];
+    
+    return userIds.map(userId => ({ userId }));
+    
+  } catch (error) {
+    console.error('获取参赛用户失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 更新所有作品的评分计数（定时任务）
+ * 每日运行一次
+ */
+export async function updateAllWorkRatingCounts() {
+  try {
+    console.log('开始更新所有作品评分计数...');
+    
+    const allWorks = await wixData
+      .query(COLLECTIONS.WORKS)
+      .limit(1000)
+      .find();
+    
+    let updateCount = 0;
+    
+    for (const work of allWorks.items) {
+      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
+      
+      if (work.currentRatingCount !== validRatingCount) {
+        work.currentRatingCount = validRatingCount;
+        await wixData.update(COLLECTIONS.WORKS, work);
+        updateCount++;
+      }
+    }
+    
+    console.log(`更新完成: ${updateCount} 个作品`);
+    
+    return {
+      success: true,
+      updateCount
+    };
+    
+  } catch (error) {
+    console.error('更新作品评分计数失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 获取系统统计信息（管理用）
+ */
+export async function getSystemStats() {
+  try {
+    // 获取所有任务记录
+    const allTasks = await wixData
+      .query(COLLECTIONS.USER_TASKS)
+      .limit(1000)
+      .find();
+    
+    // 获取所有作品
+    const allWorks = await wixData
+      .query(COLLECTIONS.WORKS)
+      .ne('isDq', true)
+      .limit(1000)
+      .find();
+    
+    // 统计用户完成情况
+    const completionStats = {
+      completed20: 0,
+      completed10to19: 0,
+      completed1to9: 0,
+      completed0: 0
+    };
+    
+    allTasks.items.forEach(task => {
+      const count = task.totalCompleted || 0;
+      if (count >= 20) completionStats.completed20++;
+      else if (count >= 10) completionStats.completed10to19++;
+      else if (count >= 1) completionStats.completed1to9++;
+      else completionStats.completed0++;
+    });
+    
+    // 统计作品评分情况
+    const workStats = {
+      reached20: 0,
+      reached10to19: 0,
+      reached1to9: 0,
+      reached0: 0
+    };
+    
+    for (const work of allWorks.items) {
+      const count = work.currentRatingCount || 0;
+      if (count >= 20) workStats.reached20++;
+      else if (count >= 10) workStats.reached10to19++;
+      else if (count >= 1) workStats.reached1to9++;
+      else workStats.reached0++;
+    }
+    
+    return {
+      totalUsers: allTasks.items.length,
+      totalWorks: allWorks.items.length,
+      userCompletion: completionStats,
+      workRatings: workStats,
+      timestamp: new Date()
+    };
+    
+  } catch (error) {
+    console.error('获取系统统计失败:', error);
+    throw error;
+  }
+}
+
+

@@ -492,6 +492,63 @@
         }
       }
     },
+    "ratingTaskManager.jsw": {
+      "getUserTaskData": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "markTaskCompleted": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "syncAllUserRatings": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": false
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "updateAllWorkRatingCounts": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": false
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "getSystemStats": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": false
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      }
+    },
     "contestManagement.jsw": {
       "checkIfUserVoted": {
         "siteOwner": {

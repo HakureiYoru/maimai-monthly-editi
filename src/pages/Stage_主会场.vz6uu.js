@@ -11,6 +11,7 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
+import { markTaskCompleted } from "backend/ratingTaskManager.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -1200,6 +1201,20 @@ function setupSubmitButtonEvent() {
             await updateUserPoints(currentUserId, 1, false, false);
           } catch (error) {
             console.error("Error updating user points:", error);
+          }
+          
+          // 标记任务完成（仅当作品在任务列表中时）
+          try {
+            const result = await markTaskCompleted(currentUserId, workNumber);
+            if (result.taskCompleted) {
+              console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/20)`);
+            } else if (result.isInTaskList) {
+              console.log(`作品 #${workNumber} 已在完成列表中`);
+            } else {
+              console.log(`作品 #${workNumber} 不在当前任务列表中，不计入任务完成`);
+            }
+          } catch (error) {
+            console.error("Error marking task completed:", error);
           }
         }
 

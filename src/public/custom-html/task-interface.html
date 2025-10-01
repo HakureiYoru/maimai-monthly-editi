@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评分任务</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+      background: transparent;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    /* 进度区域 */
+    .progress-section {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      transition: transform 0.3s ease;
+    }
+    
+    .progress-section:hover {
+      transform: translateY(-2px);
+    }
+    
+    .progress-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .progress-bar-container {
+      background: #e2e8f0;
+      height: 36px;
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 12px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .progress-bar {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      height: 100%;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      position: relative;
+    }
+    
+    .progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    
+    .progress-text {
+      color: #718096;
+      font-size: 15px;
+      text-align: right;
+      font-weight: 500;
+    }
+    
+    /* 任务区域 */
+    .task-section {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    
+    .task-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .task-icon {
+      font-size: 24px;
+    }
+    
+    /* 当前任务卡片 */
+    .current-task {
+      background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 6px 20px rgba(253, 203, 110, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .current-task::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+      animation: pulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+    
+    .task-label {
+      font-size: 13px;
+      color: #d63031;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .task-work-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .work-number-container {
+      flex: 1;
+    }
+    
+    .work-number-label {
+      font-size: 14px;
+      color: #636e72;
+      margin-bottom: 4px;
+    }
+    
+    .work-number {
+      font-size: 32px;
+      font-weight: 800;
+      color: #2d3748;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .coldness-badge {
+      background: #d63031;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(214, 48, 49, 0.3);
+      white-space: nowrap;
+    }
+    
+    .task-meta {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #636e72;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.6);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+    
+    .action-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.3s ease;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      position: relative;
+      z-index: 1;
+      overflow: hidden;
+    }
+    
+    .action-button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    .action-button:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    .action-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+    }
+    
+    .action-button:active {
+      transform: translateY(-1px);
+    }
+    
+    .action-button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .action-button span {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* 已完成列表 */
+    .completed-list {
+      margin-top: 28px;
+    }
+    
+    .completed-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .completed-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      gap: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+    
+    .completed-grid::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .completed-grid::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    
+    .completed-grid::-webkit-scrollbar-thumb {
+      background: #cbd5e0;
+      border-radius: 4px;
+    }
+    
+    .completed-grid::-webkit-scrollbar-thumb:hover {
+      background: #a0aec0;
+    }
+    
+    .completed-item {
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+      padding: 14px 10px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: #4a5568;
+      transition: all 0.2s ease;
+      cursor: default;
+    }
+    
+    .completed-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    /* 无任务状态 */
+    .no-task {
+      text-align: center;
+      padding: 50px 20px;
+      color: #718096;
+    }
+    
+    .no-task-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      animation: bounce 2s ease-in-out infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .no-task-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #2d3748;
+    }
+    
+    .no-task-desc {
+      font-size: 15px;
+      color: #718096;
+    }
+    
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+    
+    .spinner {
+      border: 4px solid #e2e8f0;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      body {
+        padding: 12px;
+      }
+      
+      .progress-section, .task-section {
+        padding: 20px;
+      }
+      
+      .work-number {
+        font-size: 28px;
+      }
+      
+      .completed-grid {
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 进度区域 -->
+    <div class="progress-section">
+      <div class="progress-title">
+        <span>📊</span>
+        <span>评分进度</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar" style="width: 0%;">
+          <span id="progressPercentage">0%</span>
+        </div>
+      </div>
+      <div class="progress-text" id="progressText">已完成 0 / 20</div>
+    </div>
+    
+    <!-- 任务区域 -->
+    <div class="task-section">
+      <div class="task-title">
+        <span class="task-icon">🎯</span>
+        <span>当前任务</span>
+      </div>
+      
+      <!-- 加载状态 -->
+      <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">加载任务中...</div>
+      </div>
+      
+      <!-- 任务内容：支持多条任务 -->
+      <div id="taskContent" style="display: none;">
+        <div id="tasksContainer"></div>
+
+        <!-- 已完成列表 -->
+        <div class="completed-list">
+          <div class="completed-title">
+            <span>✅</span>
+            <span>已完成评分 (<span id="completedCount">0</span>)</span>
+          </div>
+          <div class="completed-grid" id="completedGrid"></div>
+        </div>
+      </div>
+      
+      <!-- 无任务状态 -->
+      <div id="noTaskState" style="display: none;" class="no-task">
+        <div class="no-task-icon">🎉</div>
+        <div class="no-task-title">太棒了！</div>
+        <div class="no-task-desc">你已经完成了所有评分任务</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    let currentUserId = null;
+    let taskData = null;
+    
+    // 监听来自Wix页面的消息
+    window.addEventListener('message', (event) => {
+      // 安全检查
+      if (!event.data || typeof event.data !== 'object') return;
+      
+      const { type, data } = event.data;
+      
+      switch (type) {
+        case 'INIT_TASK_PAGE':
+          currentUserId = data.userId;
+          loadTaskData();
+          break;
+          
+        case 'TASK_DATA_RESPONSE':
+          taskData = data;
+          renderTaskPage();
+          break;
+          
+        case 'TASK_COMPLETED':
+          // 任务完成后刷新
+          loadTaskData();
+          break;
+          
+        case 'REFRESH_TASK':
+          // 手动刷新
+          loadTaskData();
+          break;
+      }
+    });
+    
+    /**
+     * 加载任务数据
+     */
+    function loadTaskData() {
+      try {
+        showLoading();
+        
+        // 向Wix页面请求数据
+        window.parent.postMessage({
+          type: 'GET_TASK_DATA',
+          userId: currentUserId
+        }, '*');
+        
+      } catch (error) {
+        console.error('加载任务数据失败:', error);
+        hideLoading();
+      }
+    }
+    
+    /**
+     * 渲染任务页面
+     */
+    function renderTaskPage() {
+      hideLoading();
+      
+      if (!taskData) {
+        console.error('任务数据为空');
+        return;
+      }
+      
+      const { currentTask, suggestedTasks, completedTasks, totalCompleted, targetCompletion } = taskData;
+      
+      // 更新进度条
+      const progress = Math.min((totalCompleted / (targetCompletion || 20)) * 100, 100);
+      const progressBar = document.getElementById('progressBar');
+      const progressPercentage = document.getElementById('progressPercentage');
+      const progressText = document.getElementById('progressText');
+      
+      progressBar.style.width = progress + '%';
+      progressPercentage.textContent = Math.round(progress) + '%';
+      progressText.textContent = `已完成 ${totalCompleted} / ${targetCompletion || 20}`;
+      
+      // 构建任务列表（最多3条）
+      const tasks = buildTaskList(currentTask, suggestedTasks);
+      
+      if (tasks.length > 0) {
+        showTaskContent();
+        renderTaskCards(tasks);
+      } else {
+        showNoTask();
+      }
+      
+      // 渲染已完成列表
+      renderCompletedList(completedTasks, totalCompleted);
+    }
+    
+    /**
+     * 构建任务列表
+     */
+    function buildTaskList(currentTask, suggestedTasks) {
+      const list = [];
+      
+      // 添加当前任务
+      if (currentTask && currentTask.status === 'pending') {
+        list.push({
+          workNumber: currentTask.workNumber,
+          weight: currentTask.weight || 0,
+          currentRatings: currentTask.currentRatings || 0,
+          isPrimary: true
+        });
+      }
+      
+      // 添加建议任务（去重）
+      if (Array.isArray(suggestedTasks)) {
+        suggestedTasks.forEach(task => {
+          if (!list.find(t => t.workNumber === task.workNumber)) {
+            list.push({
+              workNumber: task.workNumber,
+              weight: task.weight || 0,
+              currentRatings: task.currentRatings || 0,
+              isPrimary: false
+            });
+          }
+        });
+      }
+      
+      // 最多返回3条
+      return list.slice(0, 3);
+    }
+    
+    /**
+     * 渲染任务卡片
+     */
+    function renderTaskCards(tasks) {
+      const tasksContainer = document.getElementById('tasksContainer');
+      tasksContainer.innerHTML = '';
+      
+      tasks.forEach((task, index) => {
+        const card = document.createElement('div');
+        card.className = 'current-task';
+        
+        const priorityLabel = index === 0 ? ' (优先)' : '';
+        
+        card.innerHTML = `
+          <div class="task-label">🔥 需要关注的作品${priorityLabel}</div>
+          <div class="task-work-info">
+            <div class="work-number-container">
+              <div class="work-number-label">作品编号</div>
+              <div class="work-number">#${task.workNumber}</div>
+            </div>
+            <div class="coldness-badge">冷门度: ${task.weight}</div>
+          </div>
+          <div class="task-meta">
+            <div class="meta-item">
+              <span>📊</span>
+              <span>${task.currentRatings} 个评分</span>
+            </div>
+            <div class="meta-item">
+              <span>🎯</span>
+              <span>目标: 20 个评分</span>
+            </div>
+          </div>
+          <button class="action-button" data-work="${task.workNumber}">
+            <span>前往评分 →</span>
+          </button>
+        `;
+        
+        tasksContainer.appendChild(card);
+      });
+      
+      // 绑定所有按钮的点击事件
+      tasksContainer.querySelectorAll('.action-button').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          window.parent.postMessage({
+            type: 'GO_TO_RATE'
+          }, '*');
+        });
+      });
+    }
+    
+    /**
+     * 渲染已完成列表
+     */
+    function renderCompletedList(completedTasks, totalCompleted) {
+      const completedCountElem = document.getElementById('completedCount');
+      const completedGrid = document.getElementById('completedGrid');
+      
+      completedCountElem.textContent = totalCompleted;
+      completedGrid.innerHTML = '';
+      
+      if (!completedTasks || completedTasks.length === 0) {
+        completedGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 20px;">暂无完成记录</div>';
+        return;
+      }
+      
+      completedTasks.forEach(workNum => {
+        const item = document.createElement('div');
+        item.className = 'completed-item';
+        item.textContent = `#${workNum}`;
+        item.title = `已完成作品 #${workNum}`;
+        completedGrid.appendChild(item);
+      });
+    }
+    
+    
+    /**
+     * 显示/隐藏状态控制
+     */
+    function showLoading() {
+      document.getElementById('loadingState').style.display = 'block';
+      document.getElementById('taskContent').style.display = 'none';
+      document.getElementById('noTaskState').style.display = 'none';
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingState').style.display = 'none';
+    }
+    
+    function showTaskContent() {
+      document.getElementById('taskContent').style.display = 'block';
+      document.getElementById('noTaskState').style.display = 'none';
+    }
+    
+    function showNoTask() {
+      document.getElementById('taskContent').style.display = 'none';
+      document.getElementById('noTaskState').style.display = 'block';
+    }
+    
+    /**
+     * 页面加载完成，通知父页面
+     */
+    window.parent.postMessage({ 
+      type: 'TASK_PAGE_READY' 
+    }, '*');
+    
+    console.log('任务界面已加载');
+  </script>
+</body>
+</html>
+
+
