@@ -504,6 +504,17 @@
           "invoke": false
         }
       },
+      "checkIfWorkInTaskList": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
       "markTaskCompleted": {
         "siteOwner": {
           "invoke": true

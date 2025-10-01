@@ -17,9 +17,11 @@ import { QUERY_LIMITS } from "public/constants.js";
 // 全局状态管理
 let commentsCountByWorkNumber = {};
 const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
+const commentsPerPage = 20; // 评论列表每页显示数量
 let titleValue;
 const currentUserId = wixUsers.currentUser.id;
 let isUserVerified = false;
+let allCommentsData = []; // 存储所有评论数据用于分页
 
 // 缓存数据以减少API调用
 let userFormalRatingsCache = null; // 缓存用户正式评分状态
@@ -307,15 +309,21 @@ $w.onReady(async function () {
   await loadAllFormalComments();
   
   // 预加载当前显示评论的回复数量
-  $w("#repeater1").onReady(() => {
-    const commentIds = $w("#repeater1").data.map(item => item._id).filter(id => id);
-    if (commentIds.length > 0) {
-      batchLoadReplyCounts(commentIds);
+  try {
+    const data = $w("#repeater1").data;
+    if (data && Array.isArray(data)) {
+      const commentIds = data.map(item => item._id).filter(id => id);
+      if (commentIds.length > 0) {
+        batchLoadReplyCounts(commentIds);
+      }
     }
-  });
+  } catch (error) {
+    console.error("预加载回复数量失败:", error);
+  }
 
   // 事件监听器设置
   setupSearchAndPaginationEvents();
+  setupCommentsPaginationEvents();
   setupSubmitButtonEvent();
   setupDropdownFilterEvent();
   setupScoreCheckboxEvent();
@@ -975,8 +983,8 @@ async function getAllCommentsCount() {
   return commentsCountByWorkNumber;
 }
 
-// 设置作品筛选并显示对应评论
-async function setDropdownValue(sequenceId) {
+// 设置作品筛选并显示对应评论（支持分页）
+async function setDropdownValue(sequenceId, pageNumber = 1) {
   $w("#dropdownFilter").value = sequenceId.toString();
 
   try {
@@ -1012,7 +1020,21 @@ async function setDropdownValue(sequenceId) {
       });
     }
 
-    $w("#repeater1").data = commentsToShow;
+    // 保存所有评论数据
+    allCommentsData = commentsToShow;
+
+    // 分页处理
+    const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
+    if ($w("#pagination1")) {
+      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+      $w("#pagination1").currentPage = pageNumber;
+    }
+
+    // 获取当前页的数据
+    const startIndex = (pageNumber - 1) * commentsPerPage;
+    const pagedComments = allCommentsData.slice(startIndex, startIndex + commentsPerPage);
+
+    $w("#repeater1").data = pagedComments;
     $w("#repeater1").forEachItem(($item, itemData, index) => {
       // 更新重复项元素
     });
@@ -1121,17 +1143,43 @@ function setupSearchAndPaginationEvents() {
   });
 }
 
+// 评论列表分页事件设置
+function setupCommentsPaginationEvents() {
+  if ($w("#pagination1")) {
+    $w("#pagination1").onClick(async (event) => {
+      const pageNumber = event.target.currentPage;
+      const dropdownFilterValue = $w("#dropdownFilter").value;
+      
+      if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+        await setDropdownValue(parseInt(dropdownFilterValue), pageNumber);
+      } else if (dropdownFilterValue === "114514") {
+        await loadUserComments(pageNumber);
+      } else {
+        await loadAllFormalComments(pageNumber);
+      }
+    });
+  }
+}
+
 // 评论提交事件处理
 function setupSubmitButtonEvent() {
   $w("#submit").onClick(async () => {
     try {
+      // 显示进度提示
+      $w("#submitprocess").text = "准备提交...";
+      $w("#submitprocess").show();
+      
       if (!currentUserId) {
         console.log("用户未登录");
+        $w("#submitprocess").text = "❌ 用户未登录";
+        setTimeout(() => $w("#submitprocess").hide(), 2000);
         return;
       }
 
       if (!isUserVerified) {
         console.log("用户未验证，无法提交评论");
+        $w("#submitprocess").text = "❌ 用户未验证";
+        setTimeout(() => $w("#submitprocess").hide(), 2000);
         return;
       }
 
@@ -1143,9 +1191,14 @@ function setupSubmitButtonEvent() {
       const isScoreValid = $w("#inputScore").valid;
       const isWorkNumberInRange = workNumber >= 1 && workNumber <= 500;
       const isScoreInRange = score >= 100 && score <= 1000;
+      
+      // 验证输入
+      $w("#submitprocess").text = "验证输入数据...";
 
       // 检查作品状态和用户权限
       if (currentUserId) {
+        $w("#submitprocess").text = "检查作品状态...";
+        
         const workResults = await wixData
           .query("enterContest034")
           .eq("sequenceId", workNumber)
@@ -1161,10 +1214,14 @@ function setupSubmitButtonEvent() {
 
         if (isWorkDQ) {
           console.log("作品已淘汰，阻止提交评论");
+          $w("#submitprocess").text = "❌ 作品已淘汰";
+          setTimeout(() => $w("#submitprocess").hide(), 2000);
           return;
         }
 
         if (!isAuthor) {
+          $w("#submitprocess").text = "检查评论记录...";
+          
           const existingComment = await wixData
             .query("BOFcomment")
             .eq("workNumber", workNumber)
@@ -1174,6 +1231,8 @@ function setupSubmitButtonEvent() {
 
           if (existingComment.items.length > 0) {
             console.log("用户已经评论过这个作品，阻止重复提交");
+            $w("#submitprocess").text = "❌ 已评论过此作品";
+            setTimeout(() => $w("#submitprocess").hide(), 2000);
             return;
           }
         }
@@ -1188,6 +1247,11 @@ function setupSubmitButtonEvent() {
         isWorkNumberInRange &&
         isScoreInRange
       ) {
+        let taskStatusMessage = ""; // 在外层定义，确保作用域正确
+        
+        // 1. 插入评论数据
+        $w("#submitprocess").text = "正在保存评论...";
+        
         let toInsert = {
           workNumber: workNumber,
           score: score,
@@ -1195,29 +1259,46 @@ function setupSubmitButtonEvent() {
         };
 
         await wixData.insert("BOFcomment", toInsert);
+        $w("#submitprocess").text = "✓ 评论已保存";
 
         if (currentUserId) {
+          // 2. 更新用户积分
           try {
+            $w("#submitprocess").text = "更新积分...";
             await updateUserPoints(currentUserId, 1, false, false);
+            $w("#submitprocess").text = "✓ 积分已更新";
           } catch (error) {
             console.error("Error updating user points:", error);
+            $w("#submitprocess").text = "⚠ 积分更新失败";
           }
           
-          // 标记任务完成（仅当作品在任务列表中时）
+          // 3. 检查并标记任务完成（严格验证）
           try {
+            $w("#submitprocess").text = "检查任务状态...";
             const result = await markTaskCompleted(currentUserId, workNumber);
+            
             if (result.taskCompleted) {
+              // 这是任务列表中的作品，且首次完成
               console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/20)`);
-            } else if (result.isInTaskList) {
-              console.log(`作品 #${workNumber} 已在完成列表中`);
-            } else {
-              console.log(`作品 #${workNumber} 不在当前任务列表中，不计入任务完成`);
+              taskStatusMessage = ` | ✓ 任务完成！进度: ${result.completedCount}/20`;
+            } else if (result.alreadyCompleted) {
+              // 这是任务列表中的作品，但之前已完成过
+              console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
+              taskStatusMessage = " | 此任务已完成过";
+            } else if (!result.isInTaskList) {
+              // 不在任务列表中，不计入进度
+              console.log(`作品 #${workNumber} 不在任务列表中，不计入任务完成`);
+              taskStatusMessage = " | 非任务作品（不计入进度）";
             }
           } catch (error) {
             console.error("Error marking task completed:", error);
+            taskStatusMessage = " | 任务状态更新失败";
           }
         }
 
+        // 4. 刷新界面
+        $w("#submitprocess").text = "刷新页面数据...";
+        
         // 清空输入并重置状态
         $w("#inputNumber").value = "";
         $w("#inputScore").value = "";
@@ -1229,9 +1310,20 @@ function setupSubmitButtonEvent() {
 
         $w("#dataset1").refresh();
         await refreshRepeaters();
+        
+        // 5. 完成 - 合并显示提交成功和任务状态
+        $w("#submitprocess").text = `✅ 提交成功！${taskStatusMessage}`;
+        setTimeout(() => $w("#submitprocess").hide(), 3000);
+        
+      } else {
+        // 输入验证失败
+        $w("#submitprocess").text = "❌ 请检查输入是否完整且有效";
+        setTimeout(() => $w("#submitprocess").hide(), 2000);
       }
     } catch (err) {
       console.error(err);
+      $w("#submitprocess").text = "❌ 提交失败，请重试";
+      setTimeout(() => $w("#submitprocess").hide(), 3000);
     }
   });
 }
@@ -1268,14 +1360,14 @@ function setupScoreCheckboxEvent() {
   });
 }
 
-// 加载所有作品的评论（支持正式评论筛选）
-async function loadAllFormalComments() {
+// 加载所有作品的评论（支持正式评论筛选和分页）
+async function loadAllFormalComments(pageNumber = 1) {
   try {
     const results = await wixData
       .query("BOFcomment")
       .isEmpty("replyTo")
       .descending("_createdDate")
-      .limit(500)
+      .limit(1000)
       .find();
 
     let commentsToShow = results.items;
@@ -1293,23 +1385,37 @@ async function loadAllFormalComments() {
       });
     }
 
-    $w("#repeater1").data = commentsToShow;
+    // 保存所有评论数据
+    allCommentsData = commentsToShow;
+
+    // 分页处理
+    const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
+    if ($w("#pagination1")) {
+      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+      $w("#pagination1").currentPage = pageNumber;
+    }
+
+    // 获取当前页的数据
+    const startIndex = (pageNumber - 1) * commentsPerPage;
+    const pagedComments = allCommentsData.slice(startIndex, startIndex + commentsPerPage);
+
+    $w("#repeater1").data = pagedComments;
     $w("#repeater1").forEachItem(($item, itemData, index) => {
       // 更新重复项元素
     });
 
     console.log(
-      `已加载${commentsToShow.length}条${
+      `已加载${pagedComments.length}/${allCommentsData.length}条${
         isScoreFilterEnabled() ? "正式" : ""
-      }评论`
+      }评论 (第${pageNumber}/${totalPages}页)`
     );
   } catch (err) {
     console.error("加载所有评论失败", err);
   }
 }
 
-// 加载用户评论（支持筛选）
-async function loadUserComments() {
+// 加载用户评论（支持筛选和分页）
+async function loadUserComments(pageNumber = 1) {
   if (!currentUserId) {
     console.log("用户未登录，无法查看个人评论");
     $w("#repeater1").data = [];
@@ -1352,7 +1458,21 @@ async function loadUserComments() {
       });
     }
 
-    $w("#repeater1").data = commentsToShow;
+    // 保存所有评论数据
+    allCommentsData = commentsToShow;
+
+    // 分页处理
+    const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
+    if ($w("#pagination1")) {
+      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+      $w("#pagination1").currentPage = pageNumber;
+    }
+
+    // 获取当前页的数据
+    const startIndex = (pageNumber - 1) * commentsPerPage;
+    const pagedComments = allCommentsData.slice(startIndex, startIndex + commentsPerPage);
+
+    $w("#repeater1").data = pagedComments;
     $w("#repeater1").forEachItem(($item, itemData, index) => {
       // 更新重复项元素
     });

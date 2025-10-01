@@ -268,17 +268,43 @@
     
     /* 已完成列表 */
     .completed-list {
-      margin-top: 28px;
+      margin-top: 20px;
     }
     
     .completed-title {
       font-size: 17px;
       font-weight: 600;
       color: #2d3748;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .stat-card {
+      background: #f7fafc;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #718096;
+      margin-bottom: 4px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2d3748;
     }
     
     .completed-grid {
@@ -435,13 +461,34 @@
       <div id="taskContent" style="display: none;">
         <div id="tasksContainer"></div>
 
-        <!-- 已完成列表 -->
+        <!-- 统计卡片 -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">任务完成</div>
+            <div class="stat-value" id="taskCompletedCount">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">自主评论</div>
+            <div class="stat-value" id="freeRatingCount">0</div>
+          </div>
+        </div>
+
+        <!-- 已完成任务列表 -->
         <div class="completed-list">
           <div class="completed-title">
             <span>✅</span>
-            <span>已完成评分 (<span id="completedCount">0</span>)</span>
+            <span>已完成任务作品 (<span id="completedCount">0</span>)</span>
           </div>
           <div class="completed-grid" id="completedGrid"></div>
+        </div>
+        
+        <!-- 自主评论列表 -->
+        <div class="completed-list">
+          <div class="completed-title">
+            <span>📝</span>
+            <span>自主评论作品 (<span id="freeCount">0</span>)</span>
+          </div>
+          <div class="completed-grid" id="freeGrid"></div>
         </div>
       </div>
       
@@ -458,69 +505,58 @@
     let currentUserId = null;
     let taskData = null;
     
-    // 监听来自Wix页面的消息
+     // 监听来自Wix页面的消息
     window.addEventListener('message', (event) => {
       // 安全检查
       if (!event.data || typeof event.data !== 'object') return;
       
+      console.log('[HTML] 收到消息:', event.data);
+      
       const { type, data } = event.data;
       
       switch (type) {
-        case 'INIT_TASK_PAGE':
-          currentUserId = data.userId;
-          loadTaskData();
-          break;
-          
         case 'TASK_DATA_RESPONSE':
+          console.log('[HTML] 收到任务数据:', data);
           taskData = data;
           renderTaskPage();
           break;
           
         case 'TASK_COMPLETED':
-          // 任务完成后刷新
-          loadTaskData();
+          console.log('[HTML] 任务完成通知');
           break;
           
         case 'REFRESH_TASK':
-          // 手动刷新
-          loadTaskData();
+          console.log('[HTML] 刷新请求');
           break;
+          
+        default:
+          console.log('[HTML] 未知消息类型:', type);
       }
     });
     
-    /**
-     * 加载任务数据
-     */
-    function loadTaskData() {
-      try {
-        showLoading();
-        
-        // 向Wix页面请求数据
-        window.parent.postMessage({
-          type: 'GET_TASK_DATA',
-          userId: currentUserId
-        }, '*');
-        
-      } catch (error) {
-        console.error('加载任务数据失败:', error);
-        hideLoading();
-      }
-    }
     
     /**
      * 渲染任务页面
      */
     function renderTaskPage() {
+      console.log('[HTML] 开始渲染, taskData:', taskData);
       hideLoading();
       
       if (!taskData) {
-        console.error('任务数据为空');
+        console.error('[HTML] 任务数据为空');
         return;
       }
       
-      const { currentTask, suggestedTasks, completedTasks, totalCompleted, targetCompletion } = taskData;
+      if (taskData.error) {
+        console.error('[HTML] 数据错误:', taskData.message);
+        showNoTask();
+        return;
+      }
       
-      // 更新进度条
+      const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion } = taskData;
+      console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length);
+      
+      // 更新进度条（只计算任务完成数）
       const progress = Math.min((totalCompleted / (targetCompletion || 20)) * 100, 100);
       const progressBar = document.getElementById('progressBar');
       const progressPercentage = document.getElementById('progressPercentage');
@@ -530,53 +566,25 @@
       progressPercentage.textContent = Math.round(progress) + '%';
       progressText.textContent = `已完成 ${totalCompleted} / ${targetCompletion || 20}`;
       
-      // 构建任务列表（最多3条）
-      const tasks = buildTaskList(currentTask, suggestedTasks);
-      
-      if (tasks.length > 0) {
+      // 渲染任务列表（最多3条）
+      if (currentTasks && currentTasks.length > 0) {
         showTaskContent();
-        renderTaskCards(tasks);
+        renderTaskCards(currentTasks);
       } else {
         showNoTask();
       }
       
-      // 渲染已完成列表
+      // 更新统计卡片
+      document.getElementById('taskCompletedCount').textContent = totalCompleted || 0;
+      document.getElementById('freeRatingCount').textContent = (freeRatings && freeRatings.length) || 0;
+      
+      // 渲染已完成任务列表
       renderCompletedList(completedTasks, totalCompleted);
+      
+      // 渲染自主评论列表
+      renderFreeRatingsList(freeRatings);
     }
     
-    /**
-     * 构建任务列表
-     */
-    function buildTaskList(currentTask, suggestedTasks) {
-      const list = [];
-      
-      // 添加当前任务
-      if (currentTask && currentTask.status === 'pending') {
-        list.push({
-          workNumber: currentTask.workNumber,
-          weight: currentTask.weight || 0,
-          currentRatings: currentTask.currentRatings || 0,
-          isPrimary: true
-        });
-      }
-      
-      // 添加建议任务（去重）
-      if (Array.isArray(suggestedTasks)) {
-        suggestedTasks.forEach(task => {
-          if (!list.find(t => t.workNumber === task.workNumber)) {
-            list.push({
-              workNumber: task.workNumber,
-              weight: task.weight || 0,
-              currentRatings: task.currentRatings || 0,
-              isPrimary: false
-            });
-          }
-        });
-      }
-      
-      // 最多返回3条
-      return list.slice(0, 3);
-    }
     
     /**
      * 渲染任务卡片
@@ -585,14 +593,24 @@
       const tasksContainer = document.getElementById('tasksContainer');
       tasksContainer.innerHTML = '';
       
+      if (!tasks || tasks.length === 0) return;
+      
       tasks.forEach((task, index) => {
         const card = document.createElement('div');
         card.className = 'current-task';
         
-        const priorityLabel = index === 0 ? ' (优先)' : '';
+        // 权重高低标签
+        let weightLabel = '';
+        if (task.weight >= 80) {
+          weightLabel = ' (非常紧急)';
+        } else if (task.weight >= 60) {
+          weightLabel = ' (紧急)';
+        } else if (index === 0) {
+          weightLabel = ' (优先)';
+        }
         
         card.innerHTML = `
-          <div class="task-label">🔥 需要关注的作品${priorityLabel}</div>
+          <div class="task-label">🔥 需要关注的作品${weightLabel}</div>
           <div class="task-work-info">
             <div class="work-number-container">
               <div class="work-number-label">作品编号</div>
@@ -629,17 +647,17 @@
     }
     
     /**
-     * 渲染已完成列表
+     * 渲染已完成任务列表
      */
     function renderCompletedList(completedTasks, totalCompleted) {
       const completedCountElem = document.getElementById('completedCount');
       const completedGrid = document.getElementById('completedGrid');
       
-      completedCountElem.textContent = totalCompleted;
+      completedCountElem.textContent = totalCompleted || 0;
       completedGrid.innerHTML = '';
       
       if (!completedTasks || completedTasks.length === 0) {
-        completedGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 20px;">暂无完成记录</div>';
+        completedGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 12px;">暂无完成记录</div>';
         return;
       }
       
@@ -647,8 +665,34 @@
         const item = document.createElement('div');
         item.className = 'completed-item';
         item.textContent = `#${workNum}`;
-        item.title = `已完成作品 #${workNum}`;
+        item.title = `已完成任务作品 #${workNum}`;
         completedGrid.appendChild(item);
+      });
+    }
+    
+    /**
+     * 渲染自主评论列表
+     */
+    function renderFreeRatingsList(freeRatings) {
+      const freeCountElem = document.getElementById('freeCount');
+      const freeGrid = document.getElementById('freeGrid');
+      
+      const freeCount = (freeRatings && freeRatings.length) || 0;
+      freeCountElem.textContent = freeCount;
+      freeGrid.innerHTML = '';
+      
+      if (!freeRatings || freeRatings.length === 0) {
+        freeGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 12px;">暂无自主评论</div>';
+        return;
+      }
+      
+      freeRatings.forEach(workNum => {
+        const item = document.createElement('div');
+        item.className = 'completed-item';
+        item.style.background = 'linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%)';
+        item.textContent = `#${workNum}`;
+        item.title = `自主评论作品 #${workNum}（不计入任务进度）`;
+        freeGrid.appendChild(item);
       });
     }
     
@@ -677,13 +721,14 @@
     }
     
     /**
-     * 页面加载完成，通知父页面
+     * 页面加载完成，通知父页面并显示加载状态
      */
+    console.log('[HTML] 页面加载完成，发送TASK_PAGE_READY消息');
+    showLoading();
+    
     window.parent.postMessage({ 
       type: 'TASK_PAGE_READY' 
     }, '*');
-    
-    console.log('任务界面已加载');
   </script>
 </body>
 </html>

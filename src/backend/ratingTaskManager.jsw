@@ -29,71 +29,25 @@ export async function getUserTaskData(userId) {
     // 1. 获取或创建用户任务记录
     let taskRecord = await getUserTaskRecord(userId);
     
-    // 2. 同步用户实际评分记录
-    const actualRatings = await getUserCompletedRatings(userId);
-    const mergedCompleted = [...new Set([...taskRecord.completedTasks, ...actualRatings])];
+    // 2. 生成当前任务列表（最多3条）
+    const currentTasks = await generateUserTasks(userId, taskRecord, 3);
     
-    // 3. 更新任务记录（如果有新的评分）
-    if (mergedCompleted.length > taskRecord.completedTasks.length) {
-      taskRecord.completedTasks = mergedCompleted;
-      taskRecord.totalCompleted = mergedCompleted.length;
+    // 3. 更新任务列表到数据库
+    if (currentTasks.length > 0) {
+      taskRecord.currentTasks = currentTasks;
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
     }
-    
-    // 4. 检查当前任务状态
-    let currentTaskInfo = null;
-    
-    if (!taskRecord.currentTask || taskRecord.currentTask.status === 'completed') {
-      // 没有任务或已完成，分配新任务
-      if (taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
-        const newTask = await assignNextTask(userId, taskRecord);
-        if (newTask) {
-          currentTaskInfo = {
-            workNumber: newTask.workNumber,
-            weight: newTask.weight,
-            currentRatings: newTask.currentRatings,
-            assignedDate: new Date(),
-            status: 'pending'
-          };
-          
-          // 更新记录
-          taskRecord.currentTask = currentTaskInfo;
-          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-        }
-      }
-    } else {
-      // 有待完成任务，更新其实时信息
-      const workInfo = await getWorkInfo(taskRecord.currentTask.workNumber);
-      if (workInfo) {
-        currentTaskInfo = {
-          ...taskRecord.currentTask,
-          weight: calculateColdnessWeight(workInfo),
-          currentRatings: await getWorkValidRatingCount(workInfo.sequenceId)
-        };
-      } else {
-        // 作品可能被删除或淘汰，分配新任务
-        const newTask = await assignNextTask(userId, taskRecord);
-        if (newTask) {
-          currentTaskInfo = {
-            workNumber: newTask.workNumber,
-            weight: newTask.weight,
-            currentRatings: newTask.currentRatings,
-            assignedDate: new Date(),
-            status: 'pending'
-          };
-          taskRecord.currentTask = currentTaskInfo;
-          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-        }
-      }
-    }
-    
-    // 5. 生成建议任务列表（最多3条）
-    const suggestedTasks = await getSuggestedTasks(userId, taskRecord, 3);
+
+    // 4. 获取用户所有评分记录，计算自主评论的作品
+    const allUserRatings = await getUserCompletedRatings(userId);
+    const freeRatings = allUserRatings.filter(workNum => 
+      !taskRecord.completedTasks.includes(workNum)
+    );
 
     return {
-      currentTask: currentTaskInfo,
-      suggestedTasks,
+      currentTasks: currentTasks,
       completedTasks: taskRecord.completedTasks.sort((a, b) => b - a),
+      freeRatings: freeRatings.sort((a, b) => b - a),
       totalCompleted: taskRecord.totalCompleted,
       targetCompletion: TARGET_USER_COMPLETION
     };
@@ -105,13 +59,13 @@ export async function getUserTaskData(userId) {
 }
 
 /**
- * 计算建议任务列表（最多 limit 条）
+ * 生成用户任务列表（最多 limit 条）
  * @param {string} userId
  * @param {object} taskRecord
  * @param {number} limit
  * @returns {Promise<Array<{workNumber:number, weight:number, currentRatings:number}>>}
  */
-async function getSuggestedTasks(userId, taskRecord, limit = 3) {
+async function generateUserTasks(userId, taskRecord, limit = 3) {
   try {
     const completedWorks = taskRecord.completedTasks || [];
     const userOwnWork = await getUserOwnWork(userId);
@@ -142,8 +96,51 @@ async function getSuggestedTasks(userId, taskRecord, limit = 3) {
     candidateWorks.sort((a, b) => b.weight - a.weight);
     return candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
   } catch (e) {
-    console.error('获取建议任务失败:', e);
+    console.error('生成用户任务失败:', e);
     return [];
+  }
+}
+
+/**
+ * 检查作品是否在用户的任务列表中
+ * @param {string} userId - 用户ID
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<Object>} 检查结果
+ */
+export async function checkIfWorkInTaskList(userId, workNumber) {
+  try {
+    const taskRecord = await getUserTaskRecord(userId);
+    
+    console.log(`[检查] 作品 #${workNumber}, 已完成: [${taskRecord.completedTasks.join(', ')}]`);
+    
+    // 检查是否在已完成列表中
+    if (taskRecord.completedTasks.includes(workNumber)) {
+      console.log(`[检查] ✓ 作品 #${workNumber} 在已完成列表中`);
+      return {
+        inTaskList: true,
+        alreadyCompleted: true
+      };
+    }
+    
+    // 检查是否在当前任务列表中（3条任务）
+    const currentTasksList = taskRecord.currentTasks || [];
+    const taskNums = currentTasksList.map(t => t.workNumber);
+    console.log(`[检查] 当前任务列表: [${taskNums.join(', ')}]`);
+    
+    const inCurrentTasks = currentTasksList.some(t => t.workNumber === workNumber);
+    console.log(`[检查] ${inCurrentTasks ? '✓' : '✗'} 作品 #${workNumber} ${inCurrentTasks ? '在' : '不在'}任务列表中`);
+    
+    return {
+      inTaskList: inCurrentTasks,
+      alreadyCompleted: false
+    };
+    
+  } catch (error) {
+    console.error('检查任务列表失败:', error);
+    return {
+      inTaskList: false,
+      alreadyCompleted: false
+    };
   }
 }
 
@@ -155,51 +152,52 @@ async function getSuggestedTasks(userId, taskRecord, limit = 3) {
  */
 export async function markTaskCompleted(userId, workNumber) {
   try {
-    const taskRecord = await getUserTaskRecord(userId);
+    console.log(`\n========== 标记任务: 用户 ${userId}, 作品 #${workNumber} ==========`);
     
-    // 检查这个作品是否在当前任务或建议任务中
-    const suggestedTasks = await getSuggestedTasks(userId, taskRecord, 3);
-    const isInTaskList = 
-      (taskRecord.currentTask && taskRecord.currentTask.workNumber === workNumber) ||
-      suggestedTasks.some(t => t.workNumber === workNumber);
+    const taskRecord = await getUserTaskRecord(userId);
+    console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    
+    // 检查这个作品是否在任务列表中
+    const taskCheck = await checkIfWorkInTaskList(userId, workNumber);
+    console.log(`[标记] 检查结果: inTaskList=${taskCheck.inTaskList}, alreadyCompleted=${taskCheck.alreadyCompleted}`);
+    
+    // 如果已经完成过，直接返回
+    if (taskCheck.alreadyCompleted) {
+      console.log(`[标记] 作品 #${workNumber} 已在完成列表中，跳过`);
+      return {
+        success: true,
+        taskCompleted: false,
+        isInTaskList: true,
+        alreadyCompleted: true,
+        completedCount: taskRecord.totalCompleted
+      };
+    }
     
     // 只有在任务列表中的作品才计入完成
     let taskCompleted = false;
-    if (isInTaskList) {
-      // 添加到完成列表（去重）
-      if (!taskRecord.completedTasks.includes(workNumber)) {
-        taskRecord.completedTasks.push(workNumber);
-        taskRecord.totalCompleted = taskRecord.completedTasks.length;
-        taskCompleted = true;
-      }
+    if (taskCheck.inTaskList) {
+      console.log(`[标记] ✓ 作品 #${workNumber} 在任务列表中，添加到完成列表`);
       
-      // 标记当前任务为完成
-      if (taskRecord.currentTask && taskRecord.currentTask.workNumber === workNumber) {
-        taskRecord.currentTask.status = 'completed';
-      }
+      // 添加到完成列表
+      taskRecord.completedTasks.push(workNumber);
+      taskRecord.totalCompleted = taskRecord.completedTasks.length;
+      taskCompleted = true;
+      
+      console.log(`[标记] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
       
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-      
-      // 自动分配下一个任务
-      if (taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
-        const nextTask = await assignNextTask(userId, taskRecord);
-        if (nextTask) {
-          taskRecord.currentTask = {
-            workNumber: nextTask.workNumber,
-            weight: nextTask.weight,
-            currentRatings: nextTask.currentRatings,
-            assignedDate: new Date(),
-            status: 'pending'
-          };
-          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-        }
-      }
+      console.log(`[标记] 数据库已更新`);
+    } else {
+      console.log(`[标记] ✗ 作品 #${workNumber} 不在任务列表中，不计入进度`);
     }
+    
+    console.log(`========== 标记任务完成 ==========\n`);
     
     return {
       success: true,
       taskCompleted: taskCompleted,
-      isInTaskList: isInTaskList,
+      isInTaskList: taskCheck.inTaskList,
+      alreadyCompleted: false,
       completedCount: taskRecord.totalCompleted
     };
     
@@ -210,75 +208,12 @@ export async function markTaskCompleted(userId, workNumber) {
 }
 
 /**
- * 为用户分配下一个任务
- * @param {string} userId - 用户ID
- * @param {Object} taskRecord - 用户任务记录
- * @returns {Promise<Object|null>} 新任务信息
+ * 为用户分配下一个任务（已废弃，改用 generateUserTasks）
+ * 保留此函数以兼容同步任务
  */
 async function assignNextTask(userId, taskRecord) {
-  try {
-    // 1. 获取用户已完成的作品列表
-    const completedWorks = taskRecord.completedTasks || [];
-    
-    // 2. 获取用户自己的作品（排除）
-    const userOwnWork = await getUserOwnWork(userId);
-    
-    // 3. 获取所有活跃作品
-    const allWorksResult = await wixData
-      .query(COLLECTIONS.WORKS)
-      .ne('isDq', true)
-      .limit(1000)
-      .find();
-    
-    // 4. 计算候选作品的冷门权重
-    const candidateWorks = [];
-    
-    for (const work of allWorksResult.items) {
-      // 排除已评分和自己的作品
-      if (completedWorks.includes(work.sequenceId) || 
-          work.sequenceId === userOwnWork) {
-        continue;
-      }
-      
-      // 计算冷门权重
-      const coldnessWeight = calculateColdnessWeight(work);
-      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
-      
-      // 只考虑未达标的作品（权重>0）
-      if (coldnessWeight > 0) {
-        candidateWorks.push({
-          workNumber: work.sequenceId,
-          weight: coldnessWeight,
-          currentRatings: validRatingCount,
-          submissionDate: work._createdDate
-        });
-      }
-    }
-    
-    // 5. 没有候选作品
-    if (candidateWorks.length === 0) {
-      return null;
-    }
-    
-    // 6. 按权重排序
-    candidateWorks.sort((a, b) => b.weight - a.weight);
-    
-    // 7. 从前5个高权重作品中随机选择（避免集中）
-    const topCount = Math.min(5, candidateWorks.length);
-    const topCandidates = candidateWorks.slice(0, topCount);
-    const selectedIndex = Math.floor(Math.random() * topCandidates.length);
-    const selectedWork = topCandidates[selectedIndex];
-    
-    return {
-      workNumber: selectedWork.workNumber,
-      weight: selectedWork.weight,
-      currentRatings: selectedWork.currentRatings
-    };
-    
-  } catch (error) {
-    console.error('分配任务失败:', error);
-    return null;
-  }
+  const tasks = await generateUserTasks(userId, taskRecord, 1);
+  return tasks && tasks.length > 0 ? tasks[0] : null;
 }
 
 /**
@@ -348,7 +283,7 @@ async function getUserTaskRecord(userId) {
       // 创建新记录
       const newRecord = {
         userId: userId,
-        currentTask: null,
+        currentTasks: [],  // 改为任务列表（最多3条）
         completedTasks: [],
         totalCompleted: 0
       };
@@ -489,12 +424,12 @@ function getDaysSinceSubmission(work) {
 }
 
 /**
- * 同步所有用户的评分记录（定时任务）
- * 每日运行一次
+ * 同步所有用户的任务状态（定时任务）
+ * 每日运行一次 - 主要用于为没有任务的用户分配任务
  */
 export async function syncAllUserRatings() {
   try {
-    console.log('开始同步所有用户评分记录...');
+    console.log('开始同步所有用户任务状态...');
     
     // 获取所有已报名用户
     const registeredUsers = await getRegisteredUsers();
@@ -505,18 +440,9 @@ export async function syncAllUserRatings() {
     for (const user of registeredUsers) {
       try {
         const taskRecord = await getUserTaskRecord(user.userId);
-        const actualRatings = await getUserCompletedRatings(user.userId);
         
-        // 合并记录
-        const mergedCompleted = [...new Set([...taskRecord.completedTasks, ...actualRatings])];
-        
-        if (mergedCompleted.length > taskRecord.completedTasks.length) {
-          taskRecord.completedTasks = mergedCompleted;
-          taskRecord.totalCompleted = mergedCompleted.length;
-          await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-        }
-        
-        // 如果没有当前任务，分配一个
+        // 只负责为没有任务的用户分配任务
+        // 不再同步所有评分记录，因为只有任务列表中的作品才应该计入
         if ((!taskRecord.currentTask || taskRecord.currentTask.status === 'completed') &&
             taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
           await assignNextTask(user.userId, taskRecord);
@@ -539,7 +465,7 @@ export async function syncAllUserRatings() {
     };
     
   } catch (error) {
-    console.error('同步评分记录失败:', error);
+    console.error('同步任务状态失败:', error);
     throw error;
   }
 }

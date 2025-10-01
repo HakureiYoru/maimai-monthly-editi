@@ -23,19 +23,29 @@
 | `_createdDate` | Date | 是 | 当前时间 | 系统字段，创建时间 |
 | `_updatedDate` | Date | 是 | 当前时间 | 系统字段，更新时间 |
 | `userId` | Text | 是 | - | 用户ID（与_owner相同） |
-| `currentTask` | Object | 否 | null | 当前任务信息（JSON对象） |
+| `currentTasks` | Array | 是 | [] | 当前任务列表（最多3条，JSON数组） |
 | `completedTasks` | Array | 是 | [] | 已完成的作品序号数组 |
 | `totalCompleted` | Number | 是 | 0 | 完成总数 |
 
-#### currentTask 对象结构
+#### currentTasks 数组结构
 ```json
-{
-  "workNumber": 123,           // 作品序号
-  "weight": 85,                // 冷门权重
-  "currentRatings": 5,         // 当前评分数
-  "assignedDate": "2025-10-01T10:00:00.000Z",  // 分配时间
-  "status": "pending"          // 状态: pending|completed
-}
+[
+  {
+    "workNumber": 123,
+    "weight": 85,
+    "currentRatings": 5
+  },
+  {
+    "workNumber": 456,
+    "weight": 72,
+    "currentRatings": 8
+  },
+  {
+    "workNumber": 789,
+    "weight": 65,
+    "currentRatings": 12
+  }
+]
 ```
 
 #### completedTasks 数组示例
@@ -58,23 +68,26 @@
 - 必填：✓
 - 唯一：✓ (建议设置为唯一索引)
 
-**字段2：currentTask**
-- 类型：JSON (Object)
-- 字段Key：`currentTask`
-- 必填：× 
-- 默认值：留空
+**字段2：currentTasks**
+- 类型：JSON (Array)
+- 字段Key：`currentTasks`
+- 必填：✓
+- 默认值：`[]`
+- 说明：存储用户当前的3条任务
 
 **字段3：completedTasks**
 - 类型：JSON (Array)
 - 字段Key：`completedTasks`
 - 必填：✓
 - 默认值：`[]`
+- 说明：存储已完成的任务作品序号
 
 **字段4：totalCompleted**
 - 类型：Number
 - 字段Key：`totalCompleted`
 - 必填：✓
 - 默认值：`0`
+- 说明：已完成任务总数
 
 7. 权限设置：
    - 点击集合设置（齿轮图标）

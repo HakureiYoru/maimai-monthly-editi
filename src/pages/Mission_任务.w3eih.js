@@ -64,15 +64,13 @@ $w.onReady(async function () {
  */
 async function initTaskPage() {
   try {
-    // 发送初始化消息到HTML组件
-    $w('#html1').postMessage({
-      type: 'INIT_TASK_PAGE',
-      data: {
-        userId: currentUserId
-      }
-    });
+    console.log('开始初始化任务页面, 用户ID:', currentUserId);
     
-    console.log('任务页面初始化完成');
+    // 等待一小段时间确保HTML完全加载
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 获取并发送任务数据
+    await sendTaskData();
     
   } catch (error) {
     console.error('初始化任务页面失败:', error);
@@ -84,16 +82,24 @@ async function initTaskPage() {
  */
 async function sendTaskData() {
   try {
+    console.log('正在获取任务数据...');
+    
     // 从后端获取任务数据
     const taskData = await getUserTaskData(currentUserId);
     
+    console.log('任务数据获取成功:', taskData);
+    console.log('准备发送到HTML组件...');
+    
     // 发送到HTML组件
-    $w('#html1').postMessage({
+    const message = {
       type: 'TASK_DATA_RESPONSE',
       data: taskData
-    });
+    };
     
-    console.log('任务数据已发送:', taskData);
+    console.log('发送消息:', message);
+    $w('#html1').postMessage(message);
+    
+    console.log('消息已发送');
     
   } catch (error) {
     console.error('获取任务数据失败:', error);
@@ -103,7 +109,12 @@ async function sendTaskData() {
       type: 'TASK_DATA_RESPONSE',
       data: {
         error: true,
-        message: '获取任务数据失败，请刷新页面重试'
+        message: '获取任务数据失败，请刷新页面重试',
+        currentTasks: [],
+        completedTasks: [],
+        freeRatings: [],
+        totalCompleted: 0,
+        targetCompletion: 20
       }
     });
   }
