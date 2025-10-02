@@ -11,7 +11,7 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
-import { markTaskCompleted } from "backend/ratingTaskManager.jsw";
+import { markTaskCompleted, checkIfWorkInTaskList } from "backend/ratingTaskManager.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -332,7 +332,7 @@ $w.onReady(async function () {
 
 // 核心功能函数
 
-// 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态
+// 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态（任务高亮提示）
 async function updateCommentStatus($item, itemData) {
   if (itemData.isDq === true) {
     $item("#ifComment").text = "已淘汰";
@@ -360,12 +360,23 @@ async function updateCommentStatus($item, itemData) {
       .isEmpty("replyTo")
       .find();
 
+    // 检查是否为任务作品
+    const taskCheck = await checkIfWorkInTaskList(currentUserId, itemData.sequenceId);
+    const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted;
+
     if (results.items.length > 0) {
       $item("#ifComment").text = "已评论";
       $item("#ifComment").style.color = "#228B22";
     } else {
-      $item("#ifComment").text = "未评论";
-      $item("#ifComment").style.color = "#FF4500";
+      // 未评论状态 - 如果是任务则高亮提示
+      if (isTask) {
+        $item("#ifComment").text = "未评论（任务！！）";
+        $item("#ifComment").style.color = "#0066FF"; // 蓝色高亮
+        $item("#ifComment").style.fontWeight = "bold";
+      } else {
+        $item("#ifComment").text = "未评论";
+        $item("#ifComment").style.color = "#FF4500";
+      }
     }
   } catch (err) {
     console.error("检查评论状态失败", err);
@@ -391,6 +402,31 @@ function setupWorkSelectionEvent() {
           const workOwner = workResults.items[0]._owner;
           isAuthor = currentUserId === workOwner;
           isWorkDQ = workResults.items[0].isDq === true;
+        }
+
+        // 检查是否为任务作品（在其他检查之前）
+        let taskStatusText = "";
+        if (currentUserId && isUserVerified) {
+          try {
+            const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
+            if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
+              taskStatusText = "这是您的任务作品！";
+              $w("#submitprocess").text = taskStatusText;
+              $w("#submitprocess").style.color = "#0066FF"; // 蓝色
+              $w("#submitprocess").style.fontWeight = "bold";
+              $w("#submitprocess").show();
+            } else if (taskCheck.alreadyCompleted) {
+              taskStatusText = "此任务已完成";
+              $w("#submitprocess").text = taskStatusText;
+              $w("#submitprocess").style.color = "#228B22"; // 绿色
+              $w("#submitprocess").style.fontWeight = "normal";
+              $w("#submitprocess").show();
+            } else {
+              $w("#submitprocess").hide();
+            }
+          } catch (error) {
+            console.error("检查任务状态失败:", error);
+          }
         }
 
         // 优先级检查：淘汰 > 未登录 > 未验证 > 评论状态
@@ -467,6 +503,7 @@ function setupWorkSelectionEvent() {
       // 未选择作品的状态处理
       $w("#Comment").value = "";
       $w("#inputScore").value = "";
+      $w("#submitprocess").hide(); // 隐藏任务提示
 
       if (!currentUserId) {
         $w("#submit").disable();

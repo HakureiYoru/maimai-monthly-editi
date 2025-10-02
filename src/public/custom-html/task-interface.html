@@ -115,6 +115,38 @@
       font-size: 24px;
     }
     
+    /* 检查按钮 */
+    .refresh-button {
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 200px;
+      margin: 0 auto 20px auto;
+      display: block;
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+      transition: all 0.3s ease;
+    }
+    .refresh-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+    }
+    
+    .refresh-button:active {
+      transform: translateY(0);
+    }
+    
+    .refresh-button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
     /* 当前任务卡片 */
     .current-task {
       background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
@@ -426,6 +458,11 @@
         <span>当前任务</span>
       </div>
       
+      <!-- 检查按钮 -->
+      <button id="refreshTaskButton" class="refresh-button">
+        Check
+      </button>
+      
       <!-- 加载状态 -->
       <div id="loadingState" class="loading">
         <div class="spinner"></div>
@@ -692,6 +729,21 @@
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'block';
     }
+    
+    /**
+     * 检查按钮点击事件
+     */
+    document.getElementById('refreshTaskButton').addEventListener('click', () => {
+      console.log('[HTML] 用户点击检查按钮');
+      
+      // 显示加载状态
+      showLoading();
+      
+      // 通知父页面刷新任务数据
+      window.parent.postMessage({ 
+        type: 'REFRESH_TASK_REQUEST' 
+      }, '*');
+    });
     
     /**
      * 页面加载完成，通知父页面并显示加载状态

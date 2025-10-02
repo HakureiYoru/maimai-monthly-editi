@@ -47,6 +47,12 @@ $w.onReady(async function () {
           await goToRatePage();
           break;
           
+        case 'REFRESH_TASK_REQUEST':
+          // 刷新任务数据（检查按钮）
+          console.log('收到刷新任务请求');
+          await sendTaskData();
+          break;
+          
         default:
           console.log('未知消息类型:', type);
       }
