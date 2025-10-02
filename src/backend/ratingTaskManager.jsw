@@ -17,7 +17,7 @@ const COLLECTIONS = {
 };
 
 const TARGET_RATING_COUNT = 20; // 目标评分数
-const TARGET_USER_COMPLETION = 20; // 用户目标完成数
+const TARGET_USER_COMPLETION = 10; // 用户目标完成数
 
 /**
  * 获取用户任务数据（主入口）
@@ -69,7 +69,11 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
   try {
     const completedWorks = taskRecord.completedTasks || [];
     const userOwnWork = await getUserOwnWork(userId);
+    
+    // 获取用户所有已经评论过的作品（包括自评和其他评论）
+    const userRatedWorks = await getUserCompletedRatings(userId);
 
+    // 查询所有作品，排除被淘汰的作品
     const allWorksResult = await wixData
       .query(COLLECTIONS.WORKS)
       .ne('isDq', true)
@@ -78,9 +82,16 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
 
     const candidateWorks = [];
     for (const work of allWorksResult.items) {
-      if (completedWorks.includes(work.sequenceId) || work.sequenceId === userOwnWork) {
+      // 排除条件：
+      // 1. 已在完成任务列表中
+      // 2. 是用户自己的作品
+      // 3. 用户已经评论过的作品
+      if (completedWorks.includes(work.sequenceId) || 
+          work.sequenceId === userOwnWork ||
+          userRatedWorks.includes(work.sequenceId)) {
         continue;
       }
+      
       const coldnessWeight = calculateColdnessWeight(work);
       if (coldnessWeight <= 0) continue;
       const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
@@ -94,6 +105,8 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
 
     if (candidateWorks.length === 0) return [];
     candidateWorks.sort((a, b) => b.weight - a.weight);
+    
+    // 返回可用的任务数量，不强制凑齐 limit 个
     return candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
   } catch (e) {
     console.error('生成用户任务失败:', e);

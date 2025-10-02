@@ -220,34 +220,9 @@
       font-weight: 700;
       cursor: pointer;
       width: 100%;
-      transition: all 0.3s ease;
       box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
       position: relative;
       z-index: 1;
-      overflow: hidden;
-    }
-    
-    .action-button::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.3);
-      transform: translate(-50%, -50%);
-      transition: width 0.6s, height 0.6s;
-    }
-    
-    .action-button:hover::before {
-      width: 300px;
-      height: 300px;
-    }
-    
-    .action-button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
     }
     
     .action-button:active {
@@ -433,7 +408,7 @@
     <!-- 进度区域 -->
     <div class="progress-section">
       <div class="progress-title">
-        <span>📊</span>
+        <span></span>
         <span>评分进度</span>
       </div>
       <div class="progress-bar-container">
@@ -441,13 +416,13 @@
           <span id="progressPercentage">0%</span>
         </div>
       </div>
-      <div class="progress-text" id="progressText">已完成 0 / 20</div>
+      <div class="progress-text" id="progressText">已完成 0 / 10</div>
     </div>
     
     <!-- 任务区域 -->
     <div class="task-section">
       <div class="task-title">
-        <span class="task-icon">🎯</span>
+        <span class="task-icon"></span>
         <span>当前任务</span>
       </div>
       
@@ -557,14 +532,14 @@
       console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length);
       
       // 更新进度条（只计算任务完成数）
-      const progress = Math.min((totalCompleted / (targetCompletion || 20)) * 100, 100);
+      const progress = Math.min((totalCompleted / (targetCompletion || 10)) * 100, 100);
       const progressBar = document.getElementById('progressBar');
       const progressPercentage = document.getElementById('progressPercentage');
       const progressText = document.getElementById('progressText');
       
       progressBar.style.width = progress + '%';
       progressPercentage.textContent = Math.round(progress) + '%';
-      progressText.textContent = `已完成 ${totalCompleted} / ${targetCompletion || 20}`;
+      progressText.textContent = `已完成 ${totalCompleted} / ${targetCompletion || 10}`;
       
       // 渲染任务列表（最多3条）
       if (currentTasks && currentTasks.length > 0) {
@@ -610,7 +585,7 @@
         }
         
         card.innerHTML = `
-          <div class="task-label">🔥 需要关注的作品${weightLabel}</div>
+          <div class="task-label">需要关注的作品${weightLabel}</div>
           <div class="task-work-info">
             <div class="work-number-container">
               <div class="work-number-label">作品编号</div>
@@ -620,12 +595,12 @@
           </div>
           <div class="task-meta">
             <div class="meta-item">
-              <span>📊</span>
+              <span></span>
               <span>${task.currentRatings} 个评分</span>
             </div>
             <div class="meta-item">
-              <span>🎯</span>
-              <span>目标: 20 个评分</span>
+              <span></span>
+              <span>期望: 20 个评分</span>
             </div>
           </div>
           <button class="action-button" data-work="${task.workNumber}">
@@ -639,9 +614,7 @@
       // 绑定所有按钮的点击事件
       tasksContainer.querySelectorAll('.action-button').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          window.parent.postMessage({
-            type: 'GO_TO_RATE'
-          }, '*');
+          window.open('https://www.maimaimfc.ink/stage', '_blank');
         });
       });
     }

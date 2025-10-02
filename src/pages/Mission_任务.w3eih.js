@@ -114,7 +114,7 @@ async function sendTaskData() {
         completedTasks: [],
         freeRatings: [],
         totalCompleted: 0,
-        targetCompletion: 20
+        targetCompletion: 10
       }
     });
   }

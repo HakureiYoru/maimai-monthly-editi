@@ -1023,12 +1023,12 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
     // 保存所有评论数据
     allCommentsData = commentsToShow;
 
-    // 分页处理
+    // 分页处理（pagination1 和 pagination2 完全同步）
     const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
-    if ($w("#pagination1")) {
-      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
-      $w("#pagination1").currentPage = pageNumber;
-    }
+    $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination1").currentPage = pageNumber;
+    $w("#pagination2").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination2").currentPage = pageNumber;
 
     // 获取当前页的数据
     const startIndex = (pageNumber - 1) * commentsPerPage;
@@ -1145,20 +1145,19 @@ function setupSearchAndPaginationEvents() {
 
 // 评论列表分页事件设置
 function setupCommentsPaginationEvents() {
-  if ($w("#pagination1")) {
-    $w("#pagination1").onClick(async (event) => {
-      const pageNumber = event.target.currentPage;
-      const dropdownFilterValue = $w("#dropdownFilter").value;
-      
-      if (dropdownFilterValue && dropdownFilterValue !== "114514") {
-        await setDropdownValue(parseInt(dropdownFilterValue), pageNumber);
-      } else if (dropdownFilterValue === "114514") {
-        await loadUserComments(pageNumber);
-      } else {
-        await loadAllFormalComments(pageNumber);
-      }
-    });
-  }
+  // pagination1 和 pagination2 完全平行处理评论分页
+  $w("#pagination1, #pagination2").onClick(async (event) => {
+    const pageNumber = event.target.currentPage;
+    const dropdownFilterValue = $w("#dropdownFilter").value;
+    
+    if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+      await setDropdownValue(parseInt(dropdownFilterValue), pageNumber);
+    } else if (dropdownFilterValue === "114514") {
+      await loadUserComments(pageNumber);
+    } else {
+      await loadAllFormalComments(pageNumber);
+    }
+  });
 }
 
 // 评论提交事件处理
@@ -1279,8 +1278,8 @@ function setupSubmitButtonEvent() {
             
             if (result.taskCompleted) {
               // 这是任务列表中的作品，且首次完成
-              console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/20)`);
-              taskStatusMessage = ` | ✓ 任务完成！进度: ${result.completedCount}/20`;
+              console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/10)`);
+              taskStatusMessage = ` | ✓ 任务完成！进度: ${result.completedCount}/10`;
             } else if (result.alreadyCompleted) {
               // 这是任务列表中的作品，但之前已完成过
               console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
@@ -1388,12 +1387,12 @@ async function loadAllFormalComments(pageNumber = 1) {
     // 保存所有评论数据
     allCommentsData = commentsToShow;
 
-    // 分页处理
+    // 分页处理（pagination1 和 pagination2 完全同步）
     const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
-    if ($w("#pagination1")) {
-      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
-      $w("#pagination1").currentPage = pageNumber;
-    }
+    $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination1").currentPage = pageNumber;
+    $w("#pagination2").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination2").currentPage = pageNumber;
 
     // 获取当前页的数据
     const startIndex = (pageNumber - 1) * commentsPerPage;
@@ -1461,12 +1460,12 @@ async function loadUserComments(pageNumber = 1) {
     // 保存所有评论数据
     allCommentsData = commentsToShow;
 
-    // 分页处理
+    // 分页处理（pagination1 和 pagination2 完全同步）
     const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
-    if ($w("#pagination1")) {
-      $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
-      $w("#pagination1").currentPage = pageNumber;
-    }
+    $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination1").currentPage = pageNumber;
+    $w("#pagination2").totalPages = totalPages > 0 ? totalPages : 1;
+    $w("#pagination2").currentPage = pageNumber;
 
     // 获取当前页的数据
     const startIndex = (pageNumber - 1) * commentsPerPage;
