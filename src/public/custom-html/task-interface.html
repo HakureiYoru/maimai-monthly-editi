@@ -510,6 +510,13 @@
         <div class="no-task-title">太棒了！</div>
         <div class="no-task-desc">你已经完成了所有评分任务</div>
       </div>
+      
+      <!-- 未验证状态 -->
+      <div id="notVerifiedState" style="display: none;" class="no-task">
+        <div class="no-task-icon" style="color: #FF0000;">⚠️</div>
+        <div class="no-task-title" style="color: #FF0000;">未验证</div>
+        <div class="no-task-desc" id="notVerifiedMessage">您尚未报名比赛，无法接受和完成任务</div>
+      </div>
     </div>
   </div>
   
@@ -561,7 +568,13 @@
       
       if (taskData.error) {
         console.error('[HTML] 数据错误:', taskData.message);
-        showNoTask();
+        
+        // 检查是否是未验证状态
+        if (taskData.notVerified) {
+          showNotVerified(taskData.message);
+        } else {
+          showNoTask();
+        }
         return;
       }
       
@@ -714,6 +727,7 @@
       document.getElementById('loadingState').style.display = 'block';
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'none';
+      document.getElementById('notVerifiedState').style.display = 'none';
     }
     
     function hideLoading() {
@@ -723,11 +737,22 @@
     function showTaskContent() {
       document.getElementById('taskContent').style.display = 'block';
       document.getElementById('noTaskState').style.display = 'none';
+      document.getElementById('notVerifiedState').style.display = 'none';
     }
     
     function showNoTask() {
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'block';
+      document.getElementById('notVerifiedState').style.display = 'none';
+    }
+    
+    function showNotVerified(message) {
+      document.getElementById('taskContent').style.display = 'none';
+      document.getElementById('noTaskState').style.display = 'none';
+      document.getElementById('notVerifiedState').style.display = 'block';
+      if (message) {
+        document.getElementById('notVerifiedMessage').textContent = message;
+      }
     }
     
     /**

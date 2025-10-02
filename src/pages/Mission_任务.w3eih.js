@@ -6,6 +6,7 @@
 import wixUsers from 'wix-users';
 import wixWindow from 'wix-window';
 import wixLocation from 'wix-location';
+import wixData from 'wix-data';
 import { 
   getUserTaskData,
   markTaskCompleted 
@@ -13,6 +14,37 @@ import {
 
 let currentUserId = null;
 let isHtmlReady = false;
+let isUserVerified = false;
+
+/**
+ * 检查用户验证状态（是否报名比赛）
+ */
+async function checkUserVerification() {
+  if (!currentUserId) {
+    isUserVerified = false;
+    return false;
+  }
+
+  try {
+    const results = await wixData
+      .query("Members/PublicData")
+      .eq("_id", currentUserId)
+      .find();
+
+    if (results.items.length > 0) {
+      const member = results.items[0];
+      isUserVerified = !!member["custom_pu-mian-fa-bu-wang-zhi"];
+      return isUserVerified;
+    } else {
+      isUserVerified = false;
+      return false;
+    }
+  } catch (error) {
+    console.error("检查用户验证状态失败：", error);
+    isUserVerified = false;
+    return false;
+  }
+}
 
 $w.onReady(async function () {
   // 检查用户登录状态
@@ -24,6 +56,9 @@ $w.onReady(async function () {
   }
   
   currentUserId = wixUsers.currentUser.id;
+  
+  // 检查用户验证状态
+  await checkUserVerification();
   
   // 监听HTML组件消息
   $w('#html1').onMessage(async (event) => {
@@ -89,6 +124,25 @@ async function initTaskPage() {
 async function sendTaskData() {
   try {
     console.log('正在获取任务数据...');
+    
+    // 检查用户验证状态
+    if (!isUserVerified) {
+      console.log('用户未验证，发送未验证状态');
+      $w('#html1').postMessage({
+        type: 'TASK_DATA_RESPONSE',
+        data: {
+          error: true,
+          notVerified: true,
+          message: '您尚未报名比赛，无法接受和完成任务',
+          currentTasks: [],
+          completedTasks: [],
+          freeRatings: [],
+          totalCompleted: 0,
+          targetCompletion: 10
+        }
+      });
+      return;
+    }
     
     // 从后端获取任务数据
     const taskData = await getUserTaskData(currentUserId);
