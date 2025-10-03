@@ -27,6 +27,7 @@ let allCommentsData = []; // 存储所有评论数据用于分页
 let userFormalRatingsCache = null; // 缓存用户正式评分状态
 let replyCountsCache = {}; // 缓存回复数量
 let workOwnersCache = {}; // 缓存作品所有者信息
+let allWorksRankingCache = null; // 缓存所有作品的排名信息
 
 // 用户验证功能
 async function checkUserVerification() {
@@ -136,6 +137,8 @@ $w.onReady(async function () {
   // Repeater1: 评论显示
   $w("#repeater1").onItemReady(async ($item, itemData, index) => {
     let commentText = itemData.comment;
+    let isWorkDQ = false; // 标记作品是否被淘汰
+    
     try {
       const workResults = await wixData
         .query("enterContest034")
@@ -144,6 +147,7 @@ $w.onReady(async function () {
 
       if (workResults.items.length > 0 && workResults.items[0].isDq === true) {
         commentText = "*该作品已淘汰*" + commentText;
+        isWorkDQ = true;
       }
     } catch (error) {
       console.error("检查作品淘汰状态失败", error);
@@ -157,7 +161,7 @@ $w.onReady(async function () {
       $item("#showScore").text = "Re";
       $item("#showBackground").style.backgroundColor = "#1E3A8A";
       $item("#deleteComment").hide();
-      $item("#viewRepliesButton").hide();
+      //$item("#viewRepliesButton").hide();
       if ($item("#replyCountText")) {
         $item("#replyCountText").hide();
       }
@@ -217,33 +221,44 @@ $w.onReady(async function () {
       $item("#viewRepliesButton").show();
     }
 
-    // 评分数据显示（仅主评论）
+    // 评分数据显示（仅主评论）- 使用等级系统，排除淘汰作品
     if (!itemData.replyTo) {
-      const userHasFormalRating = await checkUserHasFormalRating(
-        itemData.workNumber
-      );
-
-      if (userHasFormalRating) {
-        const ratingData = await getRatingData(itemData.workNumber);
-        var averageScore = ratingData.averageScore;
-        var newRating = ((averageScore - 0) / (1000 - 0)) * (5.0 - 1.0) + 1.0;
-
-        if (ratingData.numRatings >= 5) {
-          $item("#ratingsDisplay").text = `${newRating.toFixed(1)}★ (${
-            ratingData.numRatings
-          }人评分)`;
-        } else if (ratingData.numRatings > 0) {
-          $item(
-            "#ratingsDisplay"
-          ).text = `评分量不足(${ratingData.numRatings}人评分)`;
-        } else {
-          $item("#ratingsDisplay").text = "暂无评分";
-        }
+      // 淘汰作品不显示评分等级
+      if (isWorkDQ) {
+        $item("#totalscoreComment").text = "";
       } else {
-        $item("#ratingsDisplay").text = "提交您的评分以查看评分";
+        const userHasFormalRating = await checkUserHasFormalRating(
+          itemData.workNumber
+        );
+
+        if (userHasFormalRating) {
+          const ratingData = await getRatingData(itemData.workNumber);
+
+          if (ratingData.numRatings >= 5) {
+            // 获取排名信息并显示等级
+            const rankingData = await calculateAllWorksRanking();
+            const workRanking = rankingData.rankingMap[itemData.workNumber];
+            
+            if (workRanking) {
+              const tier = getTierFromPercentile(workRanking.percentile);
+              $item("#totalscoreComment").text = `${tier} (${ratingData.numRatings}人评分)`;
+            } else {
+              // 有评分但未进入排名（可能被淘汰或其他原因）
+              $item("#totalscoreComment").text = "";
+            }
+          } else if (ratingData.numRatings > 0) {
+            $item(
+              "#totalscoreComment"
+            ).text = `评分量不足(${ratingData.numRatings}人评分)`;
+          } else {
+            $item("#totalscoreComment").text = "暂无评分";
+          }
+        } else {
+          $item("#totalscoreComment").text = "提交您的评分以查看评分";
+        }
       }
     } else {
-      $item("#ratingsDisplay").text = "";
+      $item("#totalscoreComment").text = "";
     }
 
     await displayAuthorInfo($item, itemData);
@@ -305,6 +320,9 @@ $w.onReady(async function () {
   if (currentUserId && isUserVerified) {
     await batchLoadUserFormalRatings();
   }
+  
+  // 预加载作品排名数据
+  await calculateAllWorksRanking();
   
   await loadAllFormalComments();
   
@@ -604,6 +622,72 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
 
 // 辅助工具函数
 
+// 获取所有作品的评分并计算排名百分位（排除淘汰作品）
+async function calculateAllWorksRanking() {
+  if (allWorksRankingCache) {
+    return allWorksRankingCache;
+  }
+
+  try {
+    console.log("开始计算所有作品排名...");
+    
+    // 获取所有作品
+    const allWorks = await wixData.query("enterContest034").limit(1000).find();
+    
+    // 计算每个作品的平均分，排除淘汰作品
+    const worksWithScores = await Promise.all(
+      allWorks.items
+        .filter(work => work.isDq !== true) // 排除淘汰作品
+        .map(async (work) => {
+          const ratingData = await getRatingData(work.sequenceId);
+          return {
+            sequenceId: work.sequenceId,
+            averageScore: ratingData.averageScore,
+            numRatings: ratingData.numRatings
+          };
+        })
+    );
+
+    // 只考虑有足够评分的作品（>=5人评分）
+    const validWorks = worksWithScores.filter(w => w.numRatings >= 5);
+    
+    // 按平均分降序排序
+    validWorks.sort((a, b) => b.averageScore - a.averageScore);
+    
+    // 创建排名映射
+    const rankingMap = {};
+    validWorks.forEach((work, index) => {
+      const percentile = (index + 1) / validWorks.length;
+      rankingMap[work.sequenceId] = {
+        averageScore: work.averageScore,
+        numRatings: work.numRatings,
+        percentile: percentile,
+        rank: index + 1
+      };
+    });
+
+    allWorksRankingCache = {
+      rankingMap: rankingMap,
+      totalValidWorks: validWorks.length
+    };
+
+    console.log(`作品排名计算完成，共${validWorks.length}个有效作品（已排除淘汰作品）`);
+    return allWorksRankingCache;
+  } catch (error) {
+    console.error("计算作品排名失败:", error);
+    return { rankingMap: {}, totalValidWorks: 0 };
+  }
+}
+
+// 根据百分位获取等级
+function getTierFromPercentile(percentile) {
+  if (percentile <= 0.05) return "T0";
+  if (percentile <= 0.20) return "T1";
+  if (percentile <= 0.40) return "T2";
+  if (percentile <= 0.60) return "T3";
+  return "T4";
+}
+
 // 批量获取用户正式评分状态（优化版）
 async function batchLoadUserFormalRatings() {
   if (!currentUserId || !isUserVerified || userFormalRatingsCache) {
@@ -664,6 +748,7 @@ function clearCaches() {
   userFormalRatingsCache = null;
   replyCountsCache = {};
   workOwnersCache = {};
+  allWorksRankingCache = null; // 清理排名缓存
   console.log("缓存数据已清理");
 }
 
@@ -682,6 +767,9 @@ async function refreshRepeaters() {
     if (currentUserId && isUserVerified) {
       await batchLoadUserFormalRatings();
     }
+    
+    // 重新加载排名数据
+    await calculateAllWorksRanking();
 
     const dropdownFilterValue = $w("#dropdownFilter").value;
     if (dropdownFilterValue && dropdownFilterValue !== "114514") {
@@ -1080,15 +1168,22 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
   }
 }
 
-// 更新作品评分显示（排除作者自评）
+// 更新作品评分显示（基于排名百分位的等级系统，排除淘汰作品）
 async function updateItemEvaluationDisplay($item, itemData) {
   try {
     const workNumber = itemData.sequenceId;
 
+    // 淘汰作品不显示评分
+    if (itemData.isDq === true) {
+      $item("#totalscore").text = "";
+      $item("#box1").style.backgroundColor = "transparent";
+      return;
+    }
+
     const userHasFormalRating = await checkUserHasFormalRating(workNumber);
 
     if (!userHasFormalRating) {
-      $item("#approvalCountText").text = "";
+      $item("#totalscore").text = "";
       $item("#box1").style.backgroundColor = "transparent";
       return;
     }
@@ -1098,59 +1193,91 @@ async function updateItemEvaluationDisplay($item, itemData) {
     const averageScore = ratingData.averageScore;
 
     if (evaluationCount > 0) {
-      const displayRating = Math.round(((averageScore - 100) / 900) * 4) + 1;
-
       if (evaluationCount >= 5) {
-        $item("#approvalCountText").text = `${displayRating.toFixed(
-          1
-        )}★ (${evaluationCount}人评分)`;
+        // 获取排名信息
+        const rankingData = await calculateAllWorksRanking();
+        const workRanking = rankingData.rankingMap[workNumber];
+        
+        if (workRanking) {
+          const tier = getTierFromPercentile(workRanking.percentile);
+          $item("#totalscore").text = `${tier} (${evaluationCount}人评分)`;
 
-        if (displayRating >= 4) {
-          $item("#box1").style.backgroundColor = "rgba(135, 206, 235, 0.5)";
-        } else if (displayRating >= 3) {
-          $item("#box1").style.backgroundColor = "rgba(144, 238, 144, 0.3)";
+          // 根据等级设置背景色
+          if (tier === "T0") {
+            $item("#box1").style.backgroundColor = "rgba(255, 215, 0, 0.6)"; // 金色
+          } else if (tier === "T1") {
+            $item("#box1").style.backgroundColor = "rgba(135, 206, 235, 0.5)"; // 天蓝色
+          } else if (tier === "T2") {
+            $item("#box1").style.backgroundColor = "rgba(144, 238, 144, 0.4)"; // 浅绿色
+          } else if (tier === "T3") {
+            $item("#box1").style.backgroundColor = "rgba(255, 255, 224, 0.4)"; // 浅黄色
+          } else {
+            $item("#box1").style.backgroundColor = "rgba(211, 211, 211, 0.3)"; // 浅灰色
+          }
         } else {
-          $item("#box1").style.backgroundColor = "rgba(255, 182, 193, 0.3)";
+          // 有评分但未进入排名（可能被淘汰或其他原因）
+          $item("#totalscore").text = "";
+          $item("#box1").style.backgroundColor = "transparent";
         }
       } else {
         $item(
-          "#approvalCountText"
+          "#totalscore"
         ).text = `评分量不足(${evaluationCount}人评分)`;
         $item("#box1").style.backgroundColor = "rgba(255, 255, 0, 0.3)";
       }
     } else {
-      $item("#approvalCountText").text = "暂无评分";
+      $item("#totalscore").text = "暂无评分";
       $item("#box1").style.backgroundColor = "transparent";
     }
   } catch (error) {
     console.error("更新评分显示时出错:", error);
-    $item("#approvalCountText").text = "评分加载失败";
+    $item("#totalscore").text = "评分加载失败";
   }
 }
 
-// 基于评分排序作品（排除作者自评）
+// 基于评分排序作品（排除作者自评，考虑用户评分权限，淘汰作品后置）
 async function sortByRating(items) {
   try {
     const itemsWithRating = await Promise.all(
       items.map(async (item) => {
         const ratingData = await getRatingData(item.sequenceId);
-        const averageScore =
-          ratingData.numRatings >= 5 ? ratingData.averageScore : 0;
+        const userHasFormalRating = await checkUserHasFormalRating(item.sequenceId);
+        
+        // 只有用户对该作品有正式评分时，才能看到并参与排序
+        const canSeeRating = userHasFormalRating && ratingData.numRatings >= 5;
+        const averageScore = canSeeRating ? ratingData.averageScore : 0;
 
         return {
           ...item,
           rating: averageScore,
           numRatings: ratingData.numRatings,
+          canSeeRating: canSeeRating, // 标记用户是否能看到评分
+          isDQ: item.isDq === true, // 标记是否淘汰
         };
       })
     );
 
-    return itemsWithRating.sort((a, b) => {
+    // 三级分类：能看到评分的非淘汰作品、不能看到评分的非淘汰作品、淘汰作品
+    const visibleRatingItems = itemsWithRating.filter(item => item.canSeeRating && !item.isDQ);
+    const hiddenRatingItems = itemsWithRating.filter(item => !item.canSeeRating && !item.isDQ);
+    const disqualifiedItems = itemsWithRating.filter(item => item.isDQ);
+
+    // 能看到评分的作品按评分排序
+    visibleRatingItems.sort((a, b) => {
       if (a.rating === b.rating) {
         return b.numRatings - a.numRatings;
       }
       return b.rating - a.rating;
     });
+
+    // 不能看到评分的作品按sequenceId排序
+    hiddenRatingItems.sort((a, b) => a.sequenceId - b.sequenceId);
+
+    // 淘汰作品按sequenceId排序
+    disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
+
+    // 排序优先级：有评分可见 > 评分不可见 > 淘汰作品
+    return [...visibleRatingItems, ...hiddenRatingItems, ...disqualifiedItems];
   } catch (error) {
     console.error("排序时出错:", error);
     return items;
