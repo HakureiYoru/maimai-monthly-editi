@@ -18,6 +18,7 @@ const COLLECTIONS = {
 
 const TARGET_RATING_COUNT = 20; // 目标评分数
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
+const TASK_REFRESH_HOURS = 1/30; // 任务刷新间隔（小时），1/30小时=2分钟（调试用）
 
 /**
  * 获取用户任务数据（主入口）
@@ -29,16 +30,28 @@ export async function getUserTaskData(userId) {
     // 1. 获取或创建用户任务记录
     let taskRecord = await getUserTaskRecord(userId);
     
-    // 2. 生成当前任务列表（最多3条）
+    // 2. 检查是否需要刷新任务（基于时间）
+    const needsRefresh = shouldRefreshTasks(taskRecord);
+    if (needsRefresh) {
+      console.log(`用户 ${userId} 任务已超时，将刷新任务列表`);
+      // 清空当前任务，强制重新生成
+      taskRecord.currentTasks = [];
+      taskRecord.lastRefreshTime = new Date();
+    }
+    
+    // 3. 生成当前任务列表（最多3条）
     const currentTasks = await generateUserTasks(userId, taskRecord, 3);
     
-    // 3. 更新任务列表到数据库
-    if (currentTasks.length > 0) {
+    // 4. 更新任务列表和刷新时间到数据库
+    if (currentTasks.length > 0 || needsRefresh) {
       taskRecord.currentTasks = currentTasks;
+      if (needsRefresh || !taskRecord.lastRefreshTime) {
+        taskRecord.lastRefreshTime = new Date();
+      }
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
     }
 
-    // 4. 获取用户所有评分记录，计算自主评论的作品
+    // 5. 获取用户所有评分记录，计算自主评论的作品
     const allUserRatings = await getUserCompletedRatings(userId);
     const freeRatings = allUserRatings.filter(workNum => 
       !taskRecord.completedTasks.includes(workNum)
@@ -49,7 +62,9 @@ export async function getUserTaskData(userId) {
       completedTasks: taskRecord.completedTasks.sort((a, b) => b - a),
       freeRatings: freeRatings.sort((a, b) => b - a),
       totalCompleted: taskRecord.totalCompleted,
-      targetCompletion: TARGET_USER_COMPLETION
+      targetCompletion: TARGET_USER_COMPLETION,
+      lastRefreshTime: taskRecord.lastRefreshTime,
+      nextRefreshTime: getNextRefreshTime(taskRecord.lastRefreshTime)
     };
     
   } catch (error) {
@@ -258,26 +273,61 @@ function calculateColdnessWeight(work) {
   // 计算评分缺口
   const deficit = Math.max(0, expectedRatings - currentRatings);
   
-  // 基础权重：缺口比例
+  // 基础权重：缺口比例（降低最大值从60到45）
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
-  const baseWeight = deficitRatio * 60; // 最大60分
+  const baseWeight = deficitRatio * 45; // 最大45分（从60降低）
   
-  // 时间紧迫度加成
+  // 时间紧迫度加成（降低加成幅度）
   let urgencyBonus = 0;
   if (daysSinceSubmission > 7 && currentRatings < 10) {
-    urgencyBonus = 20;
+    urgencyBonus = 12; // 从20降低到12
   }
   if (daysSinceSubmission > 14 && currentRatings < 15) {
-    urgencyBonus = 30;
+    urgencyBonus = 18; // 从30降低到18
   }
   if (daysSinceSubmission > 21 && currentRatings < 18) {
-    urgencyBonus = 40;
+    urgencyBonus = 25; // 从40降低到25
   }
   
-  // 总权重
+  // 总权重（现在最大约70分，不容易达到100）
   const totalWeight = Math.min(100, baseWeight + urgencyBonus);
   
   return Math.round(totalWeight);
+}
+
+/**
+ * 检查任务是否需要刷新
+ * @param {Object} taskRecord - 任务记录
+ * @returns {boolean} 是否需要刷新
+ */
+function shouldRefreshTasks(taskRecord) {
+  // 如果没有刷新时间记录，需要刷新
+  if (!taskRecord.lastRefreshTime) {
+    return true;
+  }
+  
+  // 计算距离上次刷新的小时数
+  const now = new Date();
+  const lastRefresh = new Date(taskRecord.lastRefreshTime);
+  const hoursSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60);
+  
+  // 如果超过刷新间隔，需要刷新
+  return hoursSinceRefresh >= TASK_REFRESH_HOURS;
+}
+
+/**
+ * 计算下次刷新时间
+ * @param {Date} lastRefreshTime - 上次刷新时间
+ * @returns {Date} 下次刷新时间
+ */
+function getNextRefreshTime(lastRefreshTime) {
+  if (!lastRefreshTime) {
+    return new Date();
+  }
+  
+  const nextRefresh = new Date(lastRefreshTime);
+  nextRefresh.setHours(nextRefresh.getHours() + TASK_REFRESH_HOURS);
+  return nextRefresh;
 }
 
 /**
@@ -298,7 +348,8 @@ async function getUserTaskRecord(userId) {
         userId: userId,
         currentTasks: [],  // 改为任务列表（最多3条）
         completedTasks: [],
-        totalCompleted: 0
+        totalCompleted: 0,
+        lastRefreshTime: new Date() // 初始化刷新时间
       };
       
       const inserted = await wixData.insert(COLLECTIONS.USER_TASKS, newRecord);

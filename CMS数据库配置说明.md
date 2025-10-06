@@ -26,6 +26,7 @@
 | `currentTasks` | Array | 是 | [] | 当前任务列表（最多3条，JSON数组） |
 | `completedTasks` | Array | 是 | [] | 已完成的作品序号数组 |
 | `totalCompleted` | Number | 是 | 0 | 完成总数 |
+| `lastRefreshTime` | Date | 否 | 当前时间 | 上次任务刷新时间（用于定时刷新） |
 
 #### currentTasks 数组结构
 ```json
@@ -88,6 +89,13 @@
 - 必填：✓
 - 默认值：`0`
 - 说明：已完成任务总数
+
+**字段5：lastRefreshTime**
+- 类型：Date & Time
+- 字段Key：`lastRefreshTime`
+- 必填：否
+- 默认值：当前时间
+- 说明：上次任务刷新时间，用于自动定时刷新任务列表（每48小时）
 
 7. 权限设置：
    - 点击集合设置（齿轮图标）

@@ -458,6 +458,11 @@
         <span>当前任务</span>
       </div>
       
+      <!-- 任务刷新信息 -->
+      <div id="refreshInfo" style="text-align: center; margin-bottom: 16px; color: #718096; font-size: 14px; display: none;">
+        <span id="refreshTimeText">下次刷新: --</span>
+      </div>
+      
       <!-- 检查按钮 -->
       <button id="refreshTaskButton" class="refresh-button">
         Check
@@ -578,7 +583,7 @@
         return;
       }
       
-      const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion } = taskData;
+      const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion, lastRefreshTime, nextRefreshTime } = taskData;
       console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length);
       
       // 更新进度条（只计算任务完成数）
@@ -590,6 +595,9 @@
       progressBar.style.width = progress + '%';
       progressPercentage.textContent = Math.round(progress) + '%';
       progressText.textContent = `已完成 ${totalCompleted} / ${targetCompletion || 10}`;
+      
+      // 显示刷新时间信息
+      updateRefreshTimeDisplay(nextRefreshTime);
       
       // 渲染任务列表（最多3条）
       if (currentTasks && currentTasks.length > 0) {
@@ -753,6 +761,46 @@
       if (message) {
         document.getElementById('notVerifiedMessage').textContent = message;
       }
+    }
+    
+    /**
+     * 更新刷新时间显示
+     */
+    function updateRefreshTimeDisplay(nextRefreshTime) {
+      const refreshInfo = document.getElementById('refreshInfo');
+      const refreshTimeText = document.getElementById('refreshTimeText');
+      
+      if (!nextRefreshTime) {
+        refreshInfo.style.display = 'none';
+        return;
+      }
+      
+      const nextRefresh = new Date(nextRefreshTime);
+      const now = new Date();
+      const diffMs = nextRefresh - now;
+      
+      if (diffMs <= 0) {
+        refreshTimeText.textContent = '任务即将刷新，点击Check更新';
+        refreshTimeText.style.color = '#0066FF';
+        refreshTimeText.style.fontWeight = 'bold';
+      } else {
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        let timeText = '下次刷新: ';
+        if (diffHours > 0) {
+          timeText += `${diffHours}小时`;
+        }
+        if (diffMinutes > 0 || diffHours === 0) {
+          timeText += `${diffMinutes}分钟后`;
+        }
+        
+        refreshTimeText.textContent = timeText;
+        refreshTimeText.style.color = '#718096';
+        refreshTimeText.style.fontWeight = 'normal';
+      }
+      
+      refreshInfo.style.display = 'block';
     }
     
     /**
