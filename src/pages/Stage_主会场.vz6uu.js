@@ -11,7 +11,7 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
-import { markTaskCompleted, checkIfWorkInTaskList } from "backend/ratingTaskManager.jsw";
+import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData } from "backend/ratingTaskManager.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -89,6 +89,15 @@ $w.onReady(async function () {
   await checkUserVerification();
   updateCommentControlsVerificationStatus();
 
+  // 检查并刷新任务（如果超过刷新时间间隔）
+  if (currentUserId && isUserVerified) {
+    try {
+      await getUserTaskData(currentUserId);
+      console.log("[主会场] 任务同步检查完成");
+    } catch (error) {
+      console.error("[主会场] 任务同步检查失败:", error);
+    }
+  }
 
   commentsCountByWorkNumber = await getAllCommentsCount();
 
