@@ -93,7 +93,7 @@ $w.onReady(async function () {
   if (currentUserId && isUserVerified) {
     try {
       await getUserTaskData(currentUserId);
-      console.log("[主会场] 任务同步检查完成");
+      // console.log("[主会场] 任务同步检查完成");
     } catch (error) {
       console.error("[主会场] 任务同步检查失败:", error);
     }
@@ -638,7 +638,7 @@ async function calculateAllWorksRanking() {
   }
 
   try {
-    console.log("开始计算所有作品排名...");
+    // console.log("开始计算所有作品排名...");
     
     // 获取所有作品
     const allWorks = await wixData.query("enterContest034").limit(1000).find();
@@ -680,7 +680,7 @@ async function calculateAllWorksRanking() {
       totalValidWorks: validWorks.length
     };
 
-    console.log(`作品排名计算完成，共${validWorks.length}个有效作品（已排除淘汰作品）`);
+    // console.log(`作品排名计算完成，共${validWorks.length}个有效作品（已排除淘汰作品）`);
     return allWorksRankingCache;
   } catch (error) {
     console.error("计算作品排名失败:", error);
@@ -758,7 +758,7 @@ function clearCaches() {
   replyCountsCache = {};
   workOwnersCache = {};
   allWorksRankingCache = null; // 清理排名缓存
-  console.log("缓存数据已清理");
+  // console.log("缓存数据已清理");
 }
 
 // 统一刷新两个repeater
@@ -791,7 +791,7 @@ async function refreshRepeaters() {
 
     commentsCountByWorkNumber = await getAllCommentsCount();
 
-    console.log("Repeaters刷新完成");
+    // console.log("Repeaters刷新完成");
   } catch (error) {
     console.error("刷新Repeaters时发生错误:", error);
   }
@@ -1342,14 +1342,14 @@ function setupSubmitButtonEvent() {
       $w("#submitprocess").show();
       
       if (!currentUserId) {
-        console.log("用户未登录");
+        // console.log("用户未登录");
         $w("#submitprocess").text = "❌ 用户未登录";
         setTimeout(() => $w("#submitprocess").hide(), 2000);
         return;
       }
 
       if (!isUserVerified) {
-        console.log("用户未验证，无法提交评论");
+        // console.log("用户未验证，无法提交评论");
         $w("#submitprocess").text = "❌ 用户未验证";
         setTimeout(() => $w("#submitprocess").hide(), 2000);
         return;
@@ -1385,7 +1385,7 @@ function setupSubmitButtonEvent() {
         }
 
         if (isWorkDQ) {
-          console.log("作品已淘汰，阻止提交评论");
+          // console.log("作品已淘汰，阻止提交评论");
           $w("#submitprocess").text = "❌ 作品已淘汰";
           setTimeout(() => $w("#submitprocess").hide(), 2000);
           return;
@@ -1402,7 +1402,7 @@ function setupSubmitButtonEvent() {
             .find();
 
           if (existingComment.items.length > 0) {
-            console.log("用户已经评论过这个作品，阻止重复提交");
+            // console.log("用户已经评论过这个作品，阻止重复提交");
             $w("#submitprocess").text = "❌ 已评论过此作品";
             setTimeout(() => $w("#submitprocess").hide(), 2000);
             return;
@@ -1451,15 +1451,15 @@ function setupSubmitButtonEvent() {
             
             if (result.taskCompleted) {
               // 这是任务列表中的作品，且首次完成
-              console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/10)`);
+              // console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/10)`);
               taskStatusMessage = ` | ✓ 任务完成！进度: ${result.completedCount}/10`;
             } else if (result.alreadyCompleted) {
               // 这是任务列表中的作品，但之前已完成过
-              console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
+              // console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
               taskStatusMessage = " | 此任务已完成过";
             } else if (!result.isInTaskList) {
               // 不在任务列表中，不计入进度
-              console.log(`作品 #${workNumber} 不在任务列表中，不计入任务完成`);
+              // console.log(`作品 #${workNumber} 不在任务列表中，不计入任务完成`);
               taskStatusMessage = " | 非任务作品（不计入进度）";
             }
           } catch (error) {
@@ -1515,7 +1515,7 @@ function setupScoreCheckboxEvent() {
   $w("#scoreCheckbox").onChange(async (event) => {
     try {
       const isChecked = event.target.checked;
-      console.log(`正式评论筛选已${isChecked ? "启用" : "禁用"}`);
+      // console.log(`正式评论筛选已${isChecked ? "启用" : "禁用"}`);
 
       const dropdownFilterValue = $w("#dropdownFilter").value;
 
@@ -1576,11 +1576,11 @@ async function loadAllFormalComments(pageNumber = 1) {
       // 更新重复项元素
     });
 
-    console.log(
-      `已加载${pagedComments.length}/${allCommentsData.length}条${
-        isScoreFilterEnabled() ? "正式" : ""
-      }评论 (第${pageNumber}/${totalPages}页)`
-    );
+    // console.log(
+    //   `已加载${pagedComments.length}/${allCommentsData.length}条${
+    //     isScoreFilterEnabled() ? "正式" : ""
+    //   }评论 (第${pageNumber}/${totalPages}页)`
+    // );
   } catch (err) {
     console.error("加载所有评论失败", err);
   }
@@ -1589,13 +1589,13 @@ async function loadAllFormalComments(pageNumber = 1) {
 // 加载用户评论（支持筛选和分页）
 async function loadUserComments(pageNumber = 1) {
   if (!currentUserId) {
-    console.log("用户未登录，无法查看个人评论");
+    // console.log("用户未登录，无法查看个人评论");
     $w("#repeater1").data = [];
     return;
   }
 
   if (!isUserVerified) {
-    console.log("用户未验证，无法查看个人评论");
+    // console.log("用户未验证，无法查看个人评论");
     $w("#repeater1").data = [];
     return;
   }

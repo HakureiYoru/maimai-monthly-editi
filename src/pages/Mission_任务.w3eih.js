@@ -84,7 +84,7 @@ $w.onReady(async function () {
           
         case 'REFRESH_TASK_REQUEST':
           // 刷新任务数据（检查按钮）
-          console.log('收到刷新任务请求');
+          // console.log('收到刷新任务请求');
           await sendTaskData();
           break;
           
@@ -105,7 +105,7 @@ $w.onReady(async function () {
  */
 async function initTaskPage() {
   try {
-    console.log('开始初始化任务页面, 用户ID:', currentUserId);
+    // console.log('开始初始化任务页面, 用户ID:', currentUserId);
     
     // 等待一小段时间确保HTML完全加载
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -123,7 +123,7 @@ async function initTaskPage() {
  */
 async function sendTaskData() {
   try {
-    console.log('正在获取任务数据...');
+    // console.log('正在获取任务数据...');
     
     // 检查用户验证状态
     if (!isUserVerified) {
@@ -147,8 +147,8 @@ async function sendTaskData() {
     // 从后端获取任务数据
     const taskData = await getUserTaskData(currentUserId);
     
-    console.log('任务数据获取成功:', taskData);
-    console.log('准备发送到HTML组件...');
+    // console.log('任务数据获取成功:', taskData);
+    // console.log('准备发送到HTML组件...');
     
     // 发送到HTML组件
     const message = {
@@ -156,10 +156,10 @@ async function sendTaskData() {
       data: taskData
     };
     
-    console.log('发送消息:', message);
+    // console.log('发送消息:', message);
     $w('#html1').postMessage(message);
     
-    console.log('消息已发送');
+    // console.log('消息已发送');
     
   } catch (error) {
     console.error('获取任务数据失败:', error);

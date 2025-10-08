@@ -18,7 +18,7 @@ const COLLECTIONS = {
 
 const TARGET_RATING_COUNT = 20; // 目标评分数
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
-const TASK_REFRESH_HOURS = 1/30; // 任务刷新间隔（小时），1/30小时=2分钟（调试用）
+const TASK_REFRESH_HOURS = 24; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
 
 /**
  * 获取用户任务数据（主入口）
