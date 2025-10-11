@@ -33,7 +33,7 @@ export async function getUserTaskData(userId) {
     // 2. 检查是否需要刷新任务（基于时间）
     const needsRefresh = shouldRefreshTasks(taskRecord);
     if (needsRefresh) {
-      console.log(`用户 ${userId} 任务已超时，将刷新任务列表`);
+      // console.log(`用户 ${userId} 任务已超时，将刷新任务列表`);
       // 清空当前任务，强制重新生成
       taskRecord.currentTasks = [];
       taskRecord.lastRefreshTime = new Date();
@@ -68,7 +68,7 @@ export async function getUserTaskData(userId) {
     };
     
   } catch (error) {
-    console.error('获取用户任务数据失败:', error);
+    // console.error('获取用户任务数据失败:', error);
     throw error;
   }
 }
@@ -124,7 +124,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     // 返回可用的任务数量，不强制凑齐 limit 个
     return candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
   } catch (e) {
-    console.error('生成用户任务失败:', e);
+    // console.error('生成用户任务失败:', e);
     return [];
   }
 }
@@ -139,11 +139,11 @@ export async function checkIfWorkInTaskList(userId, workNumber) {
   try {
     const taskRecord = await getUserTaskRecord(userId);
     
-    console.log(`[检查] 作品 #${workNumber}, 已完成: [${taskRecord.completedTasks.join(', ')}]`);
+    // console.log(`[检查] 作品 #${workNumber}, 已完成: [${taskRecord.completedTasks.join(', ')}]`);
     
     // 检查是否在已完成列表中
     if (taskRecord.completedTasks.includes(workNumber)) {
-      console.log(`[检查] ✓ 作品 #${workNumber} 在已完成列表中`);
+      // console.log(`[检查] ✓ 作品 #${workNumber} 在已完成列表中`);
       return {
         inTaskList: true,
         alreadyCompleted: true
@@ -153,10 +153,10 @@ export async function checkIfWorkInTaskList(userId, workNumber) {
     // 检查是否在当前任务列表中（3条任务）
     const currentTasksList = taskRecord.currentTasks || [];
     const taskNums = currentTasksList.map(t => t.workNumber);
-    console.log(`[检查] 当前任务列表: [${taskNums.join(', ')}]`);
+    // console.log(`[检查] 当前任务列表: [${taskNums.join(', ')}]`);
     
     const inCurrentTasks = currentTasksList.some(t => t.workNumber === workNumber);
-    console.log(`[检查] ${inCurrentTasks ? '✓' : '✗'} 作品 #${workNumber} ${inCurrentTasks ? '在' : '不在'}任务列表中`);
+    // console.log(`[检查] ${inCurrentTasks ? '✓' : '✗'} 作品 #${workNumber} ${inCurrentTasks ? '在' : '不在'}任务列表中`);
     
     return {
       inTaskList: inCurrentTasks,
@@ -164,7 +164,7 @@ export async function checkIfWorkInTaskList(userId, workNumber) {
     };
     
   } catch (error) {
-    console.error('检查任务列表失败:', error);
+    // console.error('检查任务列表失败:', error);
     return {
       inTaskList: false,
       alreadyCompleted: false
@@ -180,18 +180,18 @@ export async function checkIfWorkInTaskList(userId, workNumber) {
  */
 export async function markTaskCompleted(userId, workNumber) {
   try {
-    console.log(`\n========== 标记任务: 用户 ${userId}, 作品 #${workNumber} ==========`);
+    // console.log(`\n========== 标记任务: 用户 ${userId}, 作品 #${workNumber} ==========`);
     
     const taskRecord = await getUserTaskRecord(userId);
-    console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    // console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
     
     // 检查这个作品是否在任务列表中
     const taskCheck = await checkIfWorkInTaskList(userId, workNumber);
-    console.log(`[标记] 检查结果: inTaskList=${taskCheck.inTaskList}, alreadyCompleted=${taskCheck.alreadyCompleted}`);
+    // console.log(`[标记] 检查结果: inTaskList=${taskCheck.inTaskList}, alreadyCompleted=${taskCheck.alreadyCompleted}`);
     
     // 如果已经完成过，直接返回
     if (taskCheck.alreadyCompleted) {
-      console.log(`[标记] 作品 #${workNumber} 已在完成列表中，跳过`);
+      // console.log(`[标记] 作品 #${workNumber} 已在完成列表中，跳过`);
       return {
         success: true,
         taskCompleted: false,
@@ -204,22 +204,22 @@ export async function markTaskCompleted(userId, workNumber) {
     // 只有在任务列表中的作品才计入完成
     let taskCompleted = false;
     if (taskCheck.inTaskList) {
-      console.log(`[标记] ✓ 作品 #${workNumber} 在任务列表中，添加到完成列表`);
+      // console.log(`[标记] ✓ 作品 #${workNumber} 在任务列表中，添加到完成列表`);
       
       // 添加到完成列表
       taskRecord.completedTasks.push(workNumber);
       taskRecord.totalCompleted = taskRecord.completedTasks.length;
       taskCompleted = true;
       
-      console.log(`[标记] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+      // console.log(`[标记] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
       
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-      console.log(`[标记] 数据库已更新`);
+      // console.log(`[标记] 数据库已更新`);
     } else {
-      console.log(`[标记] ✗ 作品 #${workNumber} 不在任务列表中，不计入进度`);
+      // console.log(`[标记] ✗ 作品 #${workNumber} 不在任务列表中，不计入进度`);
     }
     
-    console.log(`========== 标记任务完成 ==========\n`);
+    // console.log(`========== 标记任务完成 ==========\n`);
     
     return {
       success: true,
@@ -230,7 +230,7 @@ export async function markTaskCompleted(userId, workNumber) {
     };
     
   } catch (error) {
-    console.error('标记任务完成失败:', error);
+    // console.error('标记任务完成失败:', error);
     throw error;
   }
 }
@@ -359,7 +359,7 @@ async function getUserTaskRecord(userId) {
     return results.items[0];
     
   } catch (error) {
-    console.error('获取用户任务记录失败:', error);
+    // console.error('获取用户任务记录失败:', error);
     throw error;
   }
 }
@@ -395,7 +395,7 @@ async function getUserCompletedRatings(userId) {
     return workNumbers;
     
   } catch (error) {
-    console.error('获取用户评分记录失败:', error);
+    // console.error('获取用户评分记录失败:', error);
     return [];
   }
 }
@@ -418,7 +418,7 @@ async function getWorkInfo(workNumber) {
     return null;
     
   } catch (error) {
-    console.error('获取作品信息失败:', error);
+    // console.error('获取作品信息失败:', error);
     return null;
   }
 }
@@ -449,7 +449,7 @@ async function getWorkValidRatingCount(workNumber) {
     return validRatings.length;
     
   } catch (error) {
-    console.error('获取作品评分数失败:', error);
+    // console.error('获取作品评分数失败:', error);
     return 0;
   }
 }
@@ -469,7 +469,7 @@ async function getUserOwnWork(userId) {
     return results.items.length > 0 ? results.items[0].sequenceId : null;
     
   } catch (error) {
-    console.error('获取用户作品失败:', error);
+    // console.error('获取用户作品失败:', error);
     return null;
   }
 }
@@ -493,7 +493,7 @@ function getDaysSinceSubmission(work) {
  */
 export async function syncAllUserRatings() {
   try {
-    console.log('开始同步所有用户任务状态...');
+    // console.log('开始同步所有用户任务状态...');
     
     // 获取所有已报名用户
     const registeredUsers = await getRegisteredUsers();
@@ -515,12 +515,12 @@ export async function syncAllUserRatings() {
         successCount++;
         
       } catch (error) {
-        console.error(`同步用户 ${user.userId} 失败:`, error);
+        // console.error(`同步用户 ${user.userId} 失败:`, error);
         errorCount++;
       }
     }
     
-    console.log(`同步完成: 成功 ${successCount}, 失败 ${errorCount}`);
+    // console.log(`同步完成: 成功 ${successCount}, 失败 ${errorCount}`);
     
     return {
       success: true,
@@ -529,7 +529,7 @@ export async function syncAllUserRatings() {
     };
     
   } catch (error) {
-    console.error('同步任务状态失败:', error);
+    // console.error('同步任务状态失败:', error);
     throw error;
   }
 }
@@ -563,7 +563,7 @@ async function getRegisteredUsers() {
     return userIds.map(userId => ({ userId }));
     
   } catch (error) {
-    console.error('获取参赛用户失败:', error);
+    // console.error('获取参赛用户失败:', error);
     return [];
   }
 }
@@ -574,7 +574,7 @@ async function getRegisteredUsers() {
  */
 export async function updateAllWorkRatingCounts() {
   try {
-    console.log('开始更新所有作品评分计数...');
+    // console.log('开始更新所有作品评分计数...');
     
     const allWorks = await wixData
       .query(COLLECTIONS.WORKS)
@@ -593,7 +593,7 @@ export async function updateAllWorkRatingCounts() {
       }
     }
     
-    console.log(`更新完成: ${updateCount} 个作品`);
+    // console.log(`更新完成: ${updateCount} 个作品`);
     
     return {
       success: true,
@@ -601,7 +601,7 @@ export async function updateAllWorkRatingCounts() {
     };
     
   } catch (error) {
-    console.error('更新作品评分计数失败:', error);
+    // console.error('更新作品评分计数失败:', error);
     throw error;
   }
 }
@@ -665,7 +665,7 @@ export async function getSystemStats() {
     };
     
   } catch (error) {
-    console.error('获取系统统计失败:', error);
+    // console.error('获取系统统计失败:', error);
     throw error;
   }
 }

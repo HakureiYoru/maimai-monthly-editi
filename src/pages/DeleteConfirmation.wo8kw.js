@@ -7,8 +7,18 @@ $w.onReady(function () {
   
   // 如果有评论数据，可以在控制台输出信息用于调试
   if (commentData) {
-    const { commentId, workNumber, score, comment } = commentData;
+    const { commentId, workNumber, score, comment, isSelfScComment } = commentData;
     console.log(`准备删除评论 - 作品编号：${workNumber}，评分：${score}，评论：${comment.substring(0, 50)}...`);
+    
+    // 如果是自己删除自己的Sc评论，自动填写"自主评论删除"
+    if (isSelfScComment) {
+      try {
+        $w("#deleteReason").value = "自主评论删除";
+        $w("#deleteReason").disable(); // 禁止修改
+      } catch (error) {
+        console.error('无法设置删除理由:', error);
+      }
+    }
   }
 
   $w("#confirmButton").onClick(() => {
@@ -24,10 +34,15 @@ $w.onReady(function () {
       deleteReason = '未填写删除理由';
     }
     
-    // 检查是否填写了删除理由
-    if (!deleteReason || deleteReason.trim() === '') {
-      console.log('请填写删除理由');
-      return;
+    // 如果是自己删除自己的Sc评论，不需要检查是否填写理由
+    if (commentData && commentData.isSelfScComment) {
+      deleteReason = "自主评论删除";
+    } else {
+      // 检查是否填写了删除理由
+      if (!deleteReason || deleteReason.trim() === '') {
+        console.log('请填写删除理由');
+        return;
+      }
     }
     
     // 返回确认结果和删除理由

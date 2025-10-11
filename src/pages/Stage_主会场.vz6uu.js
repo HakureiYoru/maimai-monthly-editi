@@ -278,16 +278,52 @@ $w.onReady(async function () {
     // 删除按钮权限设置（仅主评论）
     if (currentUserId && !itemData.replyTo) {
       try {
-        const isSeaSelectionMember = await checkIsSeaSelectionMember();
-        if (isSeaSelectionMember) {
-          $item("#deleteComment").show();
-          $item("#deleteComment").enable();
-          $item("#deleteComment").onClick(async () => {
-            await handleDeleteComment(itemData);
-          });
+        // 判断是否为作者自评（Sc评论）
+        let isAuthorComment = false;
+        let workOwnerId = null;
+        
+        if (workOwnersCache[itemData.workNumber]) {
+          workOwnerId = workOwnersCache[itemData.workNumber];
+          isAuthorComment = itemData._owner === workOwnerId;
         } else {
-          $item("#deleteComment").hide();
-          $item("#deleteComment").disable();
+          const workResults = await wixData
+            .query("enterContest034")
+            .eq("sequenceId", itemData.workNumber)
+            .find();
+
+          if (workResults.items.length > 0) {
+            workOwnerId = workResults.items[0]._owner;
+            workOwnersCache[itemData.workNumber] = workOwnerId;
+            isAuthorComment = itemData._owner === workOwnerId;
+          }
+        }
+
+        if (isAuthorComment) {
+          // Sc评论：只有作者自己能删除
+          if (currentUserId === itemData._owner) {
+            $item("#deleteComment").show();
+            $item("#deleteComment").enable();
+            $item("#deleteComment").onClick(async () => {
+              await handleDeleteComment(itemData, true); // 传递 isSelfScComment = true
+            });
+          } else {
+            // 海选组成员也不能删除Sc评论
+            $item("#deleteComment").hide();
+            $item("#deleteComment").disable();
+          }
+        } else {
+          // 普通评论：海选组成员可以删除
+          const isSeaSelectionMember = await checkIsSeaSelectionMember();
+          if (isSeaSelectionMember) {
+            $item("#deleteComment").show();
+            $item("#deleteComment").enable();
+            $item("#deleteComment").onClick(async () => {
+              await handleDeleteComment(itemData, false); // 传递 isSelfScComment = false
+            });
+          } else {
+            $item("#deleteComment").hide();
+            $item("#deleteComment").disable();
+          }
         }
       } catch (error) {
         $item("#deleteComment").hide();
@@ -311,12 +347,37 @@ $w.onReady(async function () {
     });
 
     if (!itemData.replyTo) {
+      // 主评论：显示自己的回复
       $item("#viewRepliesButton").onClick(async () => {
         await showCommentReplies(
           itemData._id,
           itemData.workNumber,
           itemData.comment
         );
+      });
+    } else {
+      // 楼中楼回复：跳转到所回复的主评论的lightbox
+      $item("#viewRepliesButton").onClick(async () => {
+        try {
+          // 查询所回复的主评论数据
+          const parentCommentResult = await wixData
+            .query("BOFcomment")
+            .eq("_id", itemData.replyTo)
+            .find();
+          
+          if (parentCommentResult.items.length > 0) {
+            const parentComment = parentCommentResult.items[0];
+            await showCommentReplies(
+              parentComment._id,
+              parentComment.workNumber,
+              parentComment.comment
+            );
+          } else {
+            console.error("未找到父评论");
+          }
+        } catch (error) {
+          console.error("跳转到父评论失败:", error);
+        }
       });
     }
   });
@@ -556,13 +617,14 @@ function showTextPopup(content) {
   wixWindow.openLightbox("TextPopup", { content: content });
 }
 
-async function handleDeleteComment(itemData) {
+async function handleDeleteComment(itemData, isSelfScComment = false) {
   try {
     const result = await wixWindow.openLightbox("DeleteConfirmation", {
       commentId: itemData._id,
       workNumber: itemData.workNumber,
       score: itemData.score,
       comment: itemData.comment,
+      isSelfScComment: isSelfScComment, // 传递标记给 lightbox
     });
 
     let shouldDelete = false;
@@ -570,14 +632,14 @@ async function handleDeleteComment(itemData) {
 
     if (typeof result === "string" && result === "confirm") {
       shouldDelete = true;
-      deleteReason = "未填写删除理由";
+      deleteReason = isSelfScComment ? "自主评论删除" : "未填写删除理由";
     } else if (
       result &&
       typeof result === "object" &&
       result.action === "confirm"
     ) {
       shouldDelete = true;
-      deleteReason = result.reason || "未填写删除理由";
+      deleteReason = result.reason || (isSelfScComment ? "自主评论删除" : "未填写删除理由");
     }
 
     if (shouldDelete) {
@@ -585,7 +647,8 @@ async function handleDeleteComment(itemData) {
         const deleteResult = await deleteComment(
           itemData._id,
           currentUserId,
-          deleteReason
+          deleteReason,
+          isSelfScComment // 传递标记给后端，决定是否保存到 deleteInfor
         );
         if (deleteResult.success) {
           await refreshRepeaters();
@@ -780,10 +843,8 @@ async function refreshRepeaters() {
     await calculateAllWorksRanking();
 
     const dropdownFilterValue = $w("#dropdownFilter").value;
-    if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+    if (dropdownFilterValue && dropdownFilterValue !== "") {
       await setDropdownValue(parseInt(dropdownFilterValue));
-    } else if (dropdownFilterValue === "114514") {
-      await loadUserComments();
     } else {
       await loadAllFormalComments();
     }
@@ -1128,8 +1189,10 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
       .find();
 
     let commentsToShow = results.items;
+    const filterMode = getCommentFilterMode();
 
-    if (isScoreFilterEnabled()) {
+    if (filterMode === "ScoreOnly") {
+      // 仅评分：排除楼中楼和作者自评
       const workResults = await wixData
         .query("enterContest034")
         .eq("sequenceId", sequenceId)
@@ -1151,7 +1214,17 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
 
         return true;
       });
+    } else if (filterMode === "YourComment") {
+      // 仅你的评论
+      if (!currentUserId) {
+        commentsToShow = [];
+      } else {
+        commentsToShow = results.items.filter((comment) => {
+          return comment._owner === currentUserId;
+        });
+      }
     }
+    // filterMode === "default": 显示所有评论
 
     // 保存所有评论数据
     allCommentsData = commentsToShow;
@@ -1322,10 +1395,8 @@ function setupCommentsPaginationEvents() {
     const pageNumber = event.target.currentPage;
     const dropdownFilterValue = $w("#dropdownFilter").value;
     
-    if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+    if (dropdownFilterValue && dropdownFilterValue !== "") {
       await setDropdownValue(parseInt(dropdownFilterValue), pageNumber);
-    } else if (dropdownFilterValue === "114514") {
-      await loadUserComments(pageNumber);
     } else {
       await loadAllFormalComments(pageNumber);
     }
@@ -1499,34 +1570,33 @@ function setupSubmitButtonEvent() {
   });
 }
 
-// 获取评分筛选状态
-function isScoreFilterEnabled() {
+// 获取评论筛选模式
+function getCommentFilterMode() {
   try {
-    return $w("#scoreCheckbox").checked;
+    const value = $w("#radioGroupComment").value;
+    return value || "default"; // 默认返回"default"
   } catch (error) {
-    console.error("获取勾选框状态失败:", error);
-    return false;
+    console.error("获取筛选模式失败:", error);
+    return "default";
   }
 }
 
-// 评分筛选勾选框事件
+// 评分筛选单选按钮组事件
 function setupScoreCheckboxEvent() {
-  $w("#scoreCheckbox").onChange(async (event) => {
+  $w("#radioGroupComment").onChange(async (event) => {
     try {
-      const isChecked = event.target.checked;
-      // console.log(`正式评论筛选已${isChecked ? "启用" : "禁用"}`);
+      const selectedValue = event.target.value;
+      // console.log(`评论筛选模式已切换为: ${selectedValue}`);
 
       const dropdownFilterValue = $w("#dropdownFilter").value;
 
-      if (dropdownFilterValue && dropdownFilterValue !== "114514") {
+      if (dropdownFilterValue && dropdownFilterValue !== "") {
         await setDropdownValue(parseInt(dropdownFilterValue));
-      } else if (dropdownFilterValue === "114514") {
-        await loadUserComments();
       } else {
         await loadAllFormalComments();
       }
     } catch (error) {
-      console.error("处理勾选框状态变化时出错:", error);
+      console.error("处理筛选模式变化时出错:", error);
     }
   });
 }
@@ -1534,26 +1604,46 @@ function setupScoreCheckboxEvent() {
 // 加载所有作品的评论（支持正式评论筛选和分页）
 async function loadAllFormalComments(pageNumber = 1) {
   try {
-    const results = await wixData
-      .query("BOFcomment")
-      .isEmpty("replyTo")
-      .descending("_createdDate")
-      .limit(1000)
-      .find();
+    const filterMode = getCommentFilterMode();
+    let commentsToShow = [];
 
-    let commentsToShow = results.items;
+    if (filterMode === "YourComment") {
+      // 仅你的评论：查询当前用户的所有评论
+      if (!currentUserId) {
+        commentsToShow = [];
+      } else {
+        const results = await wixData
+          .query("BOFcomment")
+          .eq("_owner", currentUserId)
+          .descending("_createdDate")
+          .limit(1000)
+          .find();
+        commentsToShow = results.items;
+      }
+    } else {
+      // default 或 ScoreOnly：查询所有主评论
+      const results = await wixData
+        .query("BOFcomment")
+        .isEmpty("replyTo")
+        .descending("_createdDate")
+        .limit(1000)
+        .find();
 
-    if (isScoreFilterEnabled()) {
-      const allWorks = await wixData.query("enterContest034").find();
-      const workOwnerMap = {};
-      allWorks.items.forEach((work) => {
-        workOwnerMap[work.sequenceId] = work._owner;
-      });
+      commentsToShow = results.items;
 
-      commentsToShow = results.items.filter((comment) => {
-        const workOwnerId = workOwnerMap[comment.workNumber];
-        return comment._owner !== workOwnerId;
-      });
+      if (filterMode === "ScoreOnly") {
+        // 仅评分：排除作者自评
+        const allWorks = await wixData.query("enterContest034").find();
+        const workOwnerMap = {};
+        allWorks.items.forEach((work) => {
+          workOwnerMap[work.sequenceId] = work._owner;
+        });
+
+        commentsToShow = results.items.filter((comment) => {
+          const workOwnerId = workOwnerMap[comment.workNumber];
+          return comment._owner !== workOwnerId;
+        });
+      }
     }
 
     // 保存所有评论数据
@@ -1574,92 +1664,18 @@ async function loadAllFormalComments(pageNumber = 1) {
     $w("#repeater1").forEachItem(($item, itemData, index) => {
       // 更新重复项元素
     });
-
-    // console.log(
-    //   `已加载${pagedComments.length}/${allCommentsData.length}条${
-    //     isScoreFilterEnabled() ? "正式" : ""
-    //   }评论 (第${pageNumber}/${totalPages}页)`
-    // );
   } catch (err) {
     console.error("加载所有评论失败", err);
   }
 }
 
-// 加载用户评论（支持筛选和分页）
-async function loadUserComments(pageNumber = 1) {
-  if (!currentUserId) {
-    // console.log("用户未登录，无法查看个人评论");
-    $w("#repeater1").data = [];
-    return;
-  }
-
-  if (!isUserVerified) {
-    // console.log("用户未报名，无法查看个人评论");
-    $w("#repeater1").data = [];
-    return;
-  }
-
-  try {
-    const results = await wixData
-      .query("BOFcomment")
-      .eq("_owner", currentUserId)
-      .ascending("_createdDate")
-      .find();
-
-    let commentsToShow = results.items;
-
-    if (isScoreFilterEnabled()) {
-      const allWorks = await wixData.query("enterContest034").find();
-      const workOwnerMap = {};
-      allWorks.items.forEach((work) => {
-        workOwnerMap[work.sequenceId] = work._owner;
-      });
-
-      commentsToShow = results.items.filter((comment) => {
-        if (comment.replyTo) {
-          return false;
-        }
-
-        const workOwnerId = workOwnerMap[comment.workNumber];
-        if (comment._owner === workOwnerId) {
-          return false;
-        }
-
-        return true;
-      });
-    }
-
-    // 保存所有评论数据
-    allCommentsData = commentsToShow;
-
-    // 分页处理（pagination1 和 pagination2 完全同步）
-    const totalPages = Math.ceil(allCommentsData.length / commentsPerPage);
-    $w("#pagination1").totalPages = totalPages > 0 ? totalPages : 1;
-    $w("#pagination1").currentPage = pageNumber;
-    $w("#pagination2").totalPages = totalPages > 0 ? totalPages : 1;
-    $w("#pagination2").currentPage = pageNumber;
-
-    // 获取当前页的数据
-    const startIndex = (pageNumber - 1) * commentsPerPage;
-    const pagedComments = allCommentsData.slice(startIndex, startIndex + commentsPerPage);
-
-    $w("#repeater1").data = pagedComments;
-    $w("#repeater1").forEachItem(($item, itemData, index) => {
-      // 更新重复项元素
-    });
-  } catch (err) {
-    console.error("查询评论失败", err);
-  }
-}
 
 // 下拉筛选器事件处理
 function setupDropdownFilterEvent() {
   $w("#dropdownFilter").onChange(async () => {
     let selectedValue = $w("#dropdownFilter").value;
 
-    if (selectedValue === "114514") {
-      await loadUserComments();
-    } else if (selectedValue && selectedValue !== "") {
+    if (selectedValue && selectedValue !== "") {
       await setDropdownValue(parseInt(selectedValue));
     } else {
       await loadAllFormalComments();

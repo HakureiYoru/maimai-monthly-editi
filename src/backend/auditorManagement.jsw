@@ -366,41 +366,44 @@ export async function getAuditStatistics() {
  * @param {string} commentId - 评论ID
  * @param {string} auditorId - 审核员ID
  * @param {string} deleteReason - 删除理由
+ * @param {boolean} isSelfScComment - 是否为自己删除自己的Sc评论（默认false）
  * @returns {Promise<Object>} 删除结果
  */
-export async function deleteComment(commentId, auditorId, deleteReason = '') {
+export async function deleteComment(commentId, auditorId, deleteReason = '', isSelfScComment = false) {
     return safeExecute(async () => {
         // 前端已经验证权限，这里直接执行删除操作
 
         // 获取评论信息用于日志记录和存档
         const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
         
-        // 保存删除信息到deleteInfor数据集
-        const deleteRecord = {
-            workNumber: comment.workNumber,
-            deletedComment: comment.comment,
-            deletedScore: comment.score,
-            deleteReason: deleteReason || '未填写删除理由',
-            deletedBy: auditorId,
-            deletedAt: new Date(),
-            originalCommentId: commentId,
-            originalCommentOwner: comment._owner
-        };
-        
-        await wixData.insert(COLLECTIONS.DELETE_INFOR, deleteRecord);
+        // 只有在非自己删除自己的Sc评论时，才保存删除信息到deleteInfor数据集
+        if (!isSelfScComment) {
+            const deleteRecord = {
+                workNumber: comment.workNumber,
+                deletedComment: comment.comment,
+                deletedScore: comment.score,
+                deleteReason: deleteReason || '未填写删除理由',
+                deletedBy: auditorId,
+                deletedAt: new Date(),
+                originalCommentId: commentId,
+                originalCommentOwner: comment._owner
+            };
+            
+            await wixData.insert(COLLECTIONS.DELETE_INFOR, deleteRecord);
+        }
         
         // 删除原评论
         await wixData.remove(COLLECTIONS.BOF_COMMENT, commentId);
 
         return {
             success: true,
-            message: '评论已删除并记录删除信息',
+            message: isSelfScComment ? '评论已删除（自主评论删除）' : '评论已删除并记录删除信息',
             deletedComment: {
                 id: commentId,
                 workNumber: comment.workNumber,
                 score: comment.score
             },
-            deleteRecordId: deleteRecord._id
+            deleteRecordId: isSelfScComment ? null : undefined
         };
     }, 'deleteComment', {
         success: false,
