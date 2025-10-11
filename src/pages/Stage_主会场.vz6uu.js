@@ -38,14 +38,13 @@ async function checkUserVerification() {
 
   try {
     const results = await wixData
-      .query("Members/PublicData")
-      .eq("_id", currentUserId)
+      .query("jobApplication089")
+      .eq("_owner", currentUserId)
       .find();
 
     if (results.items.length > 0) {
-      const member = results.items[0];
-      isUserVerified = !!member["custom_pu-mian-fa-bu-wang-zhi"];
-      return isUserVerified;
+      isUserVerified = true;
+      return true;
     } else {
       isUserVerified = false;
       return false;
@@ -68,7 +67,7 @@ function updateCommentControlsVerificationStatus() {
 
   if (!isUserVerified) {
     $w("#submit").disable();
-    $w("#submit").label = "未验证";
+    $w("#submit").label = "未报名";
     $w("#Comment").disable();
     $w("#inputScore").disable();
   } else {
@@ -374,7 +373,7 @@ async function updateCommentStatus($item, itemData) {
   }
 
   if (!isUserVerified) {
-    $item("#ifComment").text = "未验证";
+    $item("#ifComment").text = "未报名";
     $item("#ifComment").style.color = "#FF0000";
     return;
   }
@@ -481,7 +480,7 @@ function setupWorkSelectionEvent() {
           $w("#Comment").value = "";
           $w("#inputScore").value = "";
           $w("#submit").disable();
-          $w("#submit").label = "未验证";
+          $w("#submit").label = "未报名";
           $w("#Comment").disable();
           $w("#inputScore").disable();
           return;
@@ -539,7 +538,7 @@ function setupWorkSelectionEvent() {
         $w("#inputScore").disable();
       } else if (!isUserVerified) {
         $w("#submit").disable();
-        $w("#submit").label = "未验证";
+        $w("#submit").label = "未报名";
         $w("#Comment").disable();
         $w("#inputScore").disable();
       } else {
@@ -1349,8 +1348,8 @@ function setupSubmitButtonEvent() {
       }
 
       if (!isUserVerified) {
-        // console.log("用户未验证，无法提交评论");
-        $w("#submitprocess").text = "❌ 用户未验证";
+        // console.log("用户未报名，无法提交评论");
+        $w("#submitprocess").text = "❌ 用户未报名";
         setTimeout(() => $w("#submitprocess").hide(), 2000);
         return;
       }
@@ -1595,7 +1594,7 @@ async function loadUserComments(pageNumber = 1) {
   }
 
   if (!isUserVerified) {
-    // console.log("用户未验证，无法查看个人评论");
+    // console.log("用户未报名，无法查看个人评论");
     $w("#repeater1").data = [];
     return;
   }

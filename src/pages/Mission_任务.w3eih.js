@@ -27,14 +27,13 @@ async function checkUserVerification() {
 
   try {
     const results = await wixData
-      .query("Members/PublicData")
-      .eq("_id", currentUserId)
+      .query("jobApplication089")
+      .eq("_owner", currentUserId)
       .find();
 
     if (results.items.length > 0) {
-      const member = results.items[0];
-      isUserVerified = !!member["custom_pu-mian-fa-bu-wang-zhi"];
-      return isUserVerified;
+      isUserVerified = true;
+      return true;
     } else {
       isUserVerified = false;
       return false;

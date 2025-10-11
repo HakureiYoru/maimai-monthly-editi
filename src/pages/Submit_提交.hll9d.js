@@ -68,7 +68,7 @@ $w.onReady(async function () {
 
 
 
-//以下是个人战限定函数 现在不需要报名也能提交，但是要用 loadCurrentUserLink获取到链接了才能提交
+//以下是个人战限定函数 - 必须在jobApplication089中有报名记录才能提交作品
 
 
 function checkIfUserRegistered() {  
@@ -80,14 +80,14 @@ function checkIfUserRegistered() {
                 $w("#button1").enable();
                 $w("#button1").label = "提交作品";
             } else {
-                $w("#button1").enable();
-                $w("#button1").label = "提交作品";
-                // $w("#button1").disable();
-                // $w("#button1").label = "没报名";
+                $w("#button1").disable();
+                $w("#button1").label = "未报名";
             }
         })
         .catch(err => {
             console.error("检查用户是否报名时出错:", err);
+            $w("#button1").disable();
+            $w("#button1").label = "检查失败";
         });
 }
 
