@@ -1,6 +1,7 @@
 import wixWindow from 'wix-window';
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
+import { sendReplyNotification } from 'backend/emailNotifications.jsw';
 
 let commentData = {};
 let currentUserId = null;
@@ -10,7 +11,7 @@ $w.onReady(function () {
     commentData = wixWindow.lightbox.getContext();
     currentUserId = wixUsers.currentUser.id;
     
-    console.log("Lightbox已准备就绪，接收到的数据:", commentData);
+    // console.log("Lightbox已准备就绪，接收到的数据:", commentData);
     
     // 显示原评论信息
     displayOriginalComment();
@@ -39,11 +40,11 @@ async function loadReplies() {
     try {
         let replies = commentData.replies || [];
         
-        console.log("初始回复数据，数量:", replies.length);
+        // console.log("初始回复数据，数量:", replies.length);
         
         // 如果没有回复数据，尝试重新查询
         if (replies.length === 0 && commentData.commentId) {
-            console.log("没有传入回复数据，重新查询...");
+            // console.log("没有传入回复数据，重新查询...");
             
             const queryResult = await wixData.query("BOFcomment")
                 .eq("replyTo", commentData.commentId)
@@ -53,7 +54,7 @@ async function loadReplies() {
             replies = queryResult.items;
             commentData.replies = replies; // 更新本地数据
             
-            console.log("重新查询到的回复数据，数量:", replies.length);
+            // console.log("重新查询到的回复数据，数量:", replies.length);
         }
         
         // 显示回复数量
@@ -61,19 +62,19 @@ async function loadReplies() {
         
         // 先配置onItemReady处理器
         $w("#repliesRepeater").onItemReady(($item, itemData) => {
-            console.log("设置回复项目:", itemData);
+            // console.log("设置回复项目:", itemData);
             
             try {
                 // 显示回复内容（textbox元件使用value，注意不带#号）
                 $item("#replyText").value = itemData.comment || "无内容";
-                console.log("设置回复内容:", itemData.comment);
+                //console.log("设置回复内容:", itemData.comment);
                 
                 // 显示回复时间（注意不带#号）
                 const replyTime = formatDate(itemData._createdDate || itemData.submissionTime);
                 $item("#replyTime").text = replyTime;
-                console.log("设置回复时间:", replyTime);
+                //console.log("设置回复时间:", replyTime);
                 
-                console.log("回复项目设置完成");
+                //console.log("回复项目设置完成");
             } catch (itemError) {
                 console.error("设置回复项目失败:", itemError);
             }
@@ -84,12 +85,12 @@ async function loadReplies() {
             // 确保repeater可见
             $w("#repliesRepeater").show();
             $w("#repliesRepeater").data = replies;
-            console.log("设置", replies.length, "条回复到repeater，repeater已显示");
+            //console.log("设置", replies.length, "条回复到repeater，repeater已显示");
             
             // 添加延迟检查以确保数据设置成功
             setTimeout(() => {
-                console.log("延迟检查：repeater数据长度", $w("#repliesRepeater").data.length);
-                console.log("延迟检查：repeater是否可见", $w("#repliesRepeater").isVisible);
+                //console.log("延迟检查：repeater数据长度", $w("#repliesRepeater").data.length);
+                //console.log("延迟检查：repeater是否可见", $w("#repliesRepeater").isVisible);
             }, 200);
         } else {
             console.log("没有回复数据可显示");
@@ -151,7 +152,20 @@ async function submitReply() {
         };
         
         // 提交到数据库
-        await wixData.insert("BOFcomment", replyData);
+        const insertedReply = await wixData.insert("BOFcomment", replyData);
+        
+        // 发送邮件通知（异步执行，不阻塞用户体验）
+        try {
+            const notificationResult = await sendReplyNotification(
+                commentData.commentId,
+                replyContent,
+                commentData.workNumber,
+                currentUserId
+            );
+            //console.log("邮件通知结果:", notificationResult);
+        } catch (emailError) {
+            console.error("发送邮件通知失败（不影响回复提交）:", emailError);
+        }
         
         // 显示成功消息
         $w("#successMessage").text = "回复提交成功！";

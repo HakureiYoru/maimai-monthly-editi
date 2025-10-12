@@ -1,0 +1,91 @@
+// backend/emailNotifications.jsw
+import wixData from 'wix-data';
+import { triggeredEmails } from 'wix-crm-backend';
+import { getUserPublicInfo } from './getUserPublicInfo.jsw';
+
+/**
+ * 发送楼中楼回复邮件通知（使用Wix Triggered Emails）
+ * @param {string} originalCommentId - 原评论ID
+ * @param {string} replyContent - 楼中楼回复内容
+ * @param {number} workNumber - 作品编号
+ * @param {string} replierUserId - 回复者用户ID
+ */
+export async function sendReplyNotification(originalCommentId, replyContent, workNumber, replierUserId) {
+  try {
+    // 1. 查询原评论信息
+    const originalCommentResult = await wixData
+      .query("BOFcomment")
+      .eq("_id", originalCommentId)
+      .find();
+    
+    if (originalCommentResult.items.length === 0) {
+      // console.log("原评论不存在，无法发送通知");
+      return { success: false, message: "原评论不存在" };
+    }
+    
+    const originalComment = originalCommentResult.items[0];
+    const recipientUserId = originalComment._owner;
+    
+    // 2. 检查是否为自己回复自己（不发送邮件）
+    if (recipientUserId === replierUserId) {
+      // console.log("自己回复自己，无需发送邮件");
+      return { success: true, message: "自己回复自己，无需通知" };
+    }
+    
+    // 3. 检查原评论是否为正式评论（非作者自评）
+    const workResult = await wixData
+      .query("enterContest034")
+      .eq("sequenceId", workNumber)
+      .find();
+    
+    if (workResult.items.length === 0) {
+      // console.log("作品不存在");
+      return { success: false, message: "作品不存在" };
+    }
+    
+    const workOwnerId = workResult.items[0]._owner;
+    
+    // 如果原评论是作者自评，不发送邮件
+    if (originalComment._owner === workOwnerId) {
+      // console.log("原评论是作者自评，不发送邮件");
+      return { success: true, message: "作者自评不发送通知" };
+    }
+    
+    // 4. 获取接收者信息
+    const recipientInfo = await getUserPublicInfo(recipientUserId);
+    if (!recipientInfo) {
+      // console.log("无法获取接收者信息");
+      return { success: false, message: "无法获取接收者信息" };
+    }
+    
+    const recipientNickname = recipientInfo.name || "用户";
+    const originalCommentText = originalComment.comment;
+    
+    // 5. 使用Wix Triggered Emails发送邮件
+    try {
+      await triggeredEmails.emailMember('UzNgRgj', recipientUserId, {
+        variables: {
+          recipientNickname: recipientNickname,
+          workNumber: workNumber.toString(),
+          originalCommentText: originalCommentText,
+          replyContent: replyContent
+        }
+      });
+      
+     console.log(`Triggered Email已发送`);
+      return { 
+        success: true, 
+        message: "邮件通知已发送",
+        recipient: recipientNickname
+      };
+    } catch (emailError) {
+      console.error("发送Triggered Email失败:", emailError);
+      return { success: false, message: "发送邮件失败: " + emailError.message };
+    }
+    
+  } catch (error) {
+    console.error("发送回复通知失败:", error);
+    return { success: false, message: error.message };
+  }
+}
+
