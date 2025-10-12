@@ -526,6 +526,17 @@
           "invoke": false
         }
       },
+      "getWorkWeightedRatingData": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
       "syncAllUserRatings": {
         "siteOwner": {
           "invoke": true

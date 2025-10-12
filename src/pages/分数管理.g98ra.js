@@ -1,16 +1,17 @@
 /**
  * 分数管理页面 - 管理员专用
- * 显示所有作品的评分详情、等级、评论者信息
+ * 显示所有作品的评分详情、等级、评论者信息（包含高权重标记）
  */
 
 import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
+import { getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
 
 let allWorksData = [];
 let filteredWorksData = [];
-let userInfoCache = {}; // 缓存用户信息
+let userInfoCache = {}; // 缓存用户信息（包括 isHighQuality）
 
 $w.onReady(async function () {
   // 权限检查
@@ -37,10 +38,22 @@ $w.onReady(async function () {
 });
 
 /**
- * 批量获取用户信息
+ * 批量获取用户信息（包括高权重标记）
  */
 async function batchLoadUserInfo(userIds) {
   const uniqueIds = [...new Set(userIds)];
+
+  // 批量查询用户的高权重状态
+  const registrations = await wixData
+    .query("jobApplication089")
+    .hasSome("_owner", uniqueIds)
+    .find();
+
+  const highQualityMap = {};
+  registrations.items.forEach((reg) => {
+    highQualityMap[reg._owner] = reg.isHighQuality === true;
+  });
+
   for (const userId of uniqueIds) {
     if (!userInfoCache[userId]) {
       try {
@@ -49,13 +62,15 @@ async function batchLoadUserInfo(userIds) {
           userInfoCache[userId] = {
             name: userInfo.name || "未知用户",
             profileImageUrl: userInfo.profileImageUrl || "",
-            slug: userInfo.userslug || ""
+            slug: userInfo.userslug || "",
+            isHighQuality: highQualityMap[userId] || false,
           };
         } else {
           userInfoCache[userId] = {
             name: "未知用户",
             profileImageUrl: "",
-            slug: ""
+            slug: "",
+            isHighQuality: highQualityMap[userId] || false,
           };
         }
       } catch (error) {
@@ -63,7 +78,8 @@ async function batchLoadUserInfo(userIds) {
         userInfoCache[userId] = {
           name: "未知用户",
           profileImageUrl: "",
-          slug: ""
+          slug: "",
+          isHighQuality: false,
         };
       }
     }
@@ -88,8 +104,10 @@ async function loadAllWorksData() {
       .limit(1000)
       .find();
 
-    // 3. 批量获取所有评论者的用户信息
-    const uniqueUserIds = [...new Set(commentsResult.items.map(c => c._owner))];
+    // 3. 批量获取所有评论者的用户信息（包括高权重标记）
+    const uniqueUserIds = [
+      ...new Set(commentsResult.items.map((c) => c._owner)),
+    ];
     await batchLoadUserInfo(uniqueUserIds);
 
     // 4. 构建作品-评论映射
@@ -111,14 +129,14 @@ async function loadAllWorksData() {
         (comment) => comment._owner !== work._owner
       );
 
-      const ratingData = calculateRatingData(formalRatings);
+      const ratingData = calculateRatingData(formalRatings, work._owner);
 
       // 正确处理图片URL（可能是对象或字符串）
       let coverImageUrl = "";
       if (work.track的複本) {
-        if (typeof work.track的複本 === 'object' && work.track的複本.url) {
+        if (typeof work.track的複本 === "object" && work.track的複本.url) {
           coverImageUrl = work.track的複本.url;
-        } else if (typeof work.track的複本 === 'string') {
+        } else if (typeof work.track的複本 === "string") {
           coverImageUrl = work.track的複本;
         }
       }
@@ -133,7 +151,7 @@ async function loadAllWorksData() {
       });
     }
 
-    // 6. 计算排名和等级
+    // 6. 计算排名和等级（基于加权平均分）
     allWorksData = calculateTiers(worksWithRatings);
     filteredWorksData = [...allWorksData];
 
@@ -149,49 +167,98 @@ async function loadAllWorksData() {
 }
 
 /**
- * 计算评分数据
+ * 计算评分数据（使用加权平均分）
  */
-function calculateRatingData(formalRatings) {
+function calculateRatingData(formalRatings, workOwnerId) {
   if (formalRatings.length === 0) {
     return {
       numRatings: 0,
       averageScore: 0,
+      weightedAverage: 0,
+      originalAverage: 0,
+      highWeightCount: 0,
+      lowWeightCount: 0,
+      ratio: 0,
       raters: [],
     };
   }
 
-  const totalScore = formalRatings.reduce((sum, r) => sum + r.score, 0);
-  const averageScore = totalScore / formalRatings.length;
+  let highWeightSum = 0;
+  let highWeightCount = 0;
+  let lowWeightSum = 0;
+  let lowWeightCount = 0;
 
   const raters = formalRatings.map((r) => {
-    const userInfo = userInfoCache[r._owner] || { name: "未知用户", profileImageUrl: "", slug: "" };
+    const userInfo = userInfoCache[r._owner] || {
+      name: "未知用户",
+      profileImageUrl: "",
+      slug: "",
+      isHighQuality: false,
+    };
+
+    // 统计高低权重评分
+    if (userInfo.isHighQuality) {
+      highWeightSum += r.score;
+      highWeightCount++;
+    } else {
+      lowWeightSum += r.score;
+      lowWeightCount++;
+    }
+
     return {
       userId: r._owner,
       userName: userInfo.name,
       userSlug: userInfo.slug,
       profileImageUrl: userInfo.profileImageUrl,
+      isHighQuality: userInfo.isHighQuality,
       score: r.score,
       comment: r.comment,
       createdDate: r._createdDate,
     };
   });
 
+  const totalRatings = highWeightCount + lowWeightCount;
+
+  // 加权平均分 = (高权重总和 × 2 + 低权重总和) / (高权重人数 × 2 + 低权重人数)
+  const weightedAverage =
+    totalRatings > 0
+      ? (highWeightSum * 2 + lowWeightSum) /
+        (highWeightCount * 2 + lowWeightCount)
+      : 0;
+
+  // 原始平均分
+  const originalAverage =
+    totalRatings > 0 ? (highWeightSum + lowWeightSum) / totalRatings : 0;
+
+  // 当前高低权重比例
+  const ratio =
+    lowWeightCount > 0
+      ? highWeightCount / lowWeightCount
+      : highWeightCount > 0
+      ? 999
+      : 0;
+
   return {
     numRatings: formalRatings.length,
-    averageScore: averageScore,
+    averageScore: weightedAverage, // 主要显示加权平均分
+    weightedAverage: weightedAverage,
+    originalAverage: originalAverage,
+    highWeightCount: highWeightCount,
+    lowWeightCount: lowWeightCount,
+    ratio: ratio,
     raters: raters,
   };
 }
 
 /**
- * 计算等级（基于百分位）
+ * 计算等级（基于加权平均分的百分位）
  */
 function calculateTiers(worksData) {
   // 只对有足够评分且未淘汰的作品排名
   const validWorks = worksData.filter((w) => w.numRatings >= 5 && !w.isDq);
 
-  // 按平均分降序排序
-  validWorks.sort((a, b) => b.averageScore - a.averageScore);
+  // 按加权平均分降序排序
+  validWorks.sort((a, b) => b.weightedAverage - a.weightedAverage);
 
   // 计算百分位和等级
   validWorks.forEach((work, index) => {
@@ -284,7 +351,8 @@ function handleSort(sortBy) {
   if (sortBy === "id") {
     filteredWorksData.sort((a, b) => a.sequenceId - b.sequenceId);
   } else if (sortBy === "score") {
-    filteredWorksData.sort((a, b) => b.averageScore - a.averageScore);
+    // 按加权平均分排序
+    filteredWorksData.sort((a, b) => b.weightedAverage - a.weightedAverage);
   } else if (sortBy === "ratings") {
     filteredWorksData.sort((a, b) => b.numRatings - a.numRatings);
   }

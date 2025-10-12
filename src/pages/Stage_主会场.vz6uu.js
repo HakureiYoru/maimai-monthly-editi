@@ -11,7 +11,7 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
-import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData } from "backend/ratingTaskManager.jsw";
+import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -1109,39 +1109,31 @@ async function updateButtonStatus($item, sheetId, checkboxChecked) {
   $item("#downloadAble").show();
 }
 
-// 获取评分数据（排除作者自评）
+// 获取评分数据（排除作者自评，使用加权平均分）
 async function getRatingData(workNumber) {
-  const results = await wixData
-    .query("BOFcomment")
-    .eq("workNumber", workNumber)
-    .isEmpty("replyTo")
-    .find();
-
-  const workResults = await wixData
-    .query("enterContest034")
-    .eq("sequenceId", workNumber)
-    .find();
-
-  let workOwnerId = null;
-  if (workResults.items.length > 0) {
-    workOwnerId = workResults.items[0]._owner;
+  try {
+    // 使用后端的加权评分计算函数
+    const weightedData = await getWorkWeightedRatingData(workNumber);
+    
+    return {
+      numRatings: weightedData.numRatings,
+      averageScore: weightedData.weightedAverage, // 使用加权平均分作为主要评分
+      originalAverage: weightedData.originalAverage, // 保留原始平均分
+      highWeightCount: weightedData.highWeightCount,
+      lowWeightCount: weightedData.lowWeightCount,
+      ratio: weightedData.ratio
+    };
+  } catch (error) {
+    console.error("获取评分数据失败:", error);
+    return {
+      numRatings: 0,
+      averageScore: 0,
+      originalAverage: 0,
+      highWeightCount: 0,
+      lowWeightCount: 0,
+      ratio: 0
+    };
   }
-
-  const validRatings = results.items.filter(
-    (item) => item._owner !== workOwnerId
-  );
-
-  const numRatings = validRatings.length;
-  const totalScore = validRatings.reduce(
-    (total, item) => total + item.score,
-    0
-  );
-  const averageScore = numRatings > 0 ? totalScore / numRatings : 0;
-
-  return {
-    numRatings,
-    averageScore,
-  };
 }
 
 

@@ -20,6 +20,14 @@ const TARGET_RATING_COUNT = 20; // 目标评分数
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
 const TASK_REFRESH_HOURS = 24; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
 
+// 高权重评分系统配置
+const TARGET_HIGH_LOW_RATIO = 0.5; // 目标高低权重比例 1:2 = 0.5
+const RATIO_TOLERANCE = 0.1; // 容忍度 ±20% → 0.4到0.6可接受
+const BALANCE_FACTOR_ADJUSTMENT = 0.3; // 权重调整幅度 30%
+
+// 用户权重缓存
+let userQualityCache = {};
+
 /**
  * 获取用户任务数据（主入口）
  * @param {string} userId - 用户ID
@@ -57,6 +65,9 @@ export async function getUserTaskData(userId) {
       !taskRecord.completedTasks.includes(workNum)
     );
 
+    // 获取用户是否是高权重用户
+    const isHighQuality = await isUserHighQuality(userId);
+    
     return {
       currentTasks: currentTasks,
       completedTasks: taskRecord.completedTasks.sort((a, b) => b - a),
@@ -64,7 +75,8 @@ export async function getUserTaskData(userId) {
       totalCompleted: taskRecord.totalCompleted,
       targetCompletion: TARGET_USER_COMPLETION,
       lastRefreshTime: taskRecord.lastRefreshTime,
-      nextRefreshTime: getNextRefreshTime(taskRecord.lastRefreshTime)
+      nextRefreshTime: getNextRefreshTime(taskRecord.lastRefreshTime),
+      isHighQuality: isHighQuality // 用户身份标识
     };
     
   } catch (error) {
@@ -107,7 +119,8 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
         continue;
       }
       
-      const coldnessWeight = calculateColdnessWeight(work);
+      // 使用增强的冷门权重计算（包含高低权重均衡因子）
+      const coldnessWeight = await calculateColdnessWeight(work, userId);
       if (coldnessWeight <= 0) continue;
       const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
       candidateWorks.push({
@@ -245,13 +258,161 @@ async function assignNextTask(userId, taskRecord) {
 }
 
 /**
- * 计算作品的冷门权重（0-100）
+ * 检查用户是否是高权重用户
+ * @param {string} userId - 用户ID
+ * @returns {Promise<boolean>} 是否是高权重用户
+ */
+async function isUserHighQuality(userId) {
+  // 检查缓存
+  if (userId in userQualityCache) {
+    return userQualityCache[userId];
+  }
+  
+  try {
+    const result = await wixData
+      .query(COLLECTIONS.REGISTRATIONS)
+      .eq('_owner', userId)
+      .find();
+    
+    const isHighQuality = result.items.length > 0 && result.items[0].isHighQuality === true;
+    userQualityCache[userId] = isHighQuality;
+    return isHighQuality;
+  } catch (error) {
+    // console.error('检查用户权重失败:', error);
+    userQualityCache[userId] = false;
+    return false;
+  }
+}
+
+/**
+ * 获取作品的加权评分统计数据
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<Object>} 加权评分数据
+ */
+export async function getWorkWeightedRatingData(workNumber) {
+  try {
+    const comments = await wixData
+      .query(COLLECTIONS.COMMENTS)
+      .eq('workNumber', workNumber)
+      .isEmpty('replyTo')
+      .find();
+    
+    const work = await getWorkInfo(workNumber);
+    if (!work) {
+      return { 
+        numRatings: 0, 
+        weightedAverage: 0, 
+        originalAverage: 0,
+        highWeightCount: 0, 
+        lowWeightCount: 0,
+        ratio: 0
+      };
+    }
+    
+    // 排除作者自评
+    const validRatings = comments.items.filter(c => c._owner !== work._owner);
+    
+    let highWeightSum = 0;
+    let highWeightCount = 0;
+    let lowWeightSum = 0;
+    let lowWeightCount = 0;
+    
+    for (const comment of validRatings) {
+      const isHighQuality = await isUserHighQuality(comment._owner);
+      if (isHighQuality) {
+        highWeightSum += comment.score;
+        highWeightCount++;
+      } else {
+        lowWeightSum += comment.score;
+        lowWeightCount++;
+      }
+    }
+    
+    const totalRatings = highWeightCount + lowWeightCount;
+    
+    // 加权平均分 = (高权重总和 × 2 + 低权重总和) / (高权重人数 × 2 + 低权重人数)
+    const weightedAverage = totalRatings > 0
+      ? (highWeightSum * 2 + lowWeightSum) / (highWeightCount * 2 + lowWeightCount)
+      : 0;
+    
+    // 原始平均分
+    const originalAverage = totalRatings > 0
+      ? (highWeightSum + lowWeightSum) / totalRatings
+      : 0;
+    
+    // 当前高低权重比例
+    const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
+    
+    return {
+      numRatings: validRatings.length,
+      weightedAverage: weightedAverage,
+      originalAverage: originalAverage,
+      highWeightCount: highWeightCount,
+      lowWeightCount: lowWeightCount,
+      ratio: ratio
+    };
+  } catch (error) {
+    // console.error('获取加权评分数据失败:', error);
+    return { 
+      numRatings: 0, 
+      weightedAverage: 0, 
+      originalAverage: 0,
+      highWeightCount: 0, 
+      lowWeightCount: 0,
+      ratio: 0
+    };
+  }
+}
+
+/**
+ * 计算高低权重比例均衡因子
+ * @param {number} highWeightCount - 高权重评分数
+ * @param {number} lowWeightCount - 低权重评分数
+ * @param {boolean} isUserHighQuality - 当前用户是否是高权重
+ * @returns {number} 均衡因子（0.7-1.3）
+ */
+function calculateBalanceFactor(highWeightCount, lowWeightCount, isUserHighQuality) {
+  // 目标比例：高:低 = 1:2
+  // 容忍度：±20%
+  
+  if (highWeightCount === 0 && lowWeightCount === 0) {
+    return 1.0; // 没有评分，无需调整
+  }
+  
+  const currentRatio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : 999;
+  
+  // 计算偏离度
+  const deviation = currentRatio - TARGET_HIGH_LOW_RATIO;
+  
+  // 如果在容忍范围内（0.4到0.6，即±20%），不调整
+  if (Math.abs(deviation) <= RATIO_TOLERANCE) {
+    return 1.0;
+  }
+  
+  // 高权重评分过多（currentRatio > 0.6）
+  if (currentRatio > TARGET_HIGH_LOW_RATIO + RATIO_TOLERANCE) {
+    // 高权重用户看到的权重降低，低权重用户看到的权重提高
+    return isUserHighQuality ? (1 - BALANCE_FACTOR_ADJUSTMENT) : (1 + BALANCE_FACTOR_ADJUSTMENT);
+  }
+  
+  // 高权重评分不足（currentRatio < 0.4）
+  if (currentRatio < TARGET_HIGH_LOW_RATIO - RATIO_TOLERANCE) {
+    // 高权重用户看到的权重提高，低权重用户看到的权重降低
+    return isUserHighQuality ? (1 + BALANCE_FACTOR_ADJUSTMENT) : (1 - BALANCE_FACTOR_ADJUSTMENT);
+  }
+  
+  return 1.0;
+}
+
+/**
+ * 计算作品的冷门权重（0-100）- 增强版，包含高低权重均衡
  * 权重越高表示越冷门，越需要关注
  * 
  * @param {Object} work - 作品对象
- * @returns {number} 冷门权重
+ * @param {string} userId - 用户ID（用于计算均衡因子）
+ * @returns {Promise<number>} 冷门权重
  */
-function calculateColdnessWeight(work) {
+async function calculateColdnessWeight(work, userId = null) {
   const daysSinceSubmission = getDaysSinceSubmission(work);
   const currentRatings = work.currentRatingCount || 0;
   
@@ -290,9 +451,26 @@ function calculateColdnessWeight(work) {
   }
   
   // 总权重（现在最大约70分，不容易达到100）
-  const totalWeight = Math.min(100, baseWeight + urgencyBonus);
+  let totalWeight = baseWeight + urgencyBonus;
   
-  return Math.round(totalWeight);
+  // 如果提供了用户ID，应用高低权重均衡因子
+  if (userId && currentRatings >= 3) { // 至少有3个评分才考虑均衡
+    try {
+      const weightData = await getWorkWeightedRatingData(work.sequenceId);
+      const isUserHighQuality = await isUserHighQuality(userId);
+      const balanceFactor = calculateBalanceFactor(
+        weightData.highWeightCount,
+        weightData.lowWeightCount,
+        isUserHighQuality
+      );
+      
+      totalWeight = totalWeight * balanceFactor;
+    } catch (error) {
+      // console.error('应用均衡因子失败，使用基础权重:', error);
+    }
+  }
+  
+  return Math.round(Math.min(100, totalWeight));
 }
 
 /**
