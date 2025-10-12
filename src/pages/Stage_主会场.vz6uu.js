@@ -1049,6 +1049,8 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
 
   if (dropdownValue === "rating") {
     items = await sortByRating(items);
+  } else if (dropdownValue === "task") {
+    items = await sortByTask(items);
   }
 
   // 分页处理
@@ -1305,6 +1307,50 @@ async function updateItemEvaluationDisplay($item, itemData) {
   } catch (error) {
     console.error("更新评分显示时出错:", error);
     $item("#totalscore").text = "评分加载失败";
+  }
+}
+
+// 基于任务排序作品（任务作品优先，淘汰作品后置）
+async function sortByTask(items) {
+  try {
+    // 如果用户未登录或未验证，按默认顺序返回
+    if (!currentUserId || !isUserVerified) {
+      return items;
+    }
+
+    const itemsWithTaskStatus = await Promise.all(
+      items.map(async (item) => {
+        const taskCheck = await checkIfWorkInTaskList(currentUserId, item.sequenceId);
+        const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted;
+        const isTaskCompleted = taskCheck.alreadyCompleted;
+        const isDQ = item.isDq === true;
+
+        return {
+          ...item,
+          isTask: isTask, // 未完成的任务
+          isTaskCompleted: isTaskCompleted, // 已完成的任务
+          isDQ: isDQ // 淘汰作品
+        };
+      })
+    );
+
+    // 四级分类：未完成的任务 > 已完成的任务 > 其他作品 > 淘汰作品
+    const uncompletedTaskItems = itemsWithTaskStatus.filter(item => item.isTask && !item.isDQ);
+    const completedTaskItems = itemsWithTaskStatus.filter(item => item.isTaskCompleted && !item.isDQ && !item.isTask);
+    const otherItems = itemsWithTaskStatus.filter(item => !item.isTask && !item.isTaskCompleted && !item.isDQ);
+    const disqualifiedItems = itemsWithTaskStatus.filter(item => item.isDQ);
+
+    // 各分类内部按sequenceId排序
+    uncompletedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
+    completedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
+    otherItems.sort((a, b) => a.sequenceId - b.sequenceId);
+    disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
+
+    // 排序优先级：未完成任务 > 已完成任务 > 其他作品 > 淘汰作品
+    return [...uncompletedTaskItems, ...completedTaskItems, ...otherItems, ...disqualifiedItems];
+  } catch (error) {
+    console.error("按任务排序时出错:", error);
+    return items;
   }
 }
 

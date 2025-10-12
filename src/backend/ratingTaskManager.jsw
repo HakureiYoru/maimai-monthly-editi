@@ -119,10 +119,16 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
         continue;
       }
       
+      // 实时获取有效评分数（确保数据最新）
+      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
+      
+      // 更新work对象的currentRatingCount以确保权重计算使用最新数据
+      work.currentRatingCount = validRatingCount;
+      
       // 使用增强的冷门权重计算（包含高低权重均衡因子）
       const coldnessWeight = await calculateColdnessWeight(work, userId);
       if (coldnessWeight <= 0) continue;
-      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
+      
       candidateWorks.push({
         workNumber: work.sequenceId,
         weight: coldnessWeight,
@@ -457,17 +463,21 @@ async function calculateColdnessWeight(work, userId = null) {
   if (userId && currentRatings >= 3) { // 至少有3个评分才考虑均衡
     try {
       const weightData = await getWorkWeightedRatingData(work.sequenceId);
-      const isUserHighQuality = await isUserHighQuality(userId);
+      const userIsHighQuality = await isUserHighQuality(userId); // 修复变量名冲突
       const balanceFactor = calculateBalanceFactor(
         weightData.highWeightCount,
         weightData.lowWeightCount,
-        isUserHighQuality
+        userIsHighQuality
       );
+      
+      //console.log(`[权重计算] 作品#${work.sequenceId}: 基础${Math.round(totalWeight)} × 均衡${balanceFactor.toFixed(2)} = ${Math.round(totalWeight * balanceFactor)}, 高低比例${weightData.highWeightCount}:${weightData.lowWeightCount}, 用户类型:${userIsHighQuality ? 'Qualified' : '普通'}`);
       
       totalWeight = totalWeight * balanceFactor;
     } catch (error) {
-      // console.error('应用均衡因子失败，使用基础权重:', error);
+      console.error('应用均衡因子失败，使用基础权重:', error);
     }
+  } else if (userId) {
+    //console.log(`[权重计算] 作品#${work.sequenceId}: 评分数${currentRatings}<3，不应用均衡因子，使用基础权重${Math.round(totalWeight)}`);
   }
   
   return Math.round(Math.min(100, totalWeight));
@@ -844,6 +854,374 @@ export async function getSystemStats() {
     
   } catch (error) {
     // console.error('获取系统统计失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 获取所有用户的任务管理数据（管理员专用）- 优化版
+ * 包含详细的权重算法信息
+ */
+export async function getAllUsersTaskManagementData() {
+  try {
+    // 1. 并行获取所有基础数据
+    const [allTaskRecords, allRegistrations, allWorks, allComments] = await Promise.all([
+      wixData.query(COLLECTIONS.USER_TASKS).limit(1000).find(),
+      wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
+      wixData.query(COLLECTIONS.WORKS).limit(1000).find(),
+      wixData.query(COLLECTIONS.COMMENTS).isEmpty('replyTo').limit(1000).find()
+    ]);
+    
+    // 2. 构建用户高权重映射
+    const userQualityMap = {};
+    allRegistrations.items.forEach(reg => {
+      userQualityMap[reg._owner] = reg.isHighQuality === true;
+    });
+    
+    // 3. 构建作品信息映射
+    const worksMap = {};
+    allWorks.items.forEach(work => {
+      worksMap[work.sequenceId] = work;
+    });
+    
+    // 4. 构建评论映射（按作品分组）
+    const commentsMap = {};
+    allComments.items.forEach(comment => {
+      if (!commentsMap[comment.workNumber]) {
+        commentsMap[comment.workNumber] = [];
+      }
+      commentsMap[comment.workNumber].push(comment);
+    });
+    
+    // 5. 预计算所有涉及作品的权重数据（批量处理）
+    const allTaskWorkNumbers = new Set();
+    allTaskRecords.items.forEach(record => {
+      (record.currentTasks || []).forEach(task => {
+        allTaskWorkNumbers.add(task.workNumber);
+      });
+    });
+    
+    const workWeightDataMap = {};
+    for (const workNumber of allTaskWorkNumbers) {
+      const work = worksMap[workNumber];
+      if (!work) continue;
+      
+      const comments = commentsMap[workNumber] || [];
+      const validRatings = comments.filter(c => c._owner !== work._owner);
+      
+      let highWeightSum = 0;
+      let highWeightCount = 0;
+      let lowWeightSum = 0;
+      let lowWeightCount = 0;
+      
+      for (const comment of validRatings) {
+        const isHighQuality = userQualityMap[comment._owner] || false;
+        if (isHighQuality) {
+          highWeightSum += comment.score;
+          highWeightCount++;
+        } else {
+          lowWeightSum += comment.score;
+          lowWeightCount++;
+        }
+      }
+      
+      const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
+      
+      workWeightDataMap[workNumber] = {
+        numRatings: validRatings.length,
+        highWeightCount: highWeightCount,
+        lowWeightCount: lowWeightCount,
+        ratio: ratio
+      };
+    }
+    
+    // 6. 为每个用户计算任务详情（使用预计算的数据）
+    const usersTaskData = [];
+    
+    for (const taskRecord of allTaskRecords.items) {
+      const userId = taskRecord.userId;
+      const isHighQuality = userQualityMap[userId] || false;
+      const currentTasks = taskRecord.currentTasks || [];
+      
+      const tasksWithDetails = [];
+      for (const task of currentTasks) {
+        const workInfo = worksMap[task.workNumber];
+        if (!workInfo) continue;
+        
+        const weightData = workWeightDataMap[task.workNumber] || {
+          numRatings: 0,
+          highWeightCount: 0,
+          lowWeightCount: 0,
+          ratio: 0
+        };
+        
+        // 计算基础冷门权重（不含均衡因子）
+        const baseWeight = calculateBaseColdnessWeightSync(workInfo);
+        
+        // 计算均衡因子
+        const balanceFactor = calculateBalanceFactor(
+          weightData.highWeightCount,
+          weightData.lowWeightCount,
+          isHighQuality
+        );
+        
+        // 最终权重 = 基础权重 × 均衡因子
+        const finalWeight = Math.round(baseWeight * balanceFactor);
+        
+        tasksWithDetails.push({
+          workNumber: task.workNumber,
+          workTitle: workInfo.firstName || "未命名作品",
+          baseWeight: baseWeight,
+          balanceFactor: balanceFactor,
+          finalWeight: finalWeight,
+          currentRatings: weightData.numRatings,
+          highWeightCount: weightData.highWeightCount,
+          lowWeightCount: weightData.lowWeightCount,
+          ratio: weightData.ratio,
+          ratioStatus: getRatioStatus(weightData.ratio),
+          daysSinceSubmission: getDaysSinceSubmission(workInfo)
+        });
+      }
+      
+      // 获取用户所有评论的作品
+      const allUserRatings = await getUserCompletedRatings(userId);
+      const completedTasks = taskRecord.completedTasks || [];
+      const freeRatings = allUserRatings.filter(workNum => !completedTasks.includes(workNum));
+      
+      usersTaskData.push({
+        userId: userId,
+        isHighQuality: isHighQuality,
+        currentTasks: tasksWithDetails,
+        completedTasks: completedTasks.sort((a, b) => b - a), // 任务完成的作品
+        freeRatings: freeRatings.sort((a, b) => b - a),      // 自主评论的作品
+        completedCount: taskRecord.totalCompleted || 0,
+        targetCompletion: TARGET_USER_COMPLETION,
+        lastRefreshTime: taskRecord.lastRefreshTime
+      });
+    }
+    
+    // 7. 计算整体统计
+    const totalHighQualityUsers = Object.values(userQualityMap).filter(v => v).length;
+    const totalLowQualityUsers = allRegistrations.items.length - totalHighQualityUsers;
+    
+    return {
+      users: usersTaskData,
+      stats: {
+        totalUsers: usersTaskData.length,
+        highQualityUsers: totalHighQualityUsers,
+        lowQualityUsers: totalLowQualityUsers,
+        targetRatio: TARGET_HIGH_LOW_RATIO,
+        tolerance: RATIO_TOLERANCE
+      }
+    };
+    
+  } catch (error) {
+    console.error('获取任务管理数据失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 计算基础冷门权重（不含均衡因子）- 同步版本
+ * @param {Object} work - 作品对象
+ * @returns {number} 基础权重
+ */
+function calculateBaseColdnessWeightSync(work) {
+  const daysSinceSubmission = getDaysSinceSubmission(work);
+  const currentRatings = work.currentRatingCount || 0;
+  
+  if (currentRatings >= TARGET_RATING_COUNT) {
+    return 0;
+  }
+  
+  let expectedRatings = 0;
+  if (daysSinceSubmission <= 7) {
+    expectedRatings = Math.floor(daysSinceSubmission * 1.43);
+  } else if (daysSinceSubmission <= 30) {
+    expectedRatings = 10 + Math.floor((daysSinceSubmission - 7) * 0.43);
+  } else {
+    expectedRatings = TARGET_RATING_COUNT;
+  }
+  
+  const deficit = Math.max(0, expectedRatings - currentRatings);
+  const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
+  const baseWeight = deficitRatio * 45;
+  
+  let urgencyBonus = 0;
+  if (daysSinceSubmission > 7 && currentRatings < 10) {
+    urgencyBonus = 12;
+  }
+  if (daysSinceSubmission > 14 && currentRatings < 15) {
+    urgencyBonus = 18;
+  }
+  if (daysSinceSubmission > 21 && currentRatings < 18) {
+    urgencyBonus = 25;
+  }
+  
+  return Math.round(baseWeight + urgencyBonus);
+}
+
+/**
+ * 获取比例状态描述
+ * @param {number} ratio - 高低权重比例
+ * @returns {string} 状态描述
+ */
+function getRatioStatus(ratio) {
+  if (ratio >= 0.4 && ratio <= 0.6) {
+    return '均衡';
+  } else if (ratio > 0.6) {
+    return '高权重过多';
+  } else {
+    return '高权重不足';
+  }
+}
+
+/**
+ * 强制刷新指定用户的任务（管理员专用）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Object>} 刷新结果
+ */
+export async function forceRefreshUserTasks(userId) {
+  try {
+    console.log(`\n========== 强制刷新用户任务: ${userId} ==========`);
+    
+    // 获取用户任务记录
+    const taskRecord = await getUserTaskRecord(userId);
+    console.log(`原任务列表:`, taskRecord.currentTasks?.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
+    
+    // 清空当前任务，强制重新生成
+    taskRecord.currentTasks = [];
+    taskRecord.lastRefreshTime = new Date();
+    
+    // 清除用户权重缓存，确保使用最新数据
+    if (userId in userQualityCache) {
+      delete userQualityCache[userId];
+    }
+    
+    console.log(`开始生成新任务...`);
+    
+    // 生成新任务
+    const newTasks = await generateUserTasks(userId, taskRecord, 3);
+    taskRecord.currentTasks = newTasks;
+    
+    console.log(`新任务列表:`, newTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
+    
+    // 保存到数据库
+    await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+    console.log(`任务已保存到数据库`);
+    console.log(`========== 刷新完成 ==========\n`);
+    
+    return {
+      success: true,
+      message: '任务已刷新',
+      newTasksCount: newTasks.length,
+      newTasks: newTasks
+    };
+    
+  } catch (error) {
+    console.error('强制刷新用户任务失败:', error);
+    return {
+      success: false,
+      message: '刷新失败: ' + error.message
+    };
+  }
+}
+
+/**
+ * 获取所有作品的权重对比数据（管理员专用）
+ * 显示每个作品对于高权重和低权重用户的权重差异
+ */
+export async function getAllWorksWeightComparison() {
+  try {
+    // 1. 并行获取所有基础数据
+    const [allWorks, allComments, allRegistrations] = await Promise.all([
+      wixData.query(COLLECTIONS.WORKS).ne('isDq', true).limit(1000).find(),
+      wixData.query(COLLECTIONS.COMMENTS).isEmpty('replyTo').limit(1000).find(),
+      wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find()
+    ]);
+    
+    // 2. 构建用户权重映射
+    const userQualityMap = {};
+    allRegistrations.items.forEach(reg => {
+      userQualityMap[reg._owner] = reg.isHighQuality === true;
+    });
+    
+    // 3. 构建评论映射
+    const commentsMap = {};
+    allComments.items.forEach(comment => {
+      if (!commentsMap[comment.workNumber]) {
+        commentsMap[comment.workNumber] = [];
+      }
+      commentsMap[comment.workNumber].push(comment);
+    });
+    
+    // 4. 计算每个作品的权重数据
+    const worksWeightData = [];
+    
+    for (const work of allWorks.items) {
+      const comments = commentsMap[work.sequenceId] || [];
+      const validRatings = comments.filter(c => c._owner !== work._owner);
+      
+      // 统计高低权重评分
+      let highWeightCount = 0;
+      let lowWeightCount = 0;
+      
+      for (const comment of validRatings) {
+        if (userQualityMap[comment._owner]) {
+          highWeightCount++;
+        } else {
+          lowWeightCount++;
+        }
+      }
+      
+      const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
+      
+      // 计算基础冷门权重
+      const baseWeight = calculateBaseColdnessWeightSync(work);
+      
+      // 计算对于高权重用户的均衡因子和最终权重
+      const balanceFactorHigh = calculateBalanceFactor(highWeightCount, lowWeightCount, true);
+      const finalWeightHigh = Math.round(baseWeight * balanceFactorHigh);
+      
+      // 计算对于低权重用户的均衡因子和最终权重
+      const balanceFactorLow = calculateBalanceFactor(highWeightCount, lowWeightCount, false);
+      const finalWeightLow = Math.round(baseWeight * balanceFactorLow);
+      
+      worksWeightData.push({
+        sequenceId: work.sequenceId,
+        title: work.firstName || "未命名作品",
+        currentRatings: validRatings.length,
+        highWeightCount: highWeightCount,
+        lowWeightCount: lowWeightCount,
+        ratio: ratio,
+        ratioStatus: getRatioStatus(ratio),
+        daysSinceSubmission: getDaysSinceSubmission(work),
+        baseWeight: baseWeight,
+        // 对于高权重用户
+        balanceFactorHigh: balanceFactorHigh,
+        finalWeightHigh: finalWeightHigh,
+        // 对于低权重用户
+        balanceFactorLow: balanceFactorLow,
+        finalWeightLow: finalWeightLow,
+        // 权重差异
+        weightDifference: finalWeightHigh - finalWeightLow
+      });
+    }
+    
+    // 5. 按作品序号排序
+    worksWeightData.sort((a, b) => a.sequenceId - b.sequenceId);
+    
+    return {
+      works: worksWeightData,
+      config: {
+        targetRatio: TARGET_HIGH_LOW_RATIO,
+        tolerance: RATIO_TOLERANCE,
+        balanceAdjustment: BALANCE_FACTOR_ADJUSTMENT
+      }
+    };
+    
+  } catch (error) {
+    console.error('获取作品权重对比数据失败:', error);
     throw error;
   }
 }

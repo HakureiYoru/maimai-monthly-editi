@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        select, button {
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        select:hover, button:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-refresh-user {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-refresh-user:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        .btn-refresh-user:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 统计卡片 */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        /* 用户卡片 */
+        .users-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .user-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .user-header {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            margin-bottom: 15px;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quality-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .quality-high {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+        }
+
+        .quality-low {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .user-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .progress-mini {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .progress-complete {
+            background: #d4edda;
+            color: #28a745;
+        }
+
+        .progress-active {
+            background: #fff3cd;
+            color: #ffc107;
+        }
+
+        .progress-low {
+            background: #f8d7da;
+            color: #dc3545;
+        }
+
+        /* 任务列表 */
+        .tasks-section {
+            margin-top: 15px;
+        }
+
+        .tasks-header {
+            font-size: 15px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .tasks-header:hover {
+            color: #667eea;
+        }
+
+        .toggle-icon {
+            transition: transform 0.3s;
+        }
+
+        .toggle-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .tasks-list {
+            display: grid;
+            gap: 12px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .tasks-list.expanded {
+            max-height: 3000px;
+        }
+
+        .task-item {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .task-work-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .task-work-id {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .task-work-title {
+            font-size: 13px;
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .weight-badge {
+            background: #d63031;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .weight-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .weight-detail-item {
+            font-size: 12px;
+        }
+
+        .weight-label {
+            color: #999;
+            margin-right: 5px;
+        }
+
+        .weight-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .balance-factor {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .balance-increase {
+            background: #d4edda;
+            color: #28a745;
+        }
+
+        .balance-decrease {
+            background: #f8d7da;
+            color: #dc3545;
+        }
+
+        .balance-neutral {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .ratio-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: #fff9e6;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .ratio-bar {
+            flex: 1;
+            height: 18px;
+            border-radius: 9px;
+            overflow: hidden;
+            background: #e0e0e0;
+            display: flex;
+        }
+
+        .ratio-high {
+            background: linear-gradient(90deg, #FFD700, #FFA500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .ratio-low {
+            background: linear-gradient(90deg, #90EE90, #32CD32);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .ratio-status {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .ratio-balanced {
+            background: #d4edda;
+            color: #28a745;
+        }
+
+        .ratio-unbalanced {
+            background: #fff3cd;
+            color: #ffc107;
+        }
+
+        .no-tasks {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 14px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+
+        /* 已完成列表样式 */
+        .completed-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .completed-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .works-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .works-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .works-grid::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .works-grid::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+
+        .work-item {
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+            padding: 10px 6px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #4a5568;
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+
+        .work-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .work-item-free {
+            background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);
+        }
+
+        .empty-list {
+            text-align: center;
+            color: #a0aec0;
+            padding: 10px;
+            font-size: 12px;
+            background: #f8f9ff;
+            border-radius: 6px;
+        }
+
+        .loading, .error {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .error {
+            color: #e74c3c;
+            font-size: 18px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        /* 作品权重对比表格 */
+        .works-comparison-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .comparison-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .comparison-header:hover h2 {
+            color: #5568d3;
+        }
+
+        .comparison-header h2 {
+            color: #667eea;
+            font-size: 22px;
+            margin: 0;
+            transition: color 0.3s;
+        }
+
+        .formula-box {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .formula-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .formula-item {
+            margin: 5px 0;
+            padding-left: 15px;
+        }
+
+        .formula-highlight {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+
+        .comparison-table-container {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease;
+        }
+
+        .comparison-table-container.expanded {
+            max-height: 5000px;
+        }
+
+        .works-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .works-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .works-table th {
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .works-table tbody tr {
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s;
+        }
+
+        .works-table tbody tr:hover {
+            background: #f8f9ff;
+        }
+
+        .works-table td {
+            padding: 10px;
+        }
+
+        .works-table .work-id {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .works-table .work-title {
+            color: #666;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .weight-cell {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .weight-high-user {
+            color: #FFA500;
+        }
+
+        .weight-low-user {
+            color: #32CD32;
+        }
+
+        .weight-diff-positive {
+            color: #28a745;
+        }
+
+        .weight-diff-negative {
+            color: #dc3545;
+        }
+
+        .weight-diff-neutral {
+            color: #999;
+        }
+
+        @media (max-width: 768px) {
+            .user-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .weight-details {
+                grid-template-columns: 1fr;
+            }
+
+            .works-table {
+                font-size: 11px;
+            }
+
+            .works-table th, .works-table td {
+                padding: 8px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 任务管理系统</h1>
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="搜索用户名或ID...">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <select id="qualityFilter">
+                    <option value="all">全部用户</option>
+                    <option value="high">仅 Qualified 用户</option>
+                    <option value="low">仅普通用户</option>
+                </select>
+                <select id="completionFilter">
+                    <option value="all">全部状态</option>
+                    <option value="has-tasks">有任务的用户</option>
+                    <option value="incomplete">未完成任务</option>
+                    <option value="completed">已完成目标</option>
+                </select>
+                <select id="sortBy">
+                    <option value="completion">按完成度排序</option>
+                    <option value="tasks">按任务数排序</option>
+                    <option value="quality">按用户类型排序</option>
+                    <option value="name">按用户名排序</option>
+                </select>
+                <button id="refreshBtn">🔄 刷新数据</button>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <!-- 统计卡片会动态生成 -->
+        </div>
+
+        <!-- 作品权重对比表格 -->
+        <div class="works-comparison-section" id="worksComparisonSection" style="display: none;">
+            <div class="comparison-header" onclick="toggleComparison()">
+                <h2>📊 作品权重对比表 (所有作品)</h2>
+                <span class="toggle-icon" id="comparisonToggleIcon">▼</span>
+            </div>
+            
+            <div class="formula-box">
+                <div class="formula-title">🔬 权重计算方法</div>
+                <div class="formula-item">
+                    <strong>基础冷门权重</strong> = 评分缺口比例 × 45 + 时间紧迫度加成
+                    <br>• 评分缺口 = (期望评分 - 当前评分) / 期望评分
+                    <br>• 时间加成: 7天且&lt;10评分 +12，14天且&lt;15评分 +18，21天且&lt;18评分 +25
+                </div>
+                <div class="formula-item">
+                    <strong>均衡因子</strong> = 根据作品当前高低权重比例动态调整
+                    <br>• 目标比例: <span class="formula-highlight">高:低 = 1:2</span>，容忍度: ±20%
+                    <br>• 高权重过多 (>0.6) → Qualified用户 ×0.7，普通用户 ×1.3
+                    <br>• 高权重不足 (&lt;0.4) → Qualified用户 ×1.3，普通用户 ×0.7
+                    <br>• 比例均衡 (0.4-0.6) → 所有用户 ×1.0
+                </div>
+                <div class="formula-item">
+                    <strong>最终任务权重</strong> = <span class="formula-highlight">基础冷门权重 × 均衡因子</span>
+                    <br>• 最终权重决定作品在用户任务列表中的排序位置
+                    <br>• 权重越高，越容易被分配为任务
+                </div>
+            </div>
+
+            <div class="comparison-table-container expanded" id="comparisonTableContainer">
+                <table class="works-table" id="worksComparisonTable">
+                    <thead>
+                        <tr>
+                            <th>作品ID</th>
+                            <th>作品标题</th>
+                            <th>天数</th>
+                            <th>评分数</th>
+                            <th>高/低评分</th>
+                            <th>比例状态</th>
+                            <th>基础权重</th>
+                            <th>Qualified权重</th>
+                            <th>普通权重</th>
+                            <th>权重差异</th>
+                        </tr>
+                    </thead>
+                    <tbody id="worksComparisonTableBody">
+                        <!-- 动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>正在加载数据...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = null;
+
+        // 监听来自Wix页面的消息
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'data') {
+                allData = event.data.data;
+                renderUsers(allData.users);
+                updateStats(allData.stats);
+                renderWorksComparison(allData.worksComparison);
+            } else if (event.data.type === 'loading') {
+                showLoading(event.data.message);
+            } else if (event.data.type === 'error') {
+                showError(event.data.message);
+            } else if (event.data.type === 'refreshing') {
+                // 刷新中，显示加载状态
+                const button = document.querySelector(`[data-user-id="${event.data.userId}"]`);
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '⏳ 刷新中...';
+                }
+            } else if (event.data.type === 'refreshSuccess') {
+                // 刷新成功
+                showNotification('✅ ' + event.data.message, 'success');
+                // 数据会自动重新加载，按钮会在重新渲染时恢复
+            } else if (event.data.type === 'refreshError') {
+                // 刷新失败
+                showNotification('❌ ' + event.data.message, 'error');
+                const button = document.querySelector(`[data-user-id="${event.data.userId}"]`);
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = '🔄 刷新任务';
+                }
+            }
+        });
+
+        // 页面加载完成，通知Wix准备接收数据
+        window.onload = () => {
+            window.parent.postMessage({ action: 'ready' }, '*');
+        };
+
+        // 渲染用户列表
+        function renderUsers(users) {
+            const content = document.getElementById('content');
+            
+            if (users.length === 0) {
+                content.innerHTML = '<div class="no-data">没有找到符合条件的用户</div>';
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'users-grid';
+
+            users.forEach(user => {
+                const card = createUserCard(user);
+                grid.appendChild(card);
+            });
+
+            content.innerHTML = '';
+            content.appendChild(grid);
+        }
+
+        // 创建用户卡片
+        function createUserCard(user) {
+            const card = document.createElement('div');
+            card.className = 'user-card';
+
+            // 处理头像
+            const avatarHtml = user.profileImageUrl && user.profileImageUrl.trim() !== ''
+                ? `<img src="${user.profileImageUrl}" alt="头像">`
+                : user.userName.substring(0, 2).toUpperCase();
+
+            // 用户质量徽章
+            const qualityBadgeClass = user.isHighQuality ? 'quality-high' : 'quality-low';
+            const qualityText = user.isHighQuality ? 'Qualified' : '普通';
+
+            // 完成度状态
+            const completionPercent = (user.completedCount / user.targetCompletion * 100).toFixed(0);
+            let progressClass = 'progress-low';
+            if (user.completedCount >= user.targetCompletion) {
+                progressClass = 'progress-complete';
+            } else if (user.completedCount >= user.targetCompletion * 0.5) {
+                progressClass = 'progress-active';
+            }
+
+            // 用户链接
+            const userLink = user.userSlug ? `/profile/${user.userSlug}` : '#';
+            const userNameHtml = user.userSlug
+                ? `<a href="${userLink}" target="_blank" style="color: #667eea; text-decoration: none;">${user.userName}</a>`
+                : user.userName;
+
+            // 任务列表HTML
+            const tasksHtml = user.currentTasks && user.currentTasks.length > 0
+                ? user.currentTasks.map(task => createTaskItemHtml(task, user.isHighQuality)).join('')
+                : '<div class="no-tasks">🎉 当前无任务（已完成或等待刷新）</div>';
+
+            // 已完成任务作品列表
+            const completedTasksHtml = user.completedTasks && user.completedTasks.length > 0
+                ? user.completedTasks.map(workNum => 
+                    `<div class="work-item" title="任务完成作品 #${workNum}">#${workNum}</div>`
+                  ).join('')
+                : '<div class="empty-list">暂无完成记录</div>';
+
+            // 自主评论作品列表
+            const freeRatingsHtml = user.freeRatings && user.freeRatings.length > 0
+                ? user.freeRatings.map(workNum => 
+                    `<div class="work-item work-item-free" title="自主评论作品 #${workNum}">#${workNum}</div>`
+                  ).join('')
+                : '<div class="empty-list">暂无自主评论</div>';
+
+            card.innerHTML = `
+                <div class="user-header">
+                    <div class="user-avatar">
+                        ${avatarHtml}
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">
+                            ${userNameHtml}
+                            <span class="quality-badge ${qualityBadgeClass}">${qualityText}</span>
+                            <button class="btn-refresh-user" data-user-id="${user.userId}" onclick="refreshUserTask(this)">🔄 刷新任务</button>
+                        </div>
+                        <div class="user-stats">
+                            <div class="stat-item">
+                                <span>📊 进度:</span>
+                                <span class="progress-mini ${progressClass}">${user.completedCount}/${user.targetCompletion} (${completionPercent}%)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>📋 当前任务:</span>
+                                <strong>${user.currentTasks?.length || 0} 个</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tasks-section">
+                    <div class="tasks-header" onclick="toggleTasks(this)">
+                        <span class="toggle-icon">▶</span>
+                        <span>当前任务详情 (${user.currentTasks?.length || 0}个)</span>
+                    </div>
+                    <div class="tasks-list">
+                        ${tasksHtml}
+                    </div>
+                </div>
+                <div class="completed-section">
+                    <div class="completed-title">
+                        <span>✅ 已完成任务作品 (${user.completedTasks?.length || 0})</span>
+                    </div>
+                    <div class="works-grid">
+                        ${completedTasksHtml}
+                    </div>
+                </div>
+                <div class="completed-section">
+                    <div class="completed-title">
+                        <span>💬 自主评论作品 (${user.freeRatings?.length || 0})</span>
+                    </div>
+                    <div class="works-grid">
+                        ${freeRatingsHtml}
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // 创建任务项HTML
+        function createTaskItemHtml(task, isUserHighQuality) {
+            // 高低权重比例
+            const highPercent = task.currentRatings > 0 
+                ? (task.highWeightCount / task.currentRatings * 100).toFixed(0)
+                : 0;
+            const lowPercent = task.currentRatings > 0
+                ? (task.lowWeightCount / task.currentRatings * 100).toFixed(0)
+                : 0;
+            
+            const ratioText = task.lowWeightCount > 0 
+                ? `1:${task.ratio.toFixed(2)}`
+                : (task.highWeightCount > 0 ? '1:0' : '无评分');
+            
+            const ratioStatusClass = task.ratioStatus === '均衡' ? 'ratio-balanced' : 'ratio-unbalanced';
+            
+            // 均衡因子样式
+            let balanceClass = 'balance-neutral';
+            let balanceText = '×1.0 (无调整)';
+            if (task.balanceFactor > 1.0) {
+                balanceClass = 'balance-increase';
+                balanceText = `×${task.balanceFactor.toFixed(2)} (提高)`;
+            } else if (task.balanceFactor < 1.0) {
+                balanceClass = 'balance-decrease';
+                balanceText = `×${task.balanceFactor.toFixed(2)} (降低)`;
+            }
+            
+            // 权重变化说明
+            let weightExplanation = '';
+            if (task.balanceFactor !== 1.0) {
+                if (isUserHighQuality) {
+                    if (task.ratioStatus === '高权重过多') {
+                        weightExplanation = '⚠ 该作品高权重评分过多，降低您的任务权重以引导低权重用户评分';
+                    } else if (task.ratioStatus === '高权重不足') {
+                        weightExplanation = '⭐ 该作品需要更多高权重评分，提高您的任务权重';
+                    }
+                } else {
+                    if (task.ratioStatus === '高权重过多') {
+                        weightExplanation = '⭐ 该作品高权重评分过多，提高您的任务权重以平衡比例';
+                    } else if (task.ratioStatus === '高权重不足') {
+                        weightExplanation = '⚠ 该作品需要高权重评分，降低您的任务权重';
+                    }
+                }
+            }
+
+            return `
+                <div class="task-item">
+                    <div class="task-work-header">
+                        <div>
+                            <span class="task-work-id">#${task.workNumber}</span>
+                            <span class="task-work-title">${task.workTitle}</span>
+                        </div>
+                        <span class="weight-badge">最终权重: ${task.finalWeight}</span>
+                    </div>
+                    
+                    <div class="weight-details">
+                        <div class="weight-detail-item">
+                            <span class="weight-label">基础冷门权重:</span>
+                            <span class="weight-value">${task.baseWeight}</span>
+                        </div>
+                        <div class="weight-detail-item">
+                            <span class="weight-label">均衡因子:</span>
+                            <span class="balance-factor ${balanceClass}">${balanceText}</span>
+                        </div>
+                        <div class="weight-detail-item">
+                            <span class="weight-label">当前评分:</span>
+                            <span class="weight-value">${task.currentRatings} 个 (目标20)</span>
+                        </div>
+                        <div class="weight-detail-item">
+                            <span class="weight-label">提交天数:</span>
+                            <span class="weight-value">${task.daysSinceSubmission} 天</span>
+                        </div>
+                    </div>
+                    
+                    <div class="ratio-info">
+                        <span style="font-size: 11px; color: #666;">高低权重分布:</span>
+                        <div class="ratio-bar">
+                            ${task.highWeightCount > 0 ? `<div class="ratio-high" style="width: ${highPercent}%">${task.highWeightCount}人</div>` : ''}
+                            ${task.lowWeightCount > 0 ? `<div class="ratio-low" style="width: ${lowPercent}%">${task.lowWeightCount}人</div>` : ''}
+                        </div>
+                        <span style="font-size: 12px; font-weight: bold;">${ratioText}</span>
+                        <span class="ratio-status ${ratioStatusClass}">${task.ratioStatus}</span>
+                    </div>
+                    
+                    ${weightExplanation ? `<div style="margin-top: 8px; padding: 8px; background: #e8f4fd; border-radius: 6px; font-size: 11px; color: #0066cc;">${weightExplanation}</div>` : ''}
+                </div>
+            `;
+        }
+
+        // 切换任务列表显示
+        function toggleTasks(header) {
+            const icon = header.querySelector('.toggle-icon');
+            const list = header.nextElementSibling;
+            
+            icon.classList.toggle('expanded');
+            list.classList.toggle('expanded');
+        }
+
+        // 切换作品权重对比表格显示
+        function toggleComparison() {
+            const container = document.getElementById('comparisonTableContainer');
+            const icon = document.getElementById('comparisonToggleIcon');
+            
+            container.classList.toggle('expanded');
+            icon.textContent = container.classList.contains('expanded') ? '▼' : '▶';
+        }
+
+        // 渲染作品权重对比表格
+        function renderWorksComparison(worksComparison) {
+            if (!worksComparison || !worksComparison.works) {
+                document.getElementById('worksComparisonSection').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('worksComparisonSection').style.display = 'block';
+            
+            const tbody = document.getElementById('worksComparisonTableBody');
+            tbody.innerHTML = '';
+
+            worksComparison.works.forEach(work => {
+                const row = document.createElement('tr');
+                
+                // 比例状态样式
+                const ratioStatusClass = work.ratioStatus === '均衡' ? 'ratio-balanced' : 'ratio-unbalanced';
+                
+                // 权重差异样式
+                let diffClass = 'weight-diff-neutral';
+                let diffSymbol = '';
+                if (work.weightDifference > 0) {
+                    diffClass = 'weight-diff-positive';
+                    diffSymbol = '+';
+                } else if (work.weightDifference < 0) {
+                    diffClass = 'weight-diff-negative';
+                }
+                
+                // 均衡因子显示
+                const factorHighText = work.balanceFactorHigh === 1.0 
+                    ? '×1.0' 
+                    : (work.balanceFactorHigh > 1.0 ? `×${work.balanceFactorHigh.toFixed(1)}↑` : `×${work.balanceFactorHigh.toFixed(1)}↓`);
+                
+                const factorLowText = work.balanceFactorLow === 1.0 
+                    ? '×1.0' 
+                    : (work.balanceFactorLow > 1.0 ? `×${work.balanceFactorLow.toFixed(1)}↑` : `×${work.balanceFactorLow.toFixed(1)}↓`);
+
+                row.innerHTML = `
+                    <td><span class="work-id">#${work.sequenceId}</span></td>
+                    <td><span class="work-title" title="${work.title}">${work.title}</span></td>
+                    <td>${work.daysSinceSubmission}天</td>
+                    <td>${work.currentRatings}/20</td>
+                    <td>${work.highWeightCount}/${work.lowWeightCount}</td>
+                    <td><span class="ratio-status ${ratioStatusClass}">${work.ratioStatus}</span></td>
+                    <td>${work.baseWeight}</td>
+                    <td class="weight-cell weight-high-user">
+                        ${work.finalWeightHigh}
+                        <small style="color: #999;">${factorHighText}</small>
+                    </td>
+                    <td class="weight-cell weight-low-user">
+                        ${work.finalWeightLow}
+                        <small style="color: #999;">${factorLowText}</small>
+                    </td>
+                    <td class="${diffClass}">
+                        ${diffSymbol}${work.weightDifference}
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // 刷新单个用户的任务
+        function refreshUserTask(button) {
+            const userId = button.getAttribute('data-user-id');
+            
+            // 禁用按钮，显示刷新中
+            button.disabled = true;
+            button.textContent = '⏳ 刷新中...';
+            
+            // 发送刷新请求
+            window.parent.postMessage({
+                action: 'refreshUserTask',
+                userId: userId
+            }, '*');
+        }
+
+        // 更新统计信息
+        function updateStats(stats) {
+            if (!stats || !stats.totalUsers) {
+                document.getElementById('stats').innerHTML = '';
+                return;
+            }
+
+            const targetRatioText = `1:${(1/stats.targetRatio).toFixed(1)}`;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <h3>总用户数</h3>
+                    <div class="number">${stats.totalUsers}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Qualified 用户</h3>
+                    <div class="number" style="color: #FFA500;">${stats.highQualityUsers || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>普通用户</h3>
+                    <div class="number" style="color: #32CD32;">${stats.lowQualityUsers || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>目标比例</h3>
+                    <div class="number" style="font-size: 24px;">${targetRatioText}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>容忍度</h3>
+                    <div class="number" style="font-size: 24px;">±${(stats.tolerance * 100).toFixed(0)}%</div>
+                </div>
+            `;
+        }
+
+        // 显示加载状态
+        function showLoading(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // 显示错误
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="error">
+                    <p>❌ ${message}</p>
+                </div>
+            `;
+        }
+
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            window.parent.postMessage({
+                action: 'filter',
+                filterType: 'search',
+                value: e.target.value
+            }, '*');
+        });
+
+        // 用户质量筛选
+        document.getElementById('qualityFilter').addEventListener('change', (e) => {
+            window.parent.postMessage({
+                action: 'filter',
+                filterType: 'quality',
+                value: e.target.value
+            }, '*');
+        });
+
+        // 完成度筛选
+        document.getElementById('completionFilter').addEventListener('change', (e) => {
+            window.parent.postMessage({
+                action: 'filter',
+                filterType: 'completion',
+                value: e.target.value
+            }, '*');
+        });
+
+        // 排序
+        document.getElementById('sortBy').addEventListener('change', (e) => {
+            window.parent.postMessage({
+                action: 'sort',
+                sortBy: e.target.value
+            }, '*');
+        });
+
+        // 刷新数据
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            window.parent.postMessage({
+                action: 'refresh'
+            }, '*');
+        });
+
+        // 显示通知消息
+        function showNotification(message, type) {
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 25px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+                z-index: 9999;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                animation: slideIn 0.3s ease;
+            `;
+            
+            if (type === 'success') {
+                notification.style.background = '#d4edda';
+                notification.style.color = '#28a745';
+                notification.style.border = '2px solid #28a745';
+            } else {
+                notification.style.background = '#f8d7da';
+                notification.style.color = '#dc3545';
+                notification.style.border = '2px solid #dc3545';
+            }
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // 3秒后自动消失
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+    <style>
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</body>
+</html>
+
