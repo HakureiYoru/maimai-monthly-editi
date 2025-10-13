@@ -1,6 +1,8 @@
 // 注意：如遇到 IDE 标红（Cannot find module 'backend/xxx.jsw'），可忽略。Wix Velo 环境下路径无误。
 // @ts-ignore
 import { getUserPublicInfo, getUserInfoBySlug } from 'backend/getUserPublicInfo.jsw';
+// @ts-ignore
+import { uploadContestItemToMajnet } from 'backend/majnetUploader.jsw';
 import wixData from 'wix-data';
 import { 
     extractSlugFromURL, 
@@ -8,7 +10,7 @@ import {
     getMaxSequenceId 
 } from 'backend/utils';
 import { COLLECTIONS } from 'backend/constants.js';
-import { logError } from 'backend/errorHandler.js';
+import { logError, logInfo } from 'backend/errorHandler.js';
 
 /**
  * Team数据插入前的处理
@@ -67,52 +69,52 @@ export async function enterContest034_beforeInsert(item, context) {
     }
 }
 
-// 注释掉的afterUpdate函数保留，以备将来需要时使用
-/*
-export async function Team_afterUpdate(item, context) {
-    if (item.totalPp && item.totalPp != 0) {
-        const userSlug = extractSlugFromURL(item.website);
-
-        if (userSlug) {
-            try {
-                const userInfo = await getUserInfoBySlug(userSlug);
-
-                if (userInfo) {
-                    // 获取完整的当前条目数据
-                    const currentItem = await wixData.get("Team", item._id);
-                    if (currentItem) {
-                        // 重新计算 totalPp
-                        const totalPp = calculateTotalPp(
-                            currentItem.order, 
-                            currentItem.performance2, 
-                            currentItem.performance3
-                        );
-
-                        // 检查是否需要更新（比较昵称、头像和 realId）
-                        if (currentItem.title !== userInfo.nickname || 
-                            currentItem.photo !== userInfo.profilePhoto || 
-                            currentItem.realId !== userInfo.realId) {
-                            
-                            // 更新条目
-                            const updatedItem = await wixData.update("Team", {
-                                ...currentItem,
-                                title: userInfo.nickname,
-                                realId: userInfo.realId,
-                                totalPp: totalPp
-                            });
-                            console.log("Team item updated successfully:", updatedItem);
-                        } else {
-                            console.log("No changes required for the item.");
-                        }
-                    }
+/**
+ * enterContest034数据插入后的处理
+ * 自动将新提交的谱面上传到Majnet平台
+ */
+export async function enterContest034_afterInsert(item, context) {
+    logInfo('enterContest034_afterInsert', `新作品创建，准备上传到Majnet: ${item.firstName || '未命名'}`);
+    
+    // 异步上传，不阻塞数据保存操作
+    uploadContestItemToMajnet(item)
+        .then(async (result) => {
+            if (result.success) {
+                logInfo('enterContest034_afterInsert', `作品 "${item.firstName}" 已自动上传到Majnet`);
+                
+                // 更新majnetUploaded字段为true
+                try {
+                    await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+                        _id: item._id,
+                        majnetUploaded: true,
+                        majnetUploadTime: new Date()
+                    });
+                    logInfo('enterContest034_afterInsert', `已标记作品 "${item.firstName}" 的上传状态`);
+                } catch (updateError) {
+                    logError('enterContest034_afterInsert - 更新上传状态失败', updateError, { 
+                        itemId: item._id,
+                        itemTitle: item.firstName 
+                    });
                 }
-            } catch (error) {
-                logError('Team_afterUpdate', error, { itemId: item._id });
+            } else {
+                logError('enterContest034_afterInsert - Majnet上传失败', result.error || result.message, { 
+                    itemId: item._id,
+                    itemTitle: item.firstName 
+                });
             }
-        }
-    }
+        })
+        .catch((error) => {
+            logError('enterContest034_afterInsert - 上传异常', error, { 
+                itemId: item._id,
+                itemTitle: item.firstName 
+            });
+        });
+    
+    return item;
 }
-*/
+
+
+
 
 
 

@@ -1,0 +1,349 @@
+/**
+ * Majnet 上传模块
+ * 自动将wix数据集中的谱面上传到majnet平台
+ */
+
+import { fetch } from 'wix-fetch';
+import { mediaManager } from 'wix-media-backend';
+import { getFileDownloadUrlAndContent } from 'backend/mediaManagement.jsw';
+import { logInfo, logError, logWarning, safeExecute } from 'backend/errorHandler';
+
+// Majnet API配置
+const MAJNET_CONFIG = {
+    LOGIN_URL: "https://majdata.net/api3/api/account/Login",
+    UPLOAD_URL: "https://majdata.net/api3/api/maichart/upload",
+    USERNAME: "mmfc_bot",
+    FALLBACK_DESIGNER: "mmfc",
+    UPLOAD_DELAY: 2000 // 上传间隔（毫秒）
+};
+
+// 全局会话状态
+let sessionCookies = null;
+let lastLoginTime = null;
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30分钟
+
+/**
+ * 预计算的密码MD5值
+ * "redwhite7687" 的 MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f"
+ */
+const PASSWORD_MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f";
+
+/**
+ * 登录Majnet
+ */
+async function loginToMajnet() {
+    return safeExecute(async () => {
+        // 检查会话是否仍然有效
+        if (sessionCookies && lastLoginTime && 
+            (Date.now() - lastLoginTime < SESSION_TIMEOUT)) {
+            logInfo('loginToMajnet', '使用现有会话');
+            return { success: true, message: '使用缓存会话' };
+        }
+        
+        const response = await fetch(MAJNET_CONFIG.LOGIN_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `username=${MAJNET_CONFIG.USERNAME}&password=${PASSWORD_MD5}`
+        });
+
+        if (response.status === 200) {
+            // 保存会话cookies
+            const cookies = response.headers.get('set-cookie');
+            if (cookies) {
+                sessionCookies = cookies;
+                lastLoginTime = Date.now();
+            }
+            
+            logInfo('loginToMajnet', '登录成功');
+            return { 
+                success: true, 
+                message: '登录成功',
+                statusCode: response.status 
+            };
+        }
+
+        sessionCookies = null;
+        lastLoginTime = null;
+        
+        const errorText = await response.text();
+        logError('loginToMajnet', `登录失败: ${response.status} - ${errorText}`);
+        
+        return { 
+            success: false, 
+            message: `登录失败: ${response.status}`,
+            statusCode: response.status,
+            error: errorText
+        };
+    }, 'loginToMajnet', { success: false, message: '登录异常' });
+}
+
+/**
+ * 确保maidata.txt中有designer字段
+ */
+function ensureDesigner(maidataContent) {
+    const lines = maidataContent.split('\n');
+    let hasDesigner = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.toLowerCase().startsWith('&des=')) {
+            const value = line.split('=')[1]?.trim();
+            if (!value) {
+                lines[i] = `&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}`;
+            }
+            hasDesigner = true;
+            break;
+        }
+    }
+    
+    if (!hasDesigner) {
+        lines.push(`&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}`);
+    }
+    
+    return lines.join('\n');
+}
+
+/**
+ * 获取文件的二进制内容
+ */
+async function getFileBinary(fileUrl) {
+    return safeExecute(async () => {
+        const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
+        const response = await fetch(downloadUrl);
+        
+        if (!response.ok) {
+            throw new Error(`获取文件失败: ${response.status}`);
+        }
+        
+        // 获取ArrayBuffer
+        const arrayBuffer = await response.arrayBuffer();
+        return {
+            buffer: arrayBuffer,
+            contentType: response.headers.get('content-type')
+        };
+    }, 'getFileBinary', null);
+}
+
+/**
+ * 构建multipart/form-data请求体
+ */
+function buildMultipartFormData(files) {
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substr(2);
+    const parts = [];
+    
+    for (const file of files) {
+        const { filename, content, contentType } = file;
+        
+        parts.push(`--${boundary}\r\n`);
+        parts.push(`Content-Disposition: form-data; name="formfiles"; filename="${filename}"\r\n`);
+        parts.push(`Content-Type: ${contentType}\r\n\r\n`);
+        parts.push(content);
+        parts.push('\r\n');
+    }
+    
+    parts.push(`--${boundary}--\r\n`);
+    
+    return {
+        body: parts.join(''),
+        boundary
+    };
+}
+
+/**
+ * 上传谱面到Majnet
+ * @param {Object} chartData - 包含文件URL的谱面数据
+ * @returns {Promise<Object>} 上传结果
+ */
+export async function uploadChartToMajnet(chartData) {
+    return safeExecute(async () => {
+        const { 
+            maidataUrl,    // maidata.txt的wix URL
+            trackUrl,      // track.mp3的wix URL  
+            bgUrl,         // bg.png/jpg的wix URL
+            bgVideoUrl,    // 背景视频URL（可选）
+            chartTitle     // 谱面标题（用于日志）
+        } = chartData;
+
+        logInfo('uploadChartToMajnet', `开始上传谱面: ${chartTitle || '未命名'}`);
+
+        // 1. 确保已登录
+        const loginResult = await loginToMajnet();
+        if (!loginResult.success) {
+            return {
+                success: false,
+                message: '登录失败',
+                error: loginResult.message
+            };
+        }
+
+        // 2. 获取所有文件
+        const files = [];
+        
+        try {
+            // 2.1 获取maidata.txt
+            if (!maidataUrl) {
+                throw new Error('缺少maidata.txt文件');
+            }
+            const maidataResult = await getFileDownloadUrlAndContent(maidataUrl);
+            const maidataContent = ensureDesigner(maidataResult.fileContent);
+            files.push({
+                filename: 'maidata.txt',
+                content: maidataContent,
+                contentType: 'text/plain'
+            });
+
+            // 2.2 获取背景图
+            if (!bgUrl) {
+                throw new Error('缺少背景图文件');
+            }
+            const bgBinary = await getFileBinary(bgUrl);
+            const bgExtension = bgUrl.toLowerCase().includes('.jpg') ? 'jpg' : 'png';
+            files.push({
+                filename: `bg.${bgExtension}`,
+                content: bgBinary.buffer,
+                contentType: bgBinary.contentType || `image/${bgExtension}`
+            });
+
+            // 2.3 获取音频文件
+            if (!trackUrl) {
+                throw new Error('缺少音频文件');
+            }
+            const trackBinary = await getFileBinary(trackUrl);
+            files.push({
+                filename: 'track.mp3',
+                content: trackBinary.buffer,
+                contentType: trackBinary.contentType || 'audio/mpeg'
+            });
+
+            // 2.4 获取视频（如果有）
+            if (bgVideoUrl) {
+                const videoBinary = await getFileBinary(bgVideoUrl);
+                const videoExtension = bgVideoUrl.toLowerCase().includes('pv.mp4') ? 'pv.mp4' : 'bg.mp4';
+                files.push({
+                    filename: videoExtension,
+                    content: videoBinary.buffer,
+                    contentType: videoBinary.contentType || 'video/mp4'
+                });
+            }
+
+        } catch (error) {
+            logError('uploadChartToMajnet', `文件准备失败: ${error.message}`);
+            return {
+                success: false,
+                message: '文件准备失败',
+                error: error.message
+            };
+        }
+
+        // 3. 构建并发送上传请求
+        try {
+            const formData = buildMultipartFormData(files);
+            
+            const headers = {
+                'Content-Type': `multipart/form-data; boundary=${formData.boundary}`
+            };
+            
+            if (sessionCookies) {
+                headers['Cookie'] = sessionCookies;
+            }
+
+            const response = await fetch(MAJNET_CONFIG.UPLOAD_URL, {
+                method: 'POST',
+                headers,
+                body: formData.body
+            });
+
+            const responseText = await response.text();
+
+            if (response.status === 200) {
+                logInfo('uploadChartToMajnet', `上传成功: ${chartTitle}`);
+                return {
+                    success: true,
+                    message: '上传成功',
+                    statusCode: response.status,
+                    response: responseText
+                };
+            } else {
+                logError('uploadChartToMajnet', `上传失败: ${response.status} - ${responseText}`);
+                return {
+                    success: false,
+                    message: `上传失败: ${response.status}`,
+                    statusCode: response.status,
+                    error: responseText
+                };
+            }
+
+        } catch (error) {
+            logError('uploadChartToMajnet', `上传请求失败: ${error.message}`);
+            return {
+                success: false,
+                message: '上传请求失败',
+                error: error.message
+            };
+        }
+
+    }, 'uploadChartToMajnet', {
+        success: false,
+        message: '上传异常'
+    });
+}
+
+/**
+ * 从wix数据集项上传到Majnet
+ * @param {Object} contestItem - enterContest034数据集项
+ * @returns {Promise<Object>} 上传结果
+ */
+export async function uploadContestItemToMajnet(contestItem) {
+    return safeExecute(async () => {
+        // 映射字段名（根据http-functions.js中的字段映射）
+        const chartData = {
+            maidataUrl: contestItem.inVideo的複本,      // maidata.txt
+            trackUrl: contestItem.maidata的複本,        // track.mp3
+            bgUrl: contestItem.track的複本,             // bg.png/jpg
+            bgVideoUrl: contestItem.上傳檔案欄,         // 背景视频
+            chartTitle: contestItem.firstName           // 作品标题
+        };
+
+        return await uploadChartToMajnet(chartData);
+    }, 'uploadContestItemToMajnet', {
+        success: false,
+        message: '上传失败'
+    });
+}
+
+/**
+ * 批量上传多个谱面（带延迟）
+ * @param {Array} contestItems - 数据集项数组
+ * @returns {Promise<Array>} 上传结果数组
+ */
+export async function batchUploadToMajnet(contestItems) {
+    return safeExecute(async () => {
+        const results = [];
+        
+        for (let i = 0; i < contestItems.length; i++) {
+            const item = contestItems[i];
+            
+            logInfo('batchUploadToMajnet', `上传进度: ${i + 1}/${contestItems.length}`);
+            
+            const result = await uploadContestItemToMajnet(item);
+            results.push({
+                ...result,
+                itemId: item._id,
+                chartTitle: item.firstName
+            });
+
+            // 上传间隔延迟
+            if (i < contestItems.length - 1 && MAJNET_CONFIG.UPLOAD_DELAY > 0) {
+                await new Promise(resolve => setTimeout(resolve, MAJNET_CONFIG.UPLOAD_DELAY));
+            }
+        }
+        
+        const successCount = results.filter(r => r.success).length;
+        logInfo('batchUploadToMajnet', `批量上传完成: ${successCount}/${contestItems.length} 成功`);
+        
+        return results;
+    }, 'batchUploadToMajnet', []);
+}
+
