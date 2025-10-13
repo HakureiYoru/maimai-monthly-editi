@@ -13,6 +13,7 @@
 | ❌ 上传失败：`arrayBuffer is not a function` | Wix Velo不支持`arrayBuffer()` | 改用`buffer()`方法 | `majnetUploader.jsw` |
 | ❌ 出现空白/不完整的数据项 | 缺少提交按钮处理函数 | 添加`button1_click`函数 | `Submit_提交.hll9d.js` |
 | ❌ 二进制数据损坏 | 字符串拼接无法处理二进制 | 使用`Buffer.concat()` | `majnetUploader.jsw` |
+| ❌ **上传后数据集变空** | `async`钩子干扰数据事务 | 使用`setTimeout`推迟上传 | `data.js` |
 
 ### 工作流程
 
@@ -507,20 +508,65 @@ export async function retryFailedUploads() {
 2. 检查文件是否存在于 Wix 媒体库
 3. 验证文件 URL 是否有效
 
-#### 3. 上传请求失败
+#### 3. 上传请求失败 - 400 错误（常见⚠️）
+**日志**：`发送上传请求到Majnet...` → `上传失败: 400`
+
+**原因**：请求格式错误，Majnet拒绝接受
+
+**可能的具体原因**：
+1. **maidata.txt格式问题**
+   - 文件编码不是UTF-8
+   - 包含非法字符
+   - 缺少必需的元数据字段
+
+2. **文件顺序或命名问题**
+   - 文件名不符合Majnet要求
+   - 文件顺序不正确（应为：maidata.txt → bg.png → track.mp3 → bg.mp4）
+
+3. **designer字段问题**
+   - `&des=` 字段值包含特殊字符
+   - designer字段位置不正确
+
+4. **文件大小或格式问题**
+   - 文件损坏或格式不正确
+   - 文件过大
+
+**解决方案**：
+1. **查看详细日志**：
+   ```
+   状态码400 | 响应: [Majnet返回的错误信息] | 作品: xxx | 文件数: 3
+   文件列表: [maidata.txt, bg.png, track.mp3] | boundary: xxx
+   ```
+
+2. **检查maidata.txt**：
+   - 确保是纯文本文件，UTF-8编码
+   - 验证 `&des=` 字段值只包含字母数字和基本符号
+   - 确保文件内容完整
+
+3. **验证文件**：
+   - 检查图片是否为有效的PNG/JPG
+   - 检查音频是否为有效的MP3
+   - 确认文件未损坏
+
+4. **手动测试**：
+   - 下载问题作品的文件
+   - 在Majnet网站手动上传测试
+   - 对比成功和失败的文件差异
+
+#### 4. 上传请求失败 - 500 错误
 **日志**：`发送上传请求到Majnet...` → `上传失败: 500`
 
 **原因**：
-- Majnet 服务器错误
-- 网络问题
-- 文件格式不正确
+- Majnet 服务器内部错误
+- 网络超时
+- 服务器维护中
 
 **解决方案**：
 1. 检查 Majnet 服务是否正常
 2. 稍后重试
-3. 验证文件格式是否符合要求
+3. 联系 Majnet 管理员
 
-#### 4. 登录失败
+#### 5. 登录失败
 **日志**：`登录失败: 401`
 
 **原因**：
@@ -539,6 +585,31 @@ export async function retryFailedUploads() {
    - 登录成功？→ 密码配置正确
    - 文件准备完成？→ 字段映射正确
    - 请求发送成功？→ 网络和 API 正常
+
+### 成功 vs 失败对比
+
+根据您的反馈，观察到两种情况：
+
+| 情况 | 响应码 | Majnet | Wix数据集 | 可能原因 |
+|------|--------|--------|-----------|---------|
+| 您的测试 | 200 ✅ | 成功上传 | ~~空数据~~ → 已修复 | async钩子干扰事务（已解决） |
+| 普通用户 | 400 ❌ | 上传失败 | 数据正常 ✅ | maidata.txt格式或内容问题 |
+
+**下一步排查**：
+
+当普通用户提交后收到400错误时，请查看日志中的：
+```
+状态码400 | 响应: [这里会显示Majnet的具体错误信息]
+文件列表: [maidata.txt, bg.png, track.mp3]
+```
+
+**Majnet的响应内容**会告诉我们具体是什么问题，例如：
+- "Invalid maidata format" → maidata.txt格式问题
+- "Missing required field" → 缺少必需字段
+- "Invalid character in designer" → designer字段有非法字符
+- "File too large" → 文件过大
+
+请分享下一次400错误的**完整日志**（包括Majnet返回的响应内容），我可以精确定位问题！
 
 ## 常见问题
 
@@ -677,6 +748,46 @@ export async function cleanEmptyItems() {
 ---
 
 ## 技术说明
+
+### 数据钩子事务安全修复（重要！⚠️）
+
+**问题**：使用 `async function` 作为 `afterInsert` 钩子导致：
+- 数据上传到Majnet后，Wix数据集中的数据变成空的
+- 异步操作可能干扰Wix的数据库事务
+- 钩子等待Promise完成可能导致超时或回滚
+
+**解决方案**：将钩子改为同步函数，使用 `setTimeout` 延迟上传操作
+
+```javascript
+// ❌ 错误：async 函数可能干扰事务
+export async function enterContest034_afterInsert(item, context) {
+    await uploadContestItemToMajnet(item); // 等待会阻塞
+    return item;
+}
+
+// ✅ 正确：立即返回，延迟执行上传
+export function enterContest034_afterInsert(item, context) {
+    // 使用 setTimeout 推迟到下一个事件循环
+    setTimeout(() => {
+        uploadContestItemToMajnet(item)
+            .then(result => { /* 处理结果 */ })
+            .catch(error => { /* 处理错误 */ });
+    }, 0);
+    
+    // 立即同步返回，不等待上传完成
+    return item;
+}
+```
+
+**原理**：
+- `setTimeout(fn, 0)` 将函数推迟到当前事件循环完成后执行
+- 数据钩子立即返回 `item`，Wix 完成数据保存事务
+- 上传操作在事务完成后异步执行，互不干扰
+
+**关键点**：
+- ✅ 数据保存优先，确保用户数据安全
+- ✅ 上传失败不影响数据保存
+- ✅ 避免钩子超时导致的问题
 
 ### 提交页面修复（重要！）
 

@@ -72,44 +72,52 @@ export async function enterContest034_beforeInsert(item, context) {
 /**
  * enterContest034数据插入后的处理
  * 自动将新提交的谱面上传到Majnet平台
+ * 
+ * 重要：使用 setTimeout 将上传操作推迟到事件循环的下一个周期
+ * 确保不会干扰 Wix 的数据保存流程
  */
-export async function enterContest034_afterInsert(item, context) {
+export function enterContest034_afterInsert(item, context) {
+    // 记录日志（同步操作，安全）
     logInfo('enterContest034_afterInsert', `新作品创建，准备上传到Majnet: ${item.firstName || '未命名'}`);
     
-    // 异步上传，不阻塞数据保存操作
-    uploadContestItemToMajnet(item)
-        .then(async (result) => {
-            if (result.success) {
-                logInfo('enterContest034_afterInsert', `作品 "${item.firstName}" 已自动上传到Majnet`);
-                
-                // 更新majnetUploaded字段为true
-                try {
-                    await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
-                        _id: item._id,
-                        majnetUploaded: true,
-                        majnetUploadTime: new Date()
-                    });
-                    logInfo('enterContest034_afterInsert', `已标记作品 "${item.firstName}" 的上传状态`);
-                } catch (updateError) {
-                    logError('enterContest034_afterInsert - 更新上传状态失败', updateError, { 
+    // 使用 setTimeout 延迟执行上传，确保数据保存完成
+    // 这样做可以避免钩子干扰数据库事务
+    setTimeout(() => {
+        uploadContestItemToMajnet(item)
+            .then(async (result) => {
+                if (result.success) {
+                    logInfo('enterContest034_afterInsert', `作品 "${item.firstName}" 已自动上传到Majnet`);
+                    
+                    // 更新majnetUploaded字段为true
+                    try {
+                        await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+                            _id: item._id,
+                            majnetUploaded: true,
+                            majnetUploadTime: new Date()
+                        });
+                        logInfo('enterContest034_afterInsert', `已标记作品 "${item.firstName}" 的上传状态`);
+                    } catch (updateError) {
+                        logError('enterContest034_afterInsert - 更新上传状态失败', updateError, { 
+                            itemId: item._id,
+                            itemTitle: item.firstName 
+                        });
+                    }
+                } else {
+                    logError('enterContest034_afterInsert - Majnet上传失败', result.error || result.message, { 
                         itemId: item._id,
                         itemTitle: item.firstName 
                     });
                 }
-            } else {
-                logError('enterContest034_afterInsert - Majnet上传失败', result.error || result.message, { 
+            })
+            .catch((error) => {
+                logError('enterContest034_afterInsert - 上传异常', error, { 
                     itemId: item._id,
                     itemTitle: item.firstName 
                 });
-            }
-        })
-        .catch((error) => {
-            logError('enterContest034_afterInsert - 上传异常', error, { 
-                itemId: item._id,
-                itemTitle: item.firstName 
             });
-        });
+    }, 0); // 延迟0ms，推迟到下一个事件循环
     
+    // 立即同步返回 item，不等待上传完成
     return item;
 }
 

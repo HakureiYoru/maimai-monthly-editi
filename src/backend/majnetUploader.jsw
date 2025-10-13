@@ -83,6 +83,11 @@ async function loginToMajnet() {
  * 确保maidata.txt中有designer字段
  */
 function ensureDesigner(maidataContent) {
+    if (!maidataContent || typeof maidataContent !== 'string') {
+        logError('ensureDesigner', 'maidata内容无效');
+        return `&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}\n`;
+    }
+    
     const lines = maidataContent.split('\n');
     let hasDesigner = false;
     
@@ -92,6 +97,7 @@ function ensureDesigner(maidataContent) {
             const value = line.split('=')[1]?.trim();
             if (!value) {
                 lines[i] = `&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}`;
+                logInfo('ensureDesigner', '补充了空的designer字段');
             }
             hasDesigner = true;
             break;
@@ -99,7 +105,9 @@ function ensureDesigner(maidataContent) {
     }
     
     if (!hasDesigner) {
-        lines.push(`&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}`);
+        // 在文件开头添加designer（更安全）
+        lines.unshift(`&des=${MAJNET_CONFIG.FALLBACK_DESIGNER}`);
+        logInfo('ensureDesigner', '添加了缺失的designer字段');
     }
     
     return lines.join('\n');
@@ -294,7 +302,7 @@ export async function uploadChartToMajnet(chartData) {
             logInfo('uploadChartToMajnet', `收到响应，状态码: ${response.status}`);
 
             if (response.status === 200) {
-                logInfo('uploadChartToMajnet', `上传成功: ${chartTitle}`);
+                logInfo('uploadChartToMajnet', `上传成功: ${chartTitle} - 响应: ${responseText.substring(0, 200)}`);
                 return {
                     success: true,
                     message: '上传成功',
@@ -302,12 +310,22 @@ export async function uploadChartToMajnet(chartData) {
                     response: responseText
                 };
             } else {
-                logError('uploadChartToMajnet', `上传失败: ${response.status} - ${responseText}`);
+                // 详细记录失败信息，特别是400错误
+                const errorMsg = `状态码${response.status} | 响应: ${responseText} | 作品: ${chartTitle} | 文件数: ${files.length}`;
+                logError('uploadChartToMajnet', errorMsg);
+                
+                // 如果是400错误，额外记录请求详情
+                if (response.status === 400) {
+                    const fileList = files.map(f => f.filename).join(', ');
+                    logError('uploadChartToMajnet - 400详情', `文件列表: [${fileList}] | boundary: ${formData.boundary}`);
+                }
+                
                 return {
                     success: false,
                     message: `上传失败: ${response.status}`,
                     statusCode: response.status,
-                    error: responseText
+                    error: responseText,
+                    details: errorMsg
                 };
             }
 
