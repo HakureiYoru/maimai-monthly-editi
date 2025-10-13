@@ -73,8 +73,10 @@ export async function enterContest034_beforeInsert(item, context) {
  * enterContest034数据插入后的处理
  * 自动将新提交的谱面上传到Majnet平台
  * 
- * 重要：使用 setTimeout 将上传操作推迟到事件循环的下一个周期
- * 确保不会干扰 Wix 的数据保存流程
+ * 重要：
+ * 1. afterInsert钩子不应该返回值（数据已保存）
+ * 2. 使用 setTimeout 将上传操作推迟到事件循环的下一个周期
+ * 3. 确保不会干扰 Wix 的数据保存流程
  */
 export function enterContest034_afterInsert(item, context) {
     // 记录日志（同步操作，安全）
@@ -117,8 +119,8 @@ export function enterContest034_afterInsert(item, context) {
             });
     }, 0); // 延迟0ms，推迟到下一个事件循环
     
-    // 立即同步返回 item，不等待上传完成
-    return item;
+    // afterInsert 钩子不需要返回值，数据已经保存
+    // 不返回任何值以避免潜在的数据覆盖问题
 }
 
 

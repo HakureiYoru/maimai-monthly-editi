@@ -13,7 +13,7 @@
 | ❌ 上传失败：`arrayBuffer is not a function` | Wix Velo不支持`arrayBuffer()` | 改用`buffer()`方法 | `majnetUploader.jsw` |
 | ❌ 出现空白/不完整的数据项 | 缺少提交按钮处理函数 | 添加`button1_click`函数 | `Submit_提交.hll9d.js` |
 | ❌ 二进制数据损坏 | 字符串拼接无法处理二进制 | 使用`Buffer.concat()` | `majnetUploader.jsw` |
-| ❌ **上传后数据集变空** | `async`钩子干扰数据事务 | 使用`setTimeout`推迟上传 | `data.js` |
+| ❌ **上传后数据集变空** | `async`钩子+`return item` | `setTimeout`+不返回值 | `data.js` |
 
 ### 工作流程
 
@@ -756,16 +756,22 @@ export async function cleanEmptyItems() {
 - 异步操作可能干扰Wix的数据库事务
 - 钩子等待Promise完成可能导致超时或回滚
 
-**解决方案**：将钩子改为同步函数，使用 `setTimeout` 延迟上传操作
+**解决方案**：使用同步函数 + `setTimeout` + **不返回值**
 
 ```javascript
-// ❌ 错误：async 函数可能干扰事务
+// ❌ 错误1：async 函数 + return item
 export async function enterContest034_afterInsert(item, context) {
     await uploadContestItemToMajnet(item); // 等待会阻塞
-    return item;
+    return item; // 可能覆盖已保存的数据
 }
 
-// ✅ 正确：立即返回，延迟执行上传
+// ❌ 错误2：同步函数但仍然return item
+export function enterContest034_afterInsert(item, context) {
+    setTimeout(() => { /* ... */ }, 0);
+    return item; // afterInsert不应该返回值！
+}
+
+// ✅ 正确：同步函数 + setTimeout + 不返回值
 export function enterContest034_afterInsert(item, context) {
     // 使用 setTimeout 推迟到下一个事件循环
     setTimeout(() => {
@@ -774,20 +780,23 @@ export function enterContest034_afterInsert(item, context) {
             .catch(error => { /* 处理错误 */ });
     }, 0);
     
-    // 立即同步返回，不等待上传完成
-    return item;
+    // afterInsert钩子不应该返回值
+    // 数据已经保存，返回值可能导致数据被覆盖
 }
 ```
 
 **原理**：
-- `setTimeout(fn, 0)` 将函数推迟到当前事件循环完成后执行
-- 数据钩子立即返回 `item`，Wix 完成数据保存事务
-- 上传操作在事务完成后异步执行，互不干扰
+- `afterInsert` 在数据**已保存**后触发，不应该返回值
+- 返回值可能被Wix误解为要覆盖已保存的数据
+- `setTimeout(fn, 0)` 将上传操作推迟到下一个事件循环
+- 钩子函数立即结束，Wix确认数据保存事务完成
+- 上传操作独立运行，完全不影响数据
 
 **关键点**：
-- ✅ 数据保存优先，确保用户数据安全
-- ✅ 上传失败不影响数据保存
-- ✅ 避免钩子超时导致的问题
+- ✅ **不返回值**：避免覆盖已保存的数据（最重要！）
+- ✅ **数据保存优先**：确保用户数据安全
+- ✅ **上传失败不影响数据保存**：操作完全隔离
+- ✅ **避免钩子超时**：立即结束钩子函数
 
 ### 提交页面修复（重要！）
 
