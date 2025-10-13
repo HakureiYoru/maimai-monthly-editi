@@ -10,6 +10,7 @@ import wixData from 'wix-data';
 import { COLLECTIONS } from 'backend/constants';
 import { safeJsonParse } from 'backend/utils';
 import { safeExecute, logError } from 'backend/errorHandler';
+import { sendCommentDeletedNotification } from 'backend/emailNotifications.jsw';
 
 // ==================== 审核员角色管理 ====================
 
@@ -373,10 +374,10 @@ export async function deleteComment(commentId, auditorId, deleteReason = '', isS
     return safeExecute(async () => {
         // 前端已经验证权限，这里直接执行删除操作
 
-        // 获取评论信息用于日志记录和存档
+        // 获取评论信息用于日志记录、存档和邮件通知
         const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
         
-        // 只有在非自己删除自己的Sc评论时，才保存删除信息到deleteInfor数据集
+        // 只有在非自己删除自己的Sc评论时，才保存删除信息到deleteInfor数据集并发送邮件
         if (!isSelfScComment) {
             const deleteRecord = {
                 workNumber: comment.workNumber,
@@ -390,6 +391,22 @@ export async function deleteComment(commentId, auditorId, deleteReason = '', isS
             };
             
             await wixData.insert(COLLECTIONS.DELETE_INFOR, deleteRecord);
+            
+            // 发送删除通知邮件（异步执行，不阻塞删除流程）
+            try {
+                await sendCommentDeletedNotification(
+                    commentId,
+                    comment.workNumber,
+                    comment.comment,
+                    comment.score,
+                    deleteReason,
+                    auditorId
+                );
+                console.log(`删除通知邮件已发送（作品 #${comment.workNumber}）`);
+            } catch (emailError) {
+                // 邮件发送失败不影响删除操作
+                console.error("发送删除通知邮件失败:", emailError);
+            }
         }
         
         // 删除原评论

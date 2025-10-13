@@ -89,3 +89,86 @@ export async function sendReplyNotification(originalCommentId, replyContent, wor
   }
 }
 
+/**
+ * 发送评论删除邮件通知（使用Wix Triggered Emails）
+ * @param {string} commentId - 被删除的评论ID
+ * @param {string} workNumber - 作品编号
+ * @param {string} deletedCommentText - 被删除的评论内容
+ * @param {number} deletedScore - 被删除的评分
+ * @param {string} deleteReason - 删除理由
+ * @param {string} auditorUserId - 执行删除的海选组成员ID（用于判断是否自己删除自己）
+ */
+export async function sendCommentDeletedNotification(commentId, workNumber, deletedCommentText, deletedScore, deleteReason, auditorUserId) {
+  try {
+    // 1. 获取被删除评论的原作者信息
+    const commentResult = await wixData
+      .query("BOFcomment")
+      .eq("_id", commentId)
+      .find();
+    
+    if (commentResult.items.length === 0) {
+      // console.log("评论不存在");
+      return { success: false, message: "评论不存在" };
+    }
+    
+    const comment = commentResult.items[0];
+    const recipientUserId = comment._owner;
+    
+    // 2. 检查是否为海选组成员删除自己的评论（不发送邮件）
+    if (recipientUserId === auditorUserId) {
+      // console.log("海选组成员删除自己的评论，无需发送邮件");
+      return { success: true, message: "自己删除自己的评论，无需通知" };
+    }
+    
+    // 3. 获取作品信息
+    const workResult = await wixData
+      .query("enterContest034")
+      .eq("sequenceId", workNumber)
+      .find();
+    
+    if (workResult.items.length === 0) {
+      // console.log("作品不存在");
+      return { success: false, message: "作品不存在" };
+    }
+    
+    const workTitle = workResult.items[0].firstName || "未知作品";
+    
+    // 4. 获取接收者信息
+    const recipientInfo = await getUserPublicInfo(recipientUserId);
+    if (!recipientInfo) {
+      // console.log("无法获取接收者信息");
+      return { success: false, message: "无法获取接收者信息" };
+    }
+    
+    const recipientNickname = recipientInfo.name || "用户";
+    
+    // 5. 使用Wix Triggered Emails发送邮件
+    try {
+      await triggeredEmails.emailMember('UzTpuGW', recipientUserId, {
+        variables: {
+          recipientNickname: recipientNickname,
+          workNumber: workNumber.toString(),
+          workTitle: workTitle,
+          deletedCommentText: deletedCommentText,
+          deletedScore: deletedScore.toString(),
+          deleteReason: deleteReason || "未填写删除理由"
+        }
+      });
+      
+      console.log(`评论删除通知邮件已发送给 ${recipientNickname}`);
+      return { 
+        success: true, 
+        message: "删除通知邮件已发送",
+        recipient: recipientNickname
+      };
+    } catch (emailError) {
+      console.error("发送删除通知邮件失败:", emailError);
+      return { success: false, message: "发送邮件失败: " + emailError.message };
+    }
+    
+  } catch (error) {
+    console.error("发送删除通知失败:", error);
+    return { success: false, message: error.message };
+  }
+}
+
