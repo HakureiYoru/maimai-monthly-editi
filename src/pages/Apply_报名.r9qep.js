@@ -3,6 +3,17 @@ import wixUsers from 'wix-users';
 
 $w.onReady(function () {
     checkIfUserRegistered();
+    
+    // 监听报名提交成功事件
+    if ($w("#dataset2")) {
+        $w("#dataset2").onAfterSave(() => {
+            // 刷新table1显示的数据集
+            $w("#dataset2").refresh();
+            
+            // 更新按钮状态
+            checkIfUserRegistered();
+        });
+    }
 });
 
 function checkIfUserRegistered() {
