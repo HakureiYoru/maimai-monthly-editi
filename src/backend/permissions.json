@@ -604,6 +604,41 @@
         }
       }
     },
+    "majnetUploader.jsw": {
+      "uploadChartToMajnet": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "uploadContestItemToMajnet": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "batchUploadToMajnet": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": false
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      }
+    },
     "contestManagement.jsw": {
       "checkIfUserVoted": {
         "siteOwner": {

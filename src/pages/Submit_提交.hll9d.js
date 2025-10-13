@@ -151,3 +151,41 @@ async function loadCurrentUserLink() {
         return null;
     }
 }
+
+/**
+ * 提交按钮点击事件 - 保存作品到数据集
+ * 数据保存后会自动触发 afterInsert 钩子上传到 Majnet
+ */
+export function button1_click(event) {
+    // 禁用按钮防止重复提交
+    $w("#button1").disable();
+    $w("#button1").label = "提交中...";
+    
+    // 保存数据集
+    $w("#dataset1").save()
+        .then((saveResult) => {
+            console.log("数据保存成功，作品将自动上传到Majnet");
+            
+            // 显示成功提示
+            if ($w("#text14")) {
+                $w("#text14").text = "✅ 提交成功！作品正在后台上传到Majnet...";
+            }
+            
+            // 可选：2秒后跳转到其他页面
+            setTimeout(() => {
+                // wixLocation.to('/stage');  // 取消注释以启用跳转
+            }, 2000);
+        })
+        .catch((error) => {
+            console.error("数据保存失败:", error);
+            
+            // 显示错误提示
+            if ($w("#text14")) {
+                $w("#text14").text = "❌ 提交失败，请检查所有必填字段";
+            }
+            
+            // 重新启用按钮
+            $w("#button1").enable();
+            $w("#button1").label = "提交作品";
+        });
+}

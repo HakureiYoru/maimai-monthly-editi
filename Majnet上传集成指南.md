@@ -4,7 +4,15 @@
 
 ## 快速开始
 
-✅ **当前状态**：已集成方式三（数据钩子自动上传），无需额外配置即可使用。
+✅ **当前状态**：已集成方式三（数据钩子自动上传），并修复了关键Bug。
+
+### 🔧 已修复的问题
+
+| 问题 | 原因 | 解决方案 | 文件 |
+|------|------|----------|------|
+| ❌ 上传失败：`arrayBuffer is not a function` | Wix Velo不支持`arrayBuffer()` | 改用`buffer()`方法 | `majnetUploader.jsw` |
+| ❌ 出现空白/不完整的数据项 | 缺少提交按钮处理函数 | 添加`button1_click`函数 | `Submit_提交.hll9d.js` |
+| ❌ 二进制数据损坏 | 字符串拼接无法处理二进制 | 使用`Buffer.concat()` | `majnetUploader.jsw` |
 
 ### 工作流程
 
@@ -30,6 +38,72 @@
 
 完成后，每次有新作品提交时，系统会自动上传到Majnet。
 
+## 权限说明
+
+### 自动上传权限（所有用户）
+
+✅ **所有用户都可以触发自动上传**
+
+使用数据钩子（`enterContest034_afterInsert`）实现的自动上传，对所有用户都生效：
+
+```
+用户提交作品（需要有 enterContest034 写入权限）
+    ↓
+触发 afterInsert 钩子（后端执行，无权限限制）
+    ↓
+调用 uploadContestItemToMajnet（后端到后端，无权限限制）
+    ↓
+自动上传到 Majnet
+```
+
+**权限工作原理**：
+- 📌 **数据钩子**：在后端自动触发，以完整后端权限执行
+- 📌 **后端调用**：从钩子调用上传函数时，是后端到后端的调用
+- 📌 **用户无感知**：用户只需有数据集的写入权限即可
+
+### 手动上传权限（所有成员）
+
+从 `permissions.json` 配置：
+
+```json
+"majnetUploader.jsw": {
+  "uploadChartToMajnet": {
+    "siteOwner": { "invoke": true },     // ✅ 网站所有者可调用
+    "siteMember": { "invoke": true },    // ✅ 普通成员可调用
+    "anonymous": { "invoke": false }     // ❌ 匿名用户不可调用
+  },
+  "uploadContestItemToMajnet": {
+    "siteOwner": { "invoke": true },     // ✅ 网站所有者可调用
+    "siteMember": { "invoke": true },    // ✅ 普通成员可调用
+    "anonymous": { "invoke": false }     // ❌ 匿名用户不可调用
+  },
+  "batchUploadToMajnet": {
+    "siteOwner": { "invoke": true },     // ✅ 网站所有者可调用
+    "siteMember": { "invoke": false },   // ❌ 普通成员不可调用（防滥用）
+    "anonymous": { "invoke": false }     // ❌ 匿名用户不可调用
+  }
+}
+```
+
+**这意味着**：
+- ✅ 普通用户提交作品 → 自动上传（通过数据钩子）
+- ✅ **所有注册用户**都可以从前端手动调用单个上传函数
+- ✅ 管理员可以使用批量上传功能
+- ❌ 普通成员不能批量上传（防止滥用）
+- ❌ 匿名用户不能调用任何上传函数
+
+### 数据集权限要求
+
+确保用户有 `enterContest034` 数据集的写入权限：
+
+1. 进入 Wix 编辑器 → 数据库 → `enterContest034` → 权限设置
+2. 设置为：
+   - **创建内容**：网站成员（Site Member）
+   - **更新内容**：内容作者（Content Author）
+   - **删除内容**：网站所有者（Site Owner）
+
+这样所有注册用户都可以提交作品并触发自动上传。
+
 ## 文件说明
 
 ### 后端模块：`src/backend/majnetUploader.jsw`
@@ -53,7 +127,7 @@ const PASSWORD_MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f";
 
 ## 使用方式
 
-### 方式一：提交时自动上传（推荐）
+### 方式一：提交时手动上传
 
 修改 `src/pages/Submit_提交.hll9d.js`，在表单提交成功后调用上传：
 
@@ -126,7 +200,71 @@ export async function uploadAllButton_click(event) {
 }
 ```
 
-### 方式三：使用数据钩子自动触发（已实现✅）
+### 方式三：用户手动重新上传
+
+允许用户在个人页面重新上传自己的作品（需要登录）：
+
+```javascript
+import wixData from 'wix-data';
+import wixUsers from 'wix-users';
+import { uploadContestItemToMajnet } from 'backend/majnetUploader.jsw';
+
+export async function reuploadButton_click(event) {
+    const currentUser = wixUsers.currentUser;
+    
+    if (!currentUser.loggedIn) {
+        $w("#statusText").text = "请先登录";
+        return;
+    }
+    
+    // 禁用按钮
+    $w("#reuploadButton").disable();
+    $w("#statusText").text = "正在重新上传...";
+    
+    try {
+        // 获取当前用户的作品
+        const results = await wixData.query("enterContest034")
+            .eq("_owner", currentUser.id)
+            .find();
+        
+        if (results.items.length === 0) {
+            $w("#statusText").text = "未找到您的作品";
+            $w("#reuploadButton").enable();
+            return;
+        }
+        
+        const myWork = results.items[0];
+        
+        // 重新上传到Majnet
+        const uploadResult = await uploadContestItemToMajnet(myWork);
+        
+        if (uploadResult.success) {
+            $w("#statusText").text = "✅ 重新上传成功！";
+            
+            // 更新上传时间
+            await wixData.update("enterContest034", {
+                _id: myWork._id,
+                majnetUploaded: true,
+                majnetUploadTime: new Date()
+            });
+        } else {
+            $w("#statusText").text = `❌ 上传失败: ${uploadResult.message}`;
+        }
+    } catch (error) {
+        console.error("重新上传错误:", error);
+        $w("#statusText").text = "❌ 上传失败，请查看控制台";
+    } finally {
+        $w("#reuploadButton").enable();
+    }
+}
+```
+
+**使用场景**：
+- 用户发现之前上传失败，想要重试
+- 用户更新了作品文件，需要重新上传
+- Majnet服务器之前不可用，现在想补传
+
+### 方式四：使用数据钩子自动触发（已实现✅）
 
 在 `src/backend/data.js` 中添加数据钩子，当新作品提交时自动上传：
 
@@ -167,6 +305,12 @@ export async function enterContest034_afterInsert(item, context) {
 - ✅ 用户无感知，不影响提交流程
 - ✅ 自动记录上传状态和时间
 - ✅ 异步处理，不阻塞数据保存
+
+**权限配置**：
+- ✅ 所有注册用户都可以通过数据钩子自动上传
+- ✅ 所有注册用户都可以从前端手动调用单个上传函数
+- ✅ 仅管理员可以批量上传
+- ❌ 匿名用户不能调用上传函数
 
 ## 数据字段映射
 
@@ -341,6 +485,34 @@ A: 不会。上传操作是异步进行的，不会阻塞数据保存流程。�
 **Q: 如何禁用自动上传？**  
 A: 如需临时禁用，可以注释掉 `src/backend/data.js` 中的 `enterContest034_afterInsert` 函数，或在函数开头添加 `return item;` 直接返回。
 
+**Q: 如何避免空白/不完整的数据项？**  
+A: 确保已实现 `button1_click` 函数（已在本次修复中添加）。另外建议：
+1. 在 Wix 编辑器中，检查 Dataset 设置，**禁用"自动保存"**
+2. 确保所有必填字段都设置了验证规则
+3. 使用 `dataset.save()` 而非依赖自动保存
+4. 在提交前验证表单完整性
+
+**Q: 如何清理已存在的空白项目？**  
+A: 可以创建一个管理页面，查询并删除空白项目：
+```javascript
+import wixData from 'wix-data';
+
+export async function cleanEmptyItems() {
+    const results = await wixData.query("enterContest034")
+        .isEmpty("firstName") // 查找标题为空的项目
+        .or(wixData.query("enterContest034").isEmpty("inVideo的複本"))
+        .limit(100)
+        .find();
+    
+    for (const item of results.items) {
+        await wixData.remove("enterContest034", item._id);
+        console.log(`已删除空白项目: ${item._id}`);
+    }
+    
+    return `清理完成，删除了 ${results.items.length} 个空白项目`;
+}
+```
+
 ---
 
 ## 实现摘要
@@ -352,11 +524,23 @@ A: 如需临时禁用，可以注释掉 `src/backend/data.js` 中的 `enterConte
 - 会话管理（30分钟缓存）
 - 文件验证与自动补全
 - 错误处理与日志记录
+- ✨ **已修复**：API兼容性问题（buffer vs arrayBuffer）
 
 ✅ **自动上传钩子**（`data.js`）
 - `enterContest034_afterInsert` 数据钩子
 - 异步上传处理
 - 自动状态标记
+
+✅ **提交页面逻辑**（`Submit_提交.hll9d.js`）
+- ✨ **已添加**：`button1_click` 提交处理函数
+- 防止重复提交
+- 用户反馈机制
+- 完整的错误处理
+
+✅ **权限配置**（`permissions.json`）
+- ✨ **已配置**：所有注册用户可调用单个上传函数
+- 管理员专属：批量上传权限
+- 匿名用户：禁止调用
 
 ✅ **状态追踪**
 - `majnetUploaded` 上传标记
@@ -403,6 +587,47 @@ A: 如需临时禁用，可以注释掉 `src/backend/data.js` 中的 `enterConte
 ---
 
 ## 技术说明
+
+### 提交页面修复（重要！）
+
+**问题**：原提交页面缺少 `button1_click` 事件处理函数，导致：
+- 可能创建空白或不完整的数据项
+- Dataset 自动保存可能在用户未完成填写时触发
+- 缺少验证和用户反馈
+
+**解决方案**：添加了完整的提交按钮处理函数（`src/pages/Submit_提交.hll9d.js`）：
+
+```javascript
+export function button1_click(event) {
+    // 1. 禁用按钮防止重复提交
+    $w("#button1").disable();
+    $w("#button1").label = "提交中...";
+    
+    // 2. 保存数据集
+    $w("#dataset1").save()
+        .then((saveResult) => {
+            console.log("数据保存成功，作品将自动上传到Majnet");
+            
+            // 3. 显示成功提示
+            $w("#text14").text = "✅ 提交成功！作品正在后台上传到Majnet...";
+        })
+        .catch((error) => {
+            // 4. 错误处理
+            console.error("数据保存失败:", error);
+            $w("#text14").text = "❌ 提交失败，请检查所有必填字段";
+            
+            // 5. 重新启用按钮
+            $w("#button1").enable();
+            $w("#button1").label = "提交作品";
+        });
+}
+```
+
+**关键改进**：
+- ✅ 明确的提交流程控制
+- ✅ 防止重复提交（禁用按钮）
+- ✅ 用户反馈（成功/失败提示）
+- ✅ 错误处理和恢复机制
 
 ### API 兼容性修复
 
