@@ -384,13 +384,38 @@ if (result.success) {
 ```
 
 **日志示例**：
-```
-✅ 成功：新作品创建，准备上传到Majnet: 谱面标题
-✅ 成功：作品 "谱面标题" 已自动上传到Majnet
-✅ 成功：已标记作品 "谱面标题" 的上传状态
 
-❌ 失败：Majnet上传失败: 登录失败: 401
-❌ 失败：文件准备失败: 缺少maidata.txt文件
+**成功流程**：
+```
+✅ INFO: 新作品创建，准备上传到Majnet: 谱面标题
+✅ INFO: 字段映射: maidata=true, track=true, bg=true, video=false, title=谱面标题
+✅ INFO: loginToMajnet: 登录成功
+✅ INFO: 开始上传谱面: 谱面标题
+✅ INFO: 正在获取maidata.txt...
+✅ INFO: maidata.txt准备完成
+✅ INFO: 正在获取背景图...
+✅ INFO: 背景图准备完成 (png)
+✅ INFO: 正在获取音频文件...
+✅ INFO: 音频文件准备完成
+✅ INFO: 准备上传 3 个文件...
+✅ INFO: 请求体构建完成，大小: 12345678 字节
+✅ INFO: 发送上传请求到Majnet...
+✅ INFO: 收到响应，状态码: 200
+✅ INFO: 上传成功: 谱面标题
+✅ INFO: 已标记作品 "谱面标题" 的上传状态
+```
+
+**失败示例**：
+```
+❌ ERROR: 字段映射: maidata=false, track=true, bg=true, video=false, title=作品
+❌ ERROR: 文件准备失败: 缺少maidata.txt文件
+❌ ERROR: Majnet上传失败
+
+或
+
+❌ ERROR: 正在获取背景图...
+❌ ERROR: 背景图获取失败
+❌ ERROR: 文件准备失败: 背景图获取失败
 ```
 
 ### 查询上传统计
@@ -449,6 +474,71 @@ export async function retryFailedUploads() {
     }
 }
 ```
+
+## 故障排查指南
+
+### 根据日志诊断问题
+
+#### 1. 字段映射问题
+**日志**：`字段映射: maidata=false, track=true, bg=true`
+
+**原因**：数据集字段名不匹配或字段为空
+
+**解决方案**：
+```javascript
+// 检查数据集字段名是否正确
+字段映射:
+- inVideo的複本 → maidata.txt
+- maidata的複本 → track.mp3
+- track的複本 → bg.png/jpg
+- 上傳檔案欄 → bg.mp4/pv.mp4
+```
+
+#### 2. 文件获取失败
+**日志**：`正在获取maidata.txt...` → `maidata.txt内容为空`
+
+**原因**：
+- 文件上传不完整
+- 文件URL无效
+- 文件被删除
+
+**解决方案**：
+1. 重新上传文件
+2. 检查文件是否存在于 Wix 媒体库
+3. 验证文件 URL 是否有效
+
+#### 3. 上传请求失败
+**日志**：`发送上传请求到Majnet...` → `上传失败: 500`
+
+**原因**：
+- Majnet 服务器错误
+- 网络问题
+- 文件格式不正确
+
+**解决方案**：
+1. 检查 Majnet 服务是否正常
+2. 稍后重试
+3. 验证文件格式是否符合要求
+
+#### 4. 登录失败
+**日志**：`登录失败: 401`
+
+**原因**：
+- MD5 密码不正确
+- Majnet 账户被禁用
+
+**解决方案**：
+1. 验证 `PASSWORD_MD5` 是否正确
+2. 联系 Majnet 管理员
+
+### 调试技巧
+
+1. **查看完整日志链**：从 `新作品创建` 到最终结果
+2. **检查字段映射**：确认所有必需字段都有值
+3. **分步骤诊断**：
+   - 登录成功？→ 密码配置正确
+   - 文件准备完成？→ 字段映射正确
+   - 请求发送成功？→ 网络和 API 正常
 
 ## 常见问题
 
