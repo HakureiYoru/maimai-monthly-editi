@@ -13,7 +13,7 @@
 | ❌ 上传失败：`arrayBuffer is not a function` | Wix Velo不支持`arrayBuffer()` | 改用`buffer()`方法 | `majnetUploader.jsw` |
 | ❌ 出现空白/不完整的数据项 | 缺少提交按钮处理函数 | 添加`button1_click`函数 | `Submit_提交.hll9d.js` |
 | ❌ 二进制数据损坏 | 字符串拼接无法处理二进制 | 使用`Buffer.concat()` | `majnetUploader.jsw` |
-| ❌ **上传后数据集变空** | `async`钩子+`return item` | `setTimeout`+不返回值 | `data.js` |
+| ❌ **上传后数据集变空** | `wixData.update`覆盖其他字段 | 先`get`完整数据再`update` | `data.js` |
 
 ### 工作流程
 
@@ -749,51 +749,89 @@ export async function cleanEmptyItems() {
 
 ## 技术说明
 
-### 数据钩子事务安全修复（重要！⚠️）
+### wixData.update 部分字段更新问题（关键！🔴）
 
-**问题**：使用 `async function` 作为 `afterInsert` 钩子导致：
-- 数据上传到Majnet后，Wix数据集中的数据变成空的
-- 异步操作可能干扰Wix的数据库事务
-- 钩子等待Promise完成可能导致超时或回滚
-
-**解决方案**：使用同步函数 + `setTimeout` + **不返回值**
+**问题**：直接使用 `wixData.update()` 只传递部分字段会覆盖其他字段
 
 ```javascript
-// ❌ 错误1：async 函数 + return item
-export async function enterContest034_afterInsert(item, context) {
-    await uploadContestItemToMajnet(item); // 等待会阻塞
-    return item; // 可能覆盖已保存的数据
-}
+// ❌ 错误：只传递部分字段
+await wixData.update("enterContest034", {
+    _id: item._id,
+    majnetUploaded: true,
+    majnetUploadTime: new Date()
+});
+// 结果：其他字段（firstName, inVideo的複本等）被清空！
+```
 
-// ❌ 错误2：同步函数但仍然return item
-export function enterContest034_afterInsert(item, context) {
-    setTimeout(() => { /* ... */ }, 0);
-    return item; // afterInsert不应该返回值！
-}
+**原因**：
+- `wixData.update()` 会用新对象**完全替换**数据库中的记录
+- 只传递3个字段 = 只有这3个字段有值，其他字段变成 `null` 或 `undefined`
+- 导致用户辛苦提交的数据全部丢失
 
-// ✅ 正确：同步函数 + setTimeout + 不返回值
+**✅ 正确做法**：先获取完整数据，再更新
+
+```javascript
+// ✅ 正确：先get再update
+const currentItem = await wixData.get("enterContest034", item._id);
+
+await wixData.update("enterContest034", {
+    ...currentItem,      // 保留所有现有字段
+    majnetUploaded: true,     // 只更新这两个字段
+    majnetUploadTime: new Date()
+});
+```
+
+**关键要点**：
+- ✅ 使用扩展运算符 `...currentItem` 保留所有字段
+- ✅ 只覆盖需要更新的特定字段
+- ✅ 确保用户数据完整性
+
+### 数据钩子事务安全修复（重要！⚠️）
+
+**问题**：在钩子中使用 `return item` 可能导致数据问题
+- `afterInsert` 在数据**已保存后**触发
+- 返回值可能被误解为要覆盖数据
+
+**解决方案**：使用同步函数 + `setTimeout` + 不返回值
+
+```javascript
+// ✅ 正确的实现
 export function enterContest034_afterInsert(item, context) {
+    logInfo('enterContest034_afterInsert', `新作品创建: ${item.firstName}`);
+    
     // 使用 setTimeout 推迟到下一个事件循环
     setTimeout(() => {
         uploadContestItemToMajnet(item)
-            .then(result => { /* 处理结果 */ })
-            .catch(error => { /* 处理错误 */ });
+            .then(async (result) => {
+                if (result.success) {
+                    // 先获取完整数据
+                    const currentItem = await wixData.get("enterContest034", item._id);
+                    
+                    // 再更新特定字段
+                    await wixData.update("enterContest034", {
+                        ...currentItem,  // 保留所有字段
+                        majnetUploaded: true,
+                        majnetUploadTime: new Date()
+                    });
+                }
+            })
+            .catch(error => { /* 错误处理 */ });
     }, 0);
     
-    // afterInsert钩子不应该返回值
-    // 数据已经保存，返回值可能导致数据被覆盖
+    // afterInsert 不返回值
 }
 ```
 
 **原理**：
 - `afterInsert` 在数据**已保存**后触发，不应该返回值
-- 返回值可能被Wix误解为要覆盖已保存的数据
 - `setTimeout(fn, 0)` 将上传操作推迟到下一个事件循环
 - 钩子函数立即结束，Wix确认数据保存事务完成
-- 上传操作独立运行，完全不影响数据
+- 上传成功后，使用 `wixData.get()` + 扩展运算符更新字段
+- 确保只更新特定字段，保留所有其他数据
 
 **关键点**：
-- ✅ **不返回值**：避免覆盖已保存的数据（最重要！）
+- 🔴 **wixData.update 必须包含所有字段**：使用 `...currentItem` 保留现有数据
+- ✅ **不返回值**：避免钩子干扰数据
 - ✅ **数据保存优先**：确保用户数据安全
 - ✅ **上传失败不影响数据保存**：操作完全隔离
 - ✅ **避免钩子超时**：立即结束钩子函数

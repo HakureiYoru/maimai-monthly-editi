@@ -91,9 +91,14 @@ export function enterContest034_afterInsert(item, context) {
                     logInfo('enterContest034_afterInsert', `作品 "${item.firstName}" 已自动上传到Majnet`);
                     
                     // 更新majnetUploaded字段为true
+                    // 重要：先获取完整数据，再更新特定字段，避免覆盖其他字段
                     try {
+                        // 先获取当前完整数据
+                        const currentItem = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, item._id);
+                        
+                        // 只更新上传状态字段，保留其他所有字段
                         await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
-                            _id: item._id,
+                            ...currentItem,  // 保留所有现有字段
                             majnetUploaded: true,
                             majnetUploadTime: new Date()
                         });
