@@ -117,10 +117,10 @@ async function getFileBinary(fileUrl) {
             throw new Error(`获取文件失败: ${response.status}`);
         }
         
-        // 获取ArrayBuffer
-        const arrayBuffer = await response.arrayBuffer();
+        // Wix Velo 使用 buffer() 而不是 arrayBuffer()
+        const buffer = await response.buffer();
         return {
-            buffer: arrayBuffer,
+            buffer: buffer,
             contentType: response.headers.get('content-type')
         };
     }, 'getFileBinary', null);
@@ -136,17 +136,34 @@ function buildMultipartFormData(files) {
     for (const file of files) {
         const { filename, content, contentType } = file;
         
-        parts.push(`--${boundary}\r\n`);
-        parts.push(`Content-Disposition: form-data; name="formfiles"; filename="${filename}"\r\n`);
-        parts.push(`Content-Type: ${contentType}\r\n\r\n`);
-        parts.push(content);
-        parts.push('\r\n');
+        // 构建文件头部
+        let header = '';
+        header += `--${boundary}\r\n`;
+        header += `Content-Disposition: form-data; name="formfiles"; filename="${filename}"\r\n`;
+        header += `Content-Type: ${contentType}\r\n\r\n`;
+        
+        // 添加头部（字符串转Buffer）
+        parts.push(Buffer.from(header, 'utf8'));
+        
+        // 添加内容（可能是字符串或Buffer）
+        if (typeof content === 'string') {
+            parts.push(Buffer.from(content, 'utf8'));
+        } else {
+            parts.push(content); // 已经是Buffer
+        }
+        
+        // 添加分隔符
+        parts.push(Buffer.from('\r\n', 'utf8'));
     }
     
-    parts.push(`--${boundary}--\r\n`);
+    // 添加结束边界
+    parts.push(Buffer.from(`--${boundary}--\r\n`, 'utf8'));
+    
+    // 合并所有Buffer
+    const body = Buffer.concat(parts);
     
     return {
-        body: parts.join(''),
+        body: body,
         boundary
     };
 }

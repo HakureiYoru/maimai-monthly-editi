@@ -400,3 +400,29 @@ A: 如需临时禁用，可以注释掉 `src/backend/data.js` 中的 `enterConte
 3. **处理失败项**：定期运行 `retryFailedUploads` 重试
 4. **密码更新**：如需更换密码，重新计算MD5并更新 `PASSWORD_MD5` 常量
 
+---
+
+## 技术说明
+
+### API 兼容性修复
+
+**问题**：Wix Velo 的 `fetch` API 在 Node.js 环境中不支持 `arrayBuffer()` 方法。
+
+**解决方案**：
+- 使用 `response.buffer()` 替代 `response.arrayBuffer()`
+- 使用 `Buffer.concat()` 构建 multipart/form-data，而非字符串拼接
+- 正确处理二进制数据与文本数据的混合
+
+**相关代码**：
+```javascript
+// 获取二进制文件
+const buffer = await response.buffer(); // ✅ 正确
+// const arrayBuffer = await response.arrayBuffer(); // ❌ 在Wix中不支持
+
+// 构建multipart请求体
+const parts = [];
+parts.push(Buffer.from(header, 'utf8'));
+parts.push(content); // Buffer对象
+const body = Buffer.concat(parts); // ✅ 正确处理二进制
+```
+
