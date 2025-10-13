@@ -457,6 +457,13 @@
         </div>
       </div>
       <div class="progress-text" id="progressText">已完成 0 / 10</div>
+      
+      <!-- 显示用户自己的作品 -->
+      <div id="ownWorksInfo" style="margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #fff9e6 0%, #ffe8cc 100%); border-radius: 8px; border-left: 4px solid #FFA500; display: none;">
+        <div style="font-size: 13px; color: #666; margin-bottom: 5px; font-weight: 600;">您的作品</div>
+        <div id="ownWorksList" style="font-size: 14px; color: #333; font-weight: bold;"></div>
+        <div style="font-size: 11px; color: #999; margin-top: 5px;">* 您自己的作品不会出现在任务列表中</div>
+      </div>
     </div>
 
     <!-- 任务区域 -->
@@ -587,20 +594,35 @@
         return;
       }
 
-      const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion, lastRefreshTime, nextRefreshTime, isHighQuality } = taskData;
-      // console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length);
+      const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion, lastRefreshTime, nextRefreshTime, isHighQuality, ownWorks, hasCompletedTarget } = taskData;
+      // console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length, '自己的作品', ownWorks?.length, '已完成目标', hasCompletedTarget);
       
       // 显示用户身份标识
       const userQualityBadge = document.getElementById('userQualityBadge');
       if (userQualityBadge) {
+        let badgeText = '';
         if (isHighQuality) {
-          userQualityBadge.textContent = '（您属于：Qualified 参赛选手）';
+          badgeText = '（您属于：Qualified 参赛选手';
           userQualityBadge.style.color = '#FFA500';
         } else {
-          userQualityBadge.textContent = '（您属于：普通参赛选手）';
+          badgeText = '（您属于：普通参赛选手';
           userQualityBadge.style.color = '#666';
         }
+        
+        // 如果已完成目标，添加标记
+        if (hasCompletedTarget) {
+          badgeText += ' - 已完成任务目标！）';
+          userQualityBadge.style.color = '#00CC00'; // 绿色
+          userQualityBadge.style.fontWeight = 'bold';
+        } else {
+          badgeText += '）';
+        }
+        
+        userQualityBadge.textContent = badgeText;
       }
+      
+      // 显示用户自己的作品
+      displayOwnWorks(ownWorks);
 
       // 更新进度条（只计算任务完成数）
       const progress = Math.min((totalCompleted / (targetCompletion || 10)) * 100, 100);
@@ -618,7 +640,7 @@
       // 渲染任务列表（最多3条）
       if (currentTasks && currentTasks.length > 0) {
         showTaskContent();
-        renderTaskCards(currentTasks);
+        renderTaskCards(currentTasks, hasCompletedTarget);
       } else {
         showNoTask();
       }
@@ -638,7 +660,7 @@
     /**
      * 渲染任务卡片
      */
-    function renderTaskCards(tasks) {
+    function renderTaskCards(tasks, hasCompletedTarget) {
       const tasksContainer = document.getElementById('tasksContainer');
       tasksContainer.innerHTML = '';
 
@@ -658,8 +680,11 @@
           weightLabel = ' (优先)';
         }
 
+        // 根据是否完成目标，显示"任务"或"冷门"
+        const taskTypeLabel = hasCompletedTarget ? '冷门作品' : '需要关注的作品';
+
         card.innerHTML = `
-          <div class="task-label">需要关注的作品${weightLabel}</div>
+          <div class="task-label">${taskTypeLabel}${weightLabel}</div>
           <div class="task-work-info">
             <div class="work-number-container">
               <div class="work-number-label">作品编号</div>
@@ -775,6 +800,25 @@
       if (message) {
         document.getElementById('notVerifiedMessage').textContent = message;
       }
+    }
+
+    /**
+     * 显示用户自己的作品
+     */
+    function displayOwnWorks(ownWorks) {
+      const ownWorksInfo = document.getElementById('ownWorksInfo');
+      const ownWorksList = document.getElementById('ownWorksList');
+      
+      if (!ownWorks || ownWorks.length === 0) {
+        ownWorksInfo.style.display = 'none';
+        return;
+      }
+      
+      // 显示作品编号
+      const worksText = ownWorks.map(num => `#${num}`).join(', ');
+      ownWorksList.textContent = worksText;
+      
+      ownWorksInfo.style.display = 'block';
     }
 
     /**

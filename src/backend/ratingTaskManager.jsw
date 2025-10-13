@@ -65,8 +65,14 @@ export async function getUserTaskData(userId) {
       !taskRecord.completedTasks.includes(workNum)
     );
 
-    // 获取用户是否是高权重用户
+    // 6. 获取用户是否是高权重用户
     const isHighQuality = await isUserHighQuality(userId);
+    
+    // 7. 获取用户自己的作品编号（用于前端显示）
+    const userOwnWorks = await getUserOwnWorks(userId);
+    
+    // 8. 判断用户是否已完成任务目标
+    const hasCompletedTarget = taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
     
     return {
       currentTasks: currentTasks,
@@ -76,7 +82,9 @@ export async function getUserTaskData(userId) {
       targetCompletion: TARGET_USER_COMPLETION,
       lastRefreshTime: taskRecord.lastRefreshTime,
       nextRefreshTime: getNextRefreshTime(taskRecord.lastRefreshTime),
-      isHighQuality: isHighQuality // 用户身份标识
+      isHighQuality: isHighQuality, // 用户身份标识
+      ownWorks: userOwnWorks, // 用户自己的作品列表
+      hasCompletedTarget: hasCompletedTarget // 是否已完成目标
     };
     
   } catch (error) {
@@ -95,7 +103,7 @@ export async function getUserTaskData(userId) {
 async function generateUserTasks(userId, taskRecord, limit = 3) {
   try {
     const completedWorks = taskRecord.completedTasks || [];
-    const userOwnWork = await getUserOwnWork(userId);
+    const userOwnWorks = await getUserOwnWorks(userId); // 获取用户所有作品
     
     // 获取用户所有已经评论过的作品（包括自评和其他评论）
     const userRatedWorks = await getUserCompletedRatings(userId);
@@ -111,10 +119,10 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     for (const work of allWorksResult.items) {
       // 排除条件：
       // 1. 已在完成任务列表中
-      // 2. 是用户自己的作品
+      // 2. 是用户自己的作品（支持多个作品）
       // 3. 用户已经评论过的作品
       if (completedWorks.includes(work.sequenceId) || 
-          work.sequenceId === userOwnWork ||
+          userOwnWorks.includes(work.sequenceId) ||
           userRatedWorks.includes(work.sequenceId)) {
         continue;
       }
@@ -204,6 +212,10 @@ export async function markTaskCompleted(userId, workNumber) {
     const taskRecord = await getUserTaskRecord(userId);
     // console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
     
+    // 检查用户是否已完成任务目标
+    const hasCompletedTarget = taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
+    // console.log(`[标记] 用户是否已完成目标: ${hasCompletedTarget} (${taskRecord.totalCompleted}/${TARGET_USER_COMPLETION})`);
+    
     // 检查这个作品是否在任务列表中
     const taskCheck = await checkIfWorkInTaskList(userId, workNumber);
     // console.log(`[标记] 检查结果: inTaskList=${taskCheck.inTaskList}, alreadyCompleted=${taskCheck.alreadyCompleted}`);
@@ -216,11 +228,26 @@ export async function markTaskCompleted(userId, workNumber) {
         taskCompleted: false,
         isInTaskList: true,
         alreadyCompleted: true,
-        completedCount: taskRecord.totalCompleted
+        completedCount: taskRecord.totalCompleted,
+        hasCompletedTarget: hasCompletedTarget
       };
     }
     
-    // 只有在任务列表中的作品才计入完成
+    // 如果用户已完成目标，不再计入任务指标
+    if (hasCompletedTarget) {
+      // console.log(`[标记] 用户已完成目标，作品 #${workNumber} 不计入任务进度`);
+      return {
+        success: true,
+        taskCompleted: false,
+        isInTaskList: taskCheck.inTaskList,
+        alreadyCompleted: false,
+        completedCount: taskRecord.totalCompleted,
+        hasCompletedTarget: true,
+        isColdWork: taskCheck.inTaskList // 标记为冷门作品（在任务列表中但不计入进度）
+      };
+    }
+    
+    // 只有在任务列表中且未完成目标的作品才计入完成
     let taskCompleted = false;
     if (taskCheck.inTaskList) {
       // console.log(`[标记] ✓ 作品 #${workNumber} 在任务列表中，添加到完成列表`);
@@ -245,7 +272,8 @@ export async function markTaskCompleted(userId, workNumber) {
       taskCompleted: taskCompleted,
       isInTaskList: taskCheck.inTaskList,
       alreadyCompleted: false,
-      completedCount: taskRecord.totalCompleted
+      completedCount: taskRecord.totalCompleted,
+      hasCompletedTarget: false
     };
     
   } catch (error) {
@@ -643,23 +671,36 @@ async function getWorkValidRatingCount(workNumber) {
 }
 
 /**
- * 获取用户自己的作品序号
+ * 获取用户自己的所有作品序号（数组形式）
  * @param {string} userId - 用户ID
- * @returns {Promise<number|null>} 作品序号
+ * @returns {Promise<number[]>} 作品序号数组
  */
-async function getUserOwnWork(userId) {
+async function getUserOwnWorks(userId) {
   try {
     const results = await wixData
       .query(COLLECTIONS.WORKS)
       .eq('_owner', userId)
+      .limit(1000) // 支持多个作品
       .find();
     
-    return results.items.length > 0 ? results.items[0].sequenceId : null;
+    // 返回所有作品的序号数组
+    return results.items.map(work => work.sequenceId);
     
   } catch (error) {
     // console.error('获取用户作品失败:', error);
-    return null;
+    return []; // 返回空数组而不是null
   }
+}
+
+/**
+ * 获取用户自己的第一个作品序号（向后兼容，已废弃）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<number|null>} 作品序号
+ * @deprecated 请使用 getUserOwnWorks
+ */
+async function getUserOwnWork(userId) {
+  const works = await getUserOwnWorks(userId);
+  return works.length > 0 ? works[0] : null;
 }
 
 /**

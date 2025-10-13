@@ -903,8 +903,10 @@
             // 完成度状态
             const completionPercent = (user.completedCount / user.targetCompletion * 100).toFixed(0);
             let progressClass = 'progress-low';
+            let hasCompletedTarget = false;
             if (user.completedCount >= user.targetCompletion) {
                 progressClass = 'progress-complete';
+                hasCompletedTarget = true;
             } else if (user.completedCount >= user.targetCompletion * 0.5) {
                 progressClass = 'progress-active';
             }
@@ -917,8 +919,8 @@
 
             // 任务列表HTML
             const tasksHtml = user.currentTasks && user.currentTasks.length > 0
-                ? user.currentTasks.map(task => createTaskItemHtml(task, user.isHighQuality)).join('')
-                : '<div class="no-tasks">🎉 当前无任务（已完成或等待刷新）</div>';
+                ? user.currentTasks.map(task => createTaskItemHtml(task, user.isHighQuality, hasCompletedTarget)).join('')
+                : `<div class="no-tasks">🎉 当前无${hasCompletedTarget ? '冷门作品' : '任务'}（已完成或等待刷新）</div>`;
 
             // 已完成任务作品列表
             const completedTasksHtml = user.completedTasks && user.completedTasks.length > 0
@@ -943,6 +945,7 @@
                         <div class="user-name">
                             ${userNameHtml}
                             <span class="quality-badge ${qualityBadgeClass}">${qualityText}</span>
+                            ${hasCompletedTarget ? '<span class="quality-badge" style="background: linear-gradient(135deg, #00CC00, #00AA00); color: white;">✓ 已完成目标</span>' : ''}
                             <button class="btn-refresh-user" data-user-id="${user.userId}" onclick="refreshUserTask(this)">🔄 刷新任务</button>
                         </div>
                         <div class="user-stats">
@@ -951,7 +954,7 @@
                                 <span class="progress-mini ${progressClass}">${user.completedCount}/${user.targetCompletion} (${completionPercent}%)</span>
                             </div>
                             <div class="stat-item">
-                                <span>📋 当前任务:</span>
+                                <span>📋 当前${hasCompletedTarget ? '冷门' : '任务'}:</span>
                                 <strong>${user.currentTasks?.length || 0} 个</strong>
                             </div>
                         </div>
@@ -960,7 +963,7 @@
                 <div class="tasks-section">
                     <div class="tasks-header" onclick="toggleTasks(this)">
                         <span class="toggle-icon">▶</span>
-                        <span>当前任务详情 (${user.currentTasks?.length || 0}个)</span>
+                        <span>当前${hasCompletedTarget ? '冷门作品' : '任务'}详情 (${user.currentTasks?.length || 0}个)</span>
                     </div>
                     <div class="tasks-list">
                         ${tasksHtml}
@@ -988,7 +991,7 @@
         }
 
         // 创建任务项HTML
-        function createTaskItemHtml(task, isUserHighQuality) {
+        function createTaskItemHtml(task, isUserHighQuality, hasCompletedTarget) {
             // 高低权重比例
             const highPercent = task.currentRatings > 0 
                 ? (task.highWeightCount / task.currentRatings * 100).toFixed(0)
@@ -1016,18 +1019,19 @@
             
             // 权重变化说明
             let weightExplanation = '';
+            const taskTypeText = hasCompletedTarget ? '冷门作品权重' : '任务权重';
             if (task.balanceFactor !== 1.0) {
                 if (isUserHighQuality) {
                     if (task.ratioStatus === '高权重过多') {
-                        weightExplanation = '⚠ 该作品高权重评分过多，降低您的任务权重以引导低权重用户评分';
+                        weightExplanation = `⚠ 该作品高权重评分过多，降低您的${taskTypeText}以引导低权重用户评分`;
                     } else if (task.ratioStatus === '高权重不足') {
-                        weightExplanation = '⭐ 该作品需要更多高权重评分，提高您的任务权重';
+                        weightExplanation = `⭐ 该作品需要更多高权重评分，提高您的${taskTypeText}`;
                     }
                 } else {
                     if (task.ratioStatus === '高权重过多') {
-                        weightExplanation = '⭐ 该作品高权重评分过多，提高您的任务权重以平衡比例';
+                        weightExplanation = `⭐ 该作品高权重评分过多，提高您的${taskTypeText}以平衡比例`;
                     } else if (task.ratioStatus === '高权重不足') {
-                        weightExplanation = '⚠ 该作品需要高权重评分，降低您的任务权重';
+                        weightExplanation = `⚠ 该作品需要高权重评分，降低您的${taskTypeText}`;
                     }
                 }
             }

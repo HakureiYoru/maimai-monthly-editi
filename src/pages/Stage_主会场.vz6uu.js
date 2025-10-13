@@ -419,7 +419,7 @@ $w.onReady(async function () {
 
 // 核心功能函数
 
-// 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态（任务高亮提示）
+// 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态（任务/冷门高亮提示）
 async function updateCommentStatus($item, itemData) {
   if (itemData.isDq === true) {
     $item("#ifComment").text = "已淘汰";
@@ -447,18 +447,26 @@ async function updateCommentStatus($item, itemData) {
       .isEmpty("replyTo")
       .find();
 
-    // 检查是否为任务作品
+    // 检查是否为任务作品或冷门作品
     const taskCheck = await checkIfWorkInTaskList(currentUserId, itemData.sequenceId);
-    const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted;
+    const userData = await getUserTaskData(currentUserId);
+    const hasCompletedTarget = userData.hasCompletedTarget || false;
+    
+    const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted && !hasCompletedTarget;
+    const isColdWork = taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
 
     if (results.items.length > 0) {
       $item("#ifComment").text = "已评论";
       $item("#ifComment").style.color = "#228B22";
     } else {
-      // 未评论状态 - 如果是任务则高亮提示
+      // 未评论状态 - 区分任务和冷门作品
       if (isTask) {
         $item("#ifComment").text = "未评论（任务！！）";
         $item("#ifComment").style.color = "#0066FF"; // 蓝色高亮
+        $item("#ifComment").style.fontWeight = "bold";
+      } else if (isColdWork) {
+        $item("#ifComment").text = "未评论（冷门）";
+        $item("#ifComment").style.color = "#FFA500"; // 橙色
         $item("#ifComment").style.fontWeight = "bold";
       } else {
         $item("#ifComment").text = "未评论";
@@ -491,17 +499,30 @@ function setupWorkSelectionEvent() {
           isWorkDQ = workResults.items[0].isDq === true;
         }
 
-        // 检查是否为任务作品（在其他检查之前）
+        // 检查是否为任务作品或冷门作品（在其他检查之前）
         let taskStatusText = "";
         if (currentUserId && isUserVerified) {
           try {
             const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
+            const userData = await getUserTaskData(currentUserId);
+            const hasCompletedTarget = userData.hasCompletedTarget || false;
+            
             if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
-              taskStatusText = "这是您的任务作品！";
-              $w("#submitprocess").text = taskStatusText;
-              $w("#submitprocess").style.color = "#0066FF"; // 蓝色
-              $w("#submitprocess").style.fontWeight = "bold";
-              $w("#submitprocess").show();
+              if (hasCompletedTarget) {
+                // 已完成目标，显示为冷门作品
+                taskStatusText = "这是一个冷门作品";
+                $w("#submitprocess").text = taskStatusText;
+                $w("#submitprocess").style.color = "#FFA500"; // 橙色
+                $w("#submitprocess").style.fontWeight = "bold";
+                $w("#submitprocess").show();
+              } else {
+                // 未完成目标，显示为任务作品
+                taskStatusText = "这是您的任务作品！";
+                $w("#submitprocess").text = taskStatusText;
+                $w("#submitprocess").style.color = "#0066FF"; // 蓝色
+                $w("#submitprocess").style.fontWeight = "bold";
+                $w("#submitprocess").show();
+              }
             } else if (taskCheck.alreadyCompleted) {
               taskStatusText = "此任务已完成";
               $w("#submitprocess").text = taskStatusText;
@@ -1565,6 +1586,10 @@ function setupSubmitButtonEvent() {
               // 这是任务列表中的作品，但之前已完成过
               // console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
               taskStatusMessage = " | 此任务已完成过";
+            } else if (result.isColdWork) {
+              // 用户已完成目标，这是冷门作品（不计入进度）
+              // console.log(`作品 #${workNumber} 是冷门作品（用户已完成目标）`);
+              taskStatusMessage = " | ✓ 冷门作品已评分（已完成任务目标）";
             } else if (!result.isInTaskList) {
               // 不在任务列表中，不计入进度
               // console.log(`作品 #${workNumber} 不在任务列表中，不计入任务完成`);
