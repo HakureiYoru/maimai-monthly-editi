@@ -105,7 +105,7 @@ export const get_contestList = asyncErrorHandler(async (request) => {
             Title: item.firstName,
             sequenceId: item.sequenceId,
             Description: item.較長答案欄,
-            AllowDownload: item.核取方塊欄,
+            AllowDownload: true,
             approvedBy: approvedCount,
             viewedBy: viewedCount,
             IsApproved: isApproved

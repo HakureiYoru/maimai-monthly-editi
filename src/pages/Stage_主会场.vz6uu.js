@@ -108,7 +108,6 @@ $w.onReady(async function () {
     const bgVideoUrl = itemData.上傳檔案欄;
     const submitTime = itemData.submissionTime;
     const formattedSubmitTime = formatDate(submitTime);
-    const checkboxChecked = itemData.核取方塊欄;
 
     const downloadUrl = await getMediaDownloadUrls(
       maidataUrl,
@@ -129,7 +128,7 @@ $w.onReady(async function () {
     $item("#submitTime").text = formattedSubmitTime;
     await parseDifficultyLevels($item, maidataUrl);
     await updateItemEvaluationDisplay($item, itemData);
-    await updateButtonStatus($item, itemData._id, checkboxChecked);
+    await updateButtonStatus($item, itemData._id);
     await updateCommentStatus($item, itemData);
 
     // 淘汰作品视觉效果
@@ -1126,7 +1125,7 @@ async function markSheetAsViewed(sheetId, userId) {
 }
 
 // 更新下载按钮状态
-async function updateButtonStatus($item, sheetId, checkboxChecked) {
+async function updateButtonStatus($item, sheetId) {
   $item("#button3").enable();
   $item("#button3").show();
   $item("#downloadAble").show();

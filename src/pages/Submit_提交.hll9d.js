@@ -14,28 +14,49 @@ async function isAdmin() {
 }
 
 $w.onReady(async function () {
-    const isUserAdmin = await isAdmin(); // 检查用户是否是海选组成员
+    const isUserAdmin = await isAdmin(); 
     const currentUserId = wixUsers.currentUser.id;
-    checkIfUserRegistered();
+    
+    // 逻辑流程：管理员 → 是否报名 → 是否重复提交
     if (isUserAdmin) {
+        // 1. 管理员：直接启用提交
         $w("#button1").enable();
         $w("#button1").label = "提交（管理员）";
     } else {
-        wixData.query("enterContest034")
-            .eq("_owner", currentUserId).limit(300)
-            .find()
-            .then((results) => {
-                if (results.items.length > 0) {
-                    $w("#button1").disable();
-                    $w("#button1").label = "禁止重复提交";
-                } else {
-                    // 检查用户是否报名
-                    
-                }
-            })
-            .catch((err) => {
-                console.error("查询失败：", err);
-            });
+        // 2. 普通用户：先检查是否报名
+        try {
+            const registrationResults = await wixData.query('jobApplication089')
+                .eq("_owner", currentUserId)
+                .find();
+            
+            if (registrationResults.items.length === 0) {
+                // 2.1 未报名：禁用按钮
+                $w("#button1").disable();
+                $w("#button1").label = "未报名";
+                return; // 提前返回，不再检查重复提交
+            }
+            
+            // 2.2 已报名：继续检查是否重复提交
+            const submissionResults = await wixData.query("enterContest034")
+                .eq("_owner", currentUserId)
+                .limit(300)
+                .find();
+            
+            if (submissionResults.items.length > 0) {
+                // 2.2.1 已提交过：禁用按钮
+                $w("#button1").disable();
+                $w("#button1").label = "禁止重复提交";
+            } else {
+                // 2.2.2 未提交过：启用按钮
+                $w("#button1").enable();
+                $w("#button1").label = "提交作品";
+            }
+            
+        } catch (err) {
+            console.error("检查用户状态失败：", err);
+            $w("#button1").disable();
+            $w("#button1").label = "检查失败";
+        }
     }
 
     $w("#uploadButton2").onChange(() => {
@@ -68,28 +89,9 @@ $w.onReady(async function () {
 
 
 
-//以下是个人战限定函数 - 必须在jobApplication089中有报名记录才能提交作品
-
-
-function checkIfUserRegistered() {  
-    wixData.query('jobApplication089')
-        .eq("_owner", wixUsers.currentUser.id)
-        .find()
-        .then(results => {
-            if (results.items.length > 0) {
-                $w("#button1").enable();
-                $w("#button1").label = "提交作品";
-            } else {
-                $w("#button1").disable();
-                $w("#button1").label = "未报名";
-            }
-        })
-        .catch(err => {
-            console.error("检查用户是否报名时出错:", err);
-            $w("#button1").disable();
-            $w("#button1").label = "检查失败";
-        });
-}
+// 个人战限定逻辑已整合到 onReady 函数中
+// 必须在 jobApplication089 中有报名记录才能提交作品
+// 且不能重复提交到 enterContest034
 
 
 
