@@ -775,21 +775,26 @@
             <div class="formula-box">
                 <div class="formula-title">🔬 权重计算方法</div>
                 <div class="formula-item">
-                    <strong>基础冷门权重</strong> = 评分缺口比例 × 45 + 时间紧迫度加成
-                    <br>• 评分缺口 = (期望评分 - 当前评分) / 期望评分
-                    <br>• 时间加成: 7天且&lt;10评分 +12，14天且&lt;15评分 +18，21天且&lt;18评分 +25
+                    <strong>基础冷门权重</strong> = 评分缺口比例 × 60 + 15 + 时间紧迫度加成
+                    <br>• 评分缺口比例 = (期望评分 - 当前评分) / 期望评分
+                    <br>• 底数15分确保接近目标时仍有权重
+                    <br>• 时间加成: 3天&lt;2评 +15，5天&lt;5评 +20，7天&lt;10评 +30
+                    <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;14天&lt;15评 +45，21天&lt;18评 +65，30天&lt;20评 +80
                 </div>
                 <div class="formula-item">
                     <strong>均衡因子</strong> = 根据作品当前高低权重比例动态调整
-                    <br>• 目标比例: <span class="formula-highlight">高:低 = 1:2</span>，容忍度: ±20%
-                    <br>• 高权重过多 (>0.6) → Qualified用户 ×0.7，普通用户 ×1.3
-                    <br>• 高权重不足 (&lt;0.4) → Qualified用户 ×1.3，普通用户 ×0.7
-                    <br>• 比例均衡 (0.4-0.6) → 所有用户 ×1.0
+                    <br>• 目标比例: <span class="formula-highlight">高:低 = 1:2 (33.3%占比)</span>
+                    <br>• 均衡区间: <span class="formula-highlight">28%-45%</span> 高权重占比
+                    <br>• 高权重过多 (>45%) → Qualified用户 ×0.7，普通用户 ×1.3
+                    <br>• 高权重不足 (&lt;28%) → Qualified用户 ×1.3，普通用户 ×0.7
+                    <br>• 比例均衡 (28%-45%) → 所有用户 ×1.0
                 </div>
                 <div class="formula-item">
                     <strong>最终任务权重</strong> = <span class="formula-highlight">基础冷门权重 × 均衡因子</span>
                     <br>• 最终权重决定作品在用户任务列表中的排序位置
                     <br>• 权重越高，越容易被分配为任务
+                    <br>• 理论最大权重: ~155 (100%缺口×60+15+80加成)
+                    <br>• 评分≥20的作品权重为0，不再出现在任务列表
                 </div>
             </div>
 
