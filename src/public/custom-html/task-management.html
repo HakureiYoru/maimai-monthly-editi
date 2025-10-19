@@ -775,9 +775,8 @@
             <div class="formula-box">
                 <div class="formula-title">🔬 权重计算方法</div>
                 <div class="formula-item">
-                    <strong>基础冷门权重</strong> = 评分缺口比例 × 60 + 15 + 时间紧迫度加成
+                    <strong>基础冷门权重</strong> = 评分缺口比例 × 60 + 时间紧迫度加成
                     <br>• 评分缺口比例 = (期望评分 - 当前评分) / 期望评分
-                    <br>• 底数15分确保接近目标时仍有权重
                     <br>• 时间加成: 3天&lt;2评 +15，5天&lt;5评 +20，7天&lt;10评 +30
                     <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;14天&lt;15评 +45，21天&lt;18评 +65，30天&lt;20评 +80
                 </div>
@@ -793,7 +792,7 @@
                     <strong>最终任务权重</strong> = <span class="formula-highlight">基础冷门权重 × 均衡因子</span>
                     <br>• 最终权重决定作品在用户任务列表中的排序位置
                     <br>• 权重越高，越容易被分配为任务
-                    <br>• 理论最大权重: ~155 (100%缺口×60+15+80加成)
+                    <br>• 理论最大权重: ~140 (100%缺口×60+80加成)
                     <br>• 评分≥20的作品权重为0，不再出现在任务列表
                 </div>
             </div>
@@ -1006,8 +1005,8 @@
                 : 0;
             
             const ratioText = task.lowWeightCount > 0 
-                ? `1:${task.ratio.toFixed(2)}`
-                : (task.highWeightCount > 0 ? '1:0' : '无评分');
+                ? `${task.ratio.toFixed(2)}:1`
+                : (task.highWeightCount > 0 ? '仅高权重' : '无评分');
             
             const ratioStatusClass = task.ratioStatus === '均衡' ? 'ratio-balanced' : 'ratio-unbalanced';
             

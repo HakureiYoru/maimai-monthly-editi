@@ -5,6 +5,11 @@
  * 1. 基于冷门权重的任务分配
  * 2. 单任务推送机制
  * 3. 自动同步用户评分记录
+ * 
+ * 重要说明：
+ * - 作品评论数实时从 BOFcomment 数据集统计（排除作者自评）
+ * - enterContest034.currentRatingCount 字段已废弃不再使用
+ * - 避免使用缓存字段导致数据不同步问题
  */
 
 import wixData from 'wix-data';
@@ -319,6 +324,158 @@ async function isUserHighQuality(userId) {
 }
 
 /**
+ * 批量获取所有作品的加权评分数据（性能优化版）
+ * 一次性查询所有数据，避免重复API调用
+ * @returns {Promise<Object>} { workRatings: {workNumber: ratingData}, userQualityMap: {userId: boolean}, workOwnerMap, workDQMap, commentCountMap }
+ */
+export async function getAllWorksWeightedRatingData() {
+  try {
+    // 1. 一次性查询所有主评论（包括自评）
+    const allComments = await wixData
+      .query(COLLECTIONS.COMMENTS)
+      .isEmpty('replyTo')
+      .limit(1000)
+      .find();
+    
+    // 2. 一次性查询所有作品
+    const allWorks = await wixData
+      .query(COLLECTIONS.WORKS)
+      .limit(1000)
+      .find();
+    
+    // 3. 建立作品所有者和淘汰状态映射
+    const workOwnerMap = {};
+    const workDQMap = {};
+    allWorks.items.forEach(work => {
+      workOwnerMap[work.sequenceId] = work._owner;
+      workDQMap[work.sequenceId] = work.isDq === true;
+    });
+    
+    // 4. 获取所有评论者的用户权重
+    const allUserIds = [...new Set(allComments.items.map(c => c._owner))];
+    const userQualityMap = await batchCheckUserQuality(allUserIds);
+    
+    // 5. 按作品分组评论
+    const workComments = {};
+    allComments.items.forEach(comment => {
+      if (!workComments[comment.workNumber]) {
+        workComments[comment.workNumber] = [];
+      }
+      workComments[comment.workNumber].push(comment);
+    });
+    
+    // 6. 计算每个作品的评分数据
+    const workRatings = {};
+    const commentCountMap = {}; // 主评论数量（包括自评）
+    
+    Object.keys(workComments).forEach(workNumber => {
+      const comments = workComments[workNumber];
+      const workOwner = workOwnerMap[workNumber];
+      const isDQ = workDQMap[workNumber];
+      
+      commentCountMap[workNumber] = comments.length;
+      
+      // 排除作者自评计算正式评分
+      const validRatings = comments.filter(c => c._owner !== workOwner);
+      
+      let highWeightSum = 0;
+      let highWeightCount = 0;
+      let lowWeightSum = 0;
+      let lowWeightCount = 0;
+      
+      validRatings.forEach(comment => {
+        const isHighQuality = userQualityMap[comment._owner] || false;
+        if (isHighQuality) {
+          highWeightSum += comment.score;
+          highWeightCount++;
+        } else {
+          lowWeightSum += comment.score;
+          lowWeightCount++;
+        }
+      });
+      
+      const totalRatings = highWeightCount + lowWeightCount;
+      const weightedAverage = totalRatings > 0
+        ? (highWeightSum * 2 + lowWeightSum) / (highWeightCount * 2 + lowWeightCount)
+        : 0;
+      const originalAverage = totalRatings > 0
+        ? (highWeightSum + lowWeightSum) / totalRatings
+        : 0;
+      const ratio = lowWeightCount > 0 
+        ? highWeightCount / lowWeightCount 
+        : (highWeightCount > 0 ? 999 : 0);
+      
+      workRatings[workNumber] = {
+        numRatings: totalRatings,
+        weightedAverage: weightedAverage,
+        originalAverage: originalAverage,
+        highWeightCount: highWeightCount,
+        lowWeightCount: lowWeightCount,
+        ratio: ratio,
+        isDQ: isDQ
+      };
+    });
+    
+    return {
+      workRatings: workRatings,
+      userQualityMap: userQualityMap,
+      workOwnerMap: workOwnerMap,
+      workDQMap: workDQMap,
+      commentCountMap: commentCountMap
+    };
+    
+  } catch (error) {
+    console.error('批量获取评分数据失败:', error);
+    return {
+      workRatings: {},
+      userQualityMap: {},
+      workOwnerMap: {},
+      workDQMap: {},
+      commentCountMap: {}
+    };
+  }
+}
+
+/**
+ * 批量检查用户权重
+ * @param {Array<string>} userIds - 用户ID数组
+ * @returns {Promise<Object>} { userId: boolean }
+ */
+async function batchCheckUserQuality(userIds) {
+  const qualityMap = {};
+  
+  try {
+    // 查询所有已注册用户
+    const registrations = await wixData
+      .query(COLLECTIONS.REGISTRATIONS)
+      .hasSome('_owner', userIds)
+      .limit(1000)
+      .find();
+    
+    // 建立用户到isHighQuality的映射
+    registrations.items.forEach(reg => {
+      qualityMap[reg._owner] = reg.isHighQuality === true;
+    });
+    
+    // 未注册的用户默认为 false
+    userIds.forEach(userId => {
+      if (!(userId in qualityMap)) {
+        qualityMap[userId] = false;
+      }
+    });
+    
+    return qualityMap;
+  } catch (error) {
+    console.error('批量检查用户权重失败:', error);
+    // 失败时返回所有用户权重为 false
+    userIds.forEach(userId => {
+      qualityMap[userId] = false;
+    });
+    return qualityMap;
+  }
+}
+
+/**
  * 获取作品的加权评分统计数据
  * @param {number} workNumber - 作品序号
  * @returns {Promise<Object>} 加权评分数据
@@ -470,9 +627,9 @@ async function calculateColdnessWeight(work, userId = null) {
   // 计算评分缺口
   const deficit = Math.max(0, expectedRatings - currentRatings);
   
-  // 基础权重：缺口比例 × 系数 + 底数（确保接近目标时仍有权重）
+  // 基础权重：缺口比例 × 系数
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
-  const baseWeight = deficitRatio * 60 + 15; // 缺口系数60，底数15
+  const baseWeight = deficitRatio * 60; // 缺口系数60
   
   // 时间紧迫度加成（大幅加强，确保冷门作品获得足够关注）
   let urgencyBonus = 0;
@@ -503,7 +660,7 @@ async function calculateColdnessWeight(work, userId = null) {
     urgencyBonus = 80; // 超过一个月的冷门作品
   }
   
-  // 总权重（最大约155：100%缺口×60+15+80加成）
+  // 总权重（最大约140：100%缺口×60+80加成）
   let totalWeight = baseWeight + urgencyBonus;
   
   // 如果提供了用户ID，应用高低权重均衡因子
@@ -817,45 +974,25 @@ async function getRegisteredUsers() {
 }
 
 /**
- * 更新所有作品的评分计数（定时任务）
- * 每日运行一次
+ * 更新所有作品的评分计数（定时任务）- 已废弃
+ * 
+ * ⚠️ 此函数已废弃：系统已改为实时从 BOFcomment 统计评论数
+ * enterContest034.currentRatingCount 字段不再使用，避免数据不同步问题
+ * 
+ * @deprecated 请勿使用此函数，评论数现在实时统计
  */
 export async function updateAllWorkRatingCounts() {
-  try {
-    // console.log('开始更新所有作品评分计数...');
-    
-    const allWorks = await wixData
-      .query(COLLECTIONS.WORKS)
-      .limit(1000)
-      .find();
-    
-    let updateCount = 0;
-    
-    for (const work of allWorks.items) {
-      const validRatingCount = await getWorkValidRatingCount(work.sequenceId);
-      
-      if (work.currentRatingCount !== validRatingCount) {
-        work.currentRatingCount = validRatingCount;
-        await wixData.update(COLLECTIONS.WORKS, work);
-        updateCount++;
-      }
-    }
-    
-    // console.log(`更新完成: ${updateCount} 个作品`);
-    
-    return {
-      success: true,
-      updateCount
-    };
-    
-  } catch (error) {
-    // console.error('更新作品评分计数失败:', error);
-    throw error;
-  }
+  console.warn('updateAllWorkRatingCounts 已废弃：评论数现在实时从 BOFcomment 统计');
+  return {
+    success: true,
+    updateCount: 0,
+    message: '此函数已废弃，评论数实时统计'
+  };
 }
 
 /**
  * 获取系统统计信息（管理用）
+ * 实时从 BOFcomment 统计评论数
  */
 export async function getSystemStats() {
   try {
@@ -869,6 +1006,13 @@ export async function getSystemStats() {
     const allWorks = await wixData
       .query(COLLECTIONS.WORKS)
       .ne('isDq', true)
+      .limit(1000)
+      .find();
+    
+    // 获取所有评论（用于实时统计）
+    const allComments = await wixData
+      .query(COLLECTIONS.COMMENTS)
+      .isEmpty('replyTo')
       .limit(1000)
       .find();
     
@@ -888,7 +1032,7 @@ export async function getSystemStats() {
       else completionStats.completed0++;
     });
     
-    // 统计作品评分情况
+    // 【修复】实时统计作品评分情况（从 BOFcomment 统计，排除作者自评）
     const workStats = {
       reached20: 0,
       reached10to19: 0,
@@ -896,13 +1040,30 @@ export async function getSystemStats() {
       reached0: 0
     };
     
-    for (const work of allWorks.items) {
-      const count = work.currentRatingCount || 0;
+    // 建立作品所有者映射
+    const workOwnerMap = {};
+    allWorks.items.forEach(work => {
+      workOwnerMap[work.sequenceId] = work._owner;
+    });
+    
+    // 统计每个作品的有效评论数（排除作者自评）
+    const workCommentCounts = {};
+    allComments.items.forEach(comment => {
+      const workOwner = workOwnerMap[comment.workNumber];
+      // 排除作者自评
+      if (comment._owner !== workOwner) {
+        workCommentCounts[comment.workNumber] = (workCommentCounts[comment.workNumber] || 0) + 1;
+      }
+    });
+    
+    // 统计各评分区间的作品数量
+    allWorks.items.forEach(work => {
+      const count = workCommentCounts[work.sequenceId] || 0;
       if (count >= 20) workStats.reached20++;
       else if (count >= 10) workStats.reached10to19++;
       else if (count >= 1) workStats.reached1to9++;
       else workStats.reached0++;
-    }
+    });
     
     return {
       totalUsers: allTasks.items.length,
@@ -1015,6 +1176,9 @@ export async function getAllUsersTaskManagementData() {
           ratio: 0
         };
         
+        // 【修复】使用实时统计的评论数，而不是数据库中的 currentRatingCount
+        workInfo.currentRatingCount = weightData.numRatings;
+        
         // 计算基础冷门权重（不含均衡因子）
         const baseWeight = calculateBaseColdnessWeightSync(workInfo);
         
@@ -1105,7 +1269,7 @@ function calculateBaseColdnessWeightSync(work) {
   
   const deficit = Math.max(0, expectedRatings - currentRatings);
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
-  const baseWeight = deficitRatio * 60 + 15; // 与主函数保持一致
+  const baseWeight = deficitRatio * 60; // 与主函数保持一致
   
   let urgencyBonus = 0;
   
@@ -1261,6 +1425,9 @@ export async function getAllWorksWeightComparison() {
       }
       
       const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
+      
+      // 【修复】使用实时统计的评论数，而不是数据库中的 currentRatingCount
+      work.currentRatingCount = validRatings.length;
       
       // 计算基础冷门权重
       const baseWeight = calculateBaseColdnessWeightSync(work);

@@ -195,7 +195,7 @@ async function checkAndMarkQualifiedUser(applicationItem) {
         }
         
         // 查询Team数据集，检查用户是否存在
-        // Team数据集中可能通过realId或_owner字段关联用户
+        // 只通过realId字段匹配
         const teamResults = await wixData
             .query(COLLECTIONS.TEAM)
             .eq('realId', userId)
@@ -203,18 +203,7 @@ async function checkAndMarkQualifiedUser(applicationItem) {
         
         // 如果在Team中找到记录，说明是Qualified用户
         if (teamResults.items.length > 0) {
-            logInfo('checkAndMarkQualifiedUser', `用户 ${userId} 在Team排名中找到，标记为Qualified`);
-            return { isQualified: true };
-        }
-        
-        // 也尝试通过_owner字段匹配
-        const teamResultsByOwner = await wixData
-            .query(COLLECTIONS.TEAM)
-            .eq('_owner', userId)
-            .find();
-            
-        if (teamResultsByOwner.items.length > 0) {
-            logInfo('checkAndMarkQualifiedUser', `用户 ${userId} 在Team排名中找到（通过_owner），标记为Qualified`);
+            logInfo('checkAndMarkQualifiedUser', `用户 ${userId} 在Team排名中找到（realId匹配），标记为Qualified`);
             return { isQualified: true };
         }
         

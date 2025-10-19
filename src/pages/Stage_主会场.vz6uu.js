@@ -11,7 +11,7 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
-import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData, getAllWorksWeightedRatingData } from "backend/ratingTaskManager.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -23,11 +23,14 @@ const currentUserId = wixUsers.currentUser.id;
 let isUserVerified = false;
 let allCommentsData = []; // 存储所有评论数据用于分页
 
-// 缓存数据以减少API调用
+// 缓存数据以减少API调用（性能优化）
 let userFormalRatingsCache = null; // 缓存用户正式评分状态
 let replyCountsCache = {}; // 缓存回复数量
 let workOwnersCache = {}; // 缓存作品所有者信息
 let allWorksRankingCache = null; // 缓存所有作品的排名信息
+
+// 【新增】批量数据缓存 - 一次性加载所有作品评分数据
+let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
 
 // 用户验证功能
 async function checkUserVerification() {
@@ -83,10 +86,46 @@ function updateCommentControlsVerificationStatus() {
   }
 }
 
+// 【新增】批量加载所有数据（性能优化核心函数）
+async function loadBatchData() {
+  try {
+    console.log("[性能优化] 开始批量加载所有作品数据...");
+    const startTime = Date.now();
+    
+    batchDataCache = await getAllWorksWeightedRatingData();
+    
+    // 从批量数据中提取评论计数
+    commentsCountByWorkNumber = batchDataCache.commentCountMap || {};
+    
+    // 从批量数据中提取作品所有者信息
+    workOwnersCache = batchDataCache.workOwnerMap || {};
+    
+    const endTime = Date.now();
+    console.log(`[性能优化] 批量数据加载完成，耗时: ${endTime - startTime}ms`);
+    console.log(`[性能优化] 加载了 ${Object.keys(batchDataCache.workRatings || {}).length} 个作品的评分数据`);
+    console.log(`[性能优化] 加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`);
+    
+    return batchDataCache;
+  } catch (error) {
+    console.error("[性能优化] 批量数据加载失败:", error);
+    batchDataCache = {
+      workRatings: {},
+      userQualityMap: {},
+      workOwnerMap: {},
+      workDQMap: {},
+      commentCountMap: {}
+    };
+    return batchDataCache;
+  }
+}
+
 // 页面初始化
 $w.onReady(async function () {
   await checkUserVerification();
   updateCommentControlsVerificationStatus();
+
+  // 【优化】首先批量加载所有数据（一次API调用替代数百次）
+  await loadBatchData();
 
   // 检查并刷新任务（如果超过刷新时间间隔）
   if (currentUserId && isUserVerified) {
@@ -97,8 +136,6 @@ $w.onReady(async function () {
       console.error("[主会场] 任务同步检查失败:", error);
     }
   }
-
-  commentsCountByWorkNumber = await getAllCommentsCount();
 
   // Repeater2: 作品显示
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
@@ -141,23 +178,32 @@ $w.onReady(async function () {
     setupItemEventListeners($item, itemData, downloadUrl);
   });
 
-  // Repeater1: 评论显示
+  // Repeater1: 评论显示【优化：减少异步查询，使用批量缓存】
   $w("#repeater1").onItemReady(async ($item, itemData, index) => {
     let commentText = itemData.comment;
     let isWorkDQ = false; // 标记作品是否被淘汰
     
-    try {
-      const workResults = await wixData
-        .query("enterContest034")
-        .eq("sequenceId", itemData.workNumber)
-        .find();
-
-      if (workResults.items.length > 0 && workResults.items[0].isDq === true) {
+    // 【优化】从批量缓存中获取作品淘汰状态，避免查询数据库
+    if (batchDataCache && batchDataCache.workDQMap) {
+      isWorkDQ = batchDataCache.workDQMap[itemData.workNumber] === true;
+      if (isWorkDQ) {
         commentText = "*该作品已淘汰*" + commentText;
-        isWorkDQ = true;
       }
-    } catch (error) {
-      console.error("检查作品淘汰状态失败", error);
+    } else {
+      // 降级方案：查询数据库
+      try {
+        const workResults = await wixData
+          .query("enterContest034")
+          .eq("sequenceId", itemData.workNumber)
+          .find();
+
+        if (workResults.items.length > 0 && workResults.items[0].isDq === true) {
+          commentText = "*该作品已淘汰*" + commentText;
+          isWorkDQ = true;
+        }
+      } catch (error) {
+        console.error("检查作品淘汰状态失败", error);
+      }
     }
 
     $item("#CommentBox").value = commentText;
@@ -173,17 +219,21 @@ $w.onReady(async function () {
         $item("#replyCountText").hide();
       }
     } else {
-      // 主评论：检查作者身份（优化：使用缓存避免重复查询）
+      // 主评论：检查作者身份【优化：使用批量缓存，无需查询】
       let isAuthorComment = false;
       let workOwnerId = null;
       
-      try {
-        // 优先使用缓存的作品所有者信息
-        if (workOwnersCache[itemData.workNumber]) {
-          workOwnerId = workOwnersCache[itemData.workNumber];
-          isAuthorComment = itemData._owner === workOwnerId;
-        } else {
-          // 缓存中没有时才查询数据库
+      // 【优化】直接从批量缓存获取作品所有者信息
+      if (batchDataCache && batchDataCache.workOwnerMap) {
+        workOwnerId = batchDataCache.workOwnerMap[itemData.workNumber];
+        isAuthorComment = itemData._owner === workOwnerId;
+      } else if (workOwnersCache[itemData.workNumber]) {
+        // 次优：从旧缓存获取
+        workOwnerId = workOwnersCache[itemData.workNumber];
+        isAuthorComment = itemData._owner === workOwnerId;
+      } else {
+        // 降级方案：查询数据库
+        try {
           const workResults = await wixData
             .query("enterContest034")
             .eq("sequenceId", itemData.workNumber)
@@ -194,9 +244,9 @@ $w.onReady(async function () {
             workOwnersCache[itemData.workNumber] = workOwnerId; // 缓存结果
             isAuthorComment = itemData._owner === workOwnerId;
           }
+        } catch (error) {
+          console.error("检查作者身份失败", error);
         }
-      } catch (error) {
-        console.error("检查作者身份失败", error);
       }
 
       if (isAuthorComment) {
@@ -274,17 +324,23 @@ $w.onReady(async function () {
       await displayReplyCount($item, itemData._id);
     }
 
-    // 删除按钮权限设置（仅主评论）
+    // 删除按钮权限设置（仅主评论）【优化：使用批量缓存】
     if (currentUserId && !itemData.replyTo) {
       try {
         // 判断是否为作者自评（Sc评论）
         let isAuthorComment = false;
         let workOwnerId = null;
         
-        if (workOwnersCache[itemData.workNumber]) {
+        // 【优化】直接从批量缓存获取作品所有者信息
+        if (batchDataCache && batchDataCache.workOwnerMap) {
+          workOwnerId = batchDataCache.workOwnerMap[itemData.workNumber];
+          isAuthorComment = itemData._owner === workOwnerId;
+        } else if (workOwnersCache[itemData.workNumber]) {
+          // 次优：从旧缓存获取
           workOwnerId = workOwnersCache[itemData.workNumber];
           isAuthorComment = itemData._owner === workOwnerId;
         } else {
+          // 降级方案：查询数据库
           const workResults = await wixData
             .query("enterContest034")
             .eq("sequenceId", itemData.workNumber)
@@ -384,12 +440,12 @@ $w.onReady(async function () {
   // 数据初始化
   await updateRepeaterData(1, "", "");
   
-  // 预加载缓存数据以减少API调用
+  // 【优化】预加载用户评分状态（使用批量数据）
   if (currentUserId && isUserVerified) {
     await batchLoadUserFormalRatings();
   }
   
-  // 预加载作品排名数据
+  // 【优化】预加载作品排名数据（使用批量数据）
   await calculateAllWorksRanking();
   
   await loadAllFormalComments();
@@ -713,31 +769,37 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
 
 // 辅助工具函数
 
-// 获取所有作品的评分并计算排名百分位（排除淘汰作品）
+// 【优化】获取所有作品的评分并计算排名百分位（排除淘汰作品）
+// 使用批量缓存数据，避免逐个查询作品评分
 async function calculateAllWorksRanking() {
   if (allWorksRankingCache) {
     return allWorksRankingCache;
   }
 
   try {
-    // console.log("开始计算所有作品排名...");
+    console.log("[性能优化] 开始计算所有作品排名...");
+    const startTime = Date.now();
     
-    // 获取所有作品
-    const allWorks = await wixData.query("enterContest034").limit(1000).find();
+    // 【优化】直接从批量缓存中获取数据
+    if (!batchDataCache || !batchDataCache.workRatings) {
+      console.warn("[性能提示] 批量缓存未加载，重新加载");
+      await loadBatchData();
+    }
     
-    // 计算每个作品的平均分，排除淘汰作品
-    const worksWithScores = await Promise.all(
-      allWorks.items
-        .filter(work => work.isDq !== true) // 排除淘汰作品
-        .map(async (work) => {
-          const ratingData = await getRatingData(work.sequenceId);
-          return {
-            sequenceId: work.sequenceId,
-            averageScore: ratingData.averageScore,
-            numRatings: ratingData.numRatings
-          };
-        })
-    );
+    const workRatings = batchDataCache.workRatings;
+    
+    // 构建作品评分数组，排除淘汰作品
+    const worksWithScores = [];
+    for (const [workNumber, ratingData] of Object.entries(workRatings)) {
+      // 排除淘汰作品
+      if (ratingData.isDQ) continue;
+      
+      worksWithScores.push({
+        sequenceId: parseInt(workNumber),
+        averageScore: ratingData.weightedAverage,
+        numRatings: ratingData.numRatings
+      });
+    }
 
     // 只考虑有足够评分的作品（>=5人评分）
     const validWorks = worksWithScores.filter(w => w.numRatings >= 5);
@@ -762,7 +824,8 @@ async function calculateAllWorksRanking() {
       totalValidWorks: validWorks.length
     };
 
-    // console.log(`作品排名计算完成，共${validWorks.length}个有效作品（已排除淘汰作品）`);
+    const endTime = Date.now();
+    console.log(`[性能优化] 作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${endTime - startTime}ms`);
     return allWorksRankingCache;
   } catch (error) {
     console.error("计算作品排名失败:", error);
@@ -779,28 +842,31 @@ function getTierFromPercentile(percentile) {
   return "T4";
 }
 
-// 批量获取用户正式评分状态（优化版）
+// 【优化】批量获取用户正式评分状态
+// 使用批量缓存中的作品所有者信息，减少查询
 async function batchLoadUserFormalRatings() {
   if (!currentUserId || !isUserVerified || userFormalRatingsCache) {
     return userFormalRatingsCache || {};
   }
 
   try {
-   // console.log("批量加载用户评分状态...");
+    console.log("[性能优化] 批量加载用户评分状态...");
+    const startTime = Date.now();
     
-    // 获取所有作品信息
-    const allWorks = await wixData.query("enterContest034").find();
-    const workOwnerMap = {};
-    allWorks.items.forEach((work) => {
-      workOwnerMap[work.sequenceId] = work._owner;
-      workOwnersCache[work.sequenceId] = work._owner;
-    });
+    // 【优化】从批量缓存获取作品所有者信息
+    if (!batchDataCache || !batchDataCache.workOwnerMap) {
+      console.warn("[性能提示] 批量缓存未加载，重新加载");
+      await loadBatchData();
+    }
+    
+    const workOwnerMap = batchDataCache.workOwnerMap;
 
     // 获取用户所有评论
     const userComments = await wixData
       .query("BOFcomment")
       .eq("_owner", currentUserId)
       .isEmpty("replyTo")
+      .limit(1000)
       .find();
 
     // 计算用户正式评分状态
@@ -813,7 +879,8 @@ async function batchLoadUserFormalRatings() {
     });
 
     userFormalRatingsCache = formalRatings;
-   // console.log(`用户评分状态加载完成，共${Object.keys(formalRatings).length}个作品有正式评分`);
+    const endTime = Date.now();
+    console.log(`[性能优化] 用户评分状态加载完成，共${Object.keys(formalRatings).length}个作品有正式评分，耗时: ${endTime - startTime}ms`);
     return formalRatings;
   } catch (error) {
     console.error("批量加载用户正式评分状态失败:", error);
@@ -834,27 +901,135 @@ async function checkUserHasFormalRating(workNumber) {
   return userFormalRatingsCache[workNumber] || false;
 }
 
-// 清理缓存数据
+// 【优化】清理缓存数据
 function clearCaches() {
   userFormalRatingsCache = null;
   replyCountsCache = {};
   workOwnersCache = {};
-  allWorksRankingCache = null; // 清理排名缓存
-  // console.log("缓存数据已清理");
+  allWorksRankingCache = null;
+  batchDataCache = null; // 清理批量数据缓存
+  console.log("[性能优化] 缓存数据已清理");
 }
 
-// 统一刷新两个repeater
+// 【新增】增量热更新 - 评论提交后快速更新状态（无需完全刷新）
+async function incrementalUpdateAfterComment(workNumber, score, comment, isAuthorComment = false) {
+  try {
+    console.log(`[热更新] 开始增量更新作品 #${workNumber} 的状态...`);
+    const startTime = Date.now();
+    
+    // 1. 更新评论计数缓存
+    if (batchDataCache && batchDataCache.commentCountMap) {
+      const currentCount = batchDataCache.commentCountMap[workNumber] || 0;
+      batchDataCache.commentCountMap[workNumber] = currentCount + 1;
+      commentsCountByWorkNumber[workNumber] = currentCount + 1;
+      console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
+    }
+    
+    // 2. 如果不是作者自评，更新用户正式评分缓存和作品评分数据
+    if (!isAuthorComment) {
+      // 更新用户正式评分状态
+      if (userFormalRatingsCache) {
+        userFormalRatingsCache[workNumber] = true;
+        console.log(`[热更新] 用户评分状态已更新`);
+      }
+      
+      // 【修复】等待评分数据更新完成后再更新显示
+      let updatedRatingData = null;
+      if (batchDataCache && batchDataCache.workRatings) {
+        try {
+          // 同步等待评分数据更新完成
+          const newRating = await getWorkWeightedRatingData(workNumber);
+          if (newRating && batchDataCache.workRatings) {
+            const oldRating = batchDataCache.workRatings[workNumber] || {};
+            batchDataCache.workRatings[workNumber] = {
+              numRatings: newRating.numRatings,
+              weightedAverage: newRating.weightedAverage,
+              originalAverage: newRating.originalAverage,
+              highWeightCount: newRating.highWeightCount,
+              lowWeightCount: newRating.lowWeightCount,
+              ratio: newRating.ratio,
+              isDQ: oldRating.isDQ
+            };
+            updatedRatingData = newRating;
+            console.log(`[热更新] 评分数据已更新: 作品 #${workNumber} 现有 ${newRating.numRatings}人评分`);
+          }
+        } catch (error) {
+          console.error("[热更新] 更新评分数据失败:", error);
+        }
+      }
+      
+      // 清理排名缓存，强制重新计算（因为评分可能影响排名）
+      allWorksRankingCache = null;
+    }
+    
+    // 3. 热更新 Repeater2（作品列表）中当前页的该作品状态
+    try {
+      const repeater2Data = $w("#repeater2").data;
+      let needUpdateRepeater2 = false;
+      
+      $w("#repeater2").forEachItem(($item, itemData, index) => {
+        if (itemData.sequenceId === workNumber) {
+          needUpdateRepeater2 = true;
+          // 更新评论计数显示
+          const newCount = commentsCountByWorkNumber[workNumber] || 0;
+          $item("#Commments").text = `${newCount}`;
+          
+          // 更新评论状态（异步更新）
+          updateCommentStatus($item, itemData).then(() => {
+            console.log(`[热更新] 作品 #${workNumber} 的评论状态已更新`);
+          });
+          
+          // 【修复】等待评分数据更新后再更新显示，确保使用最新数据
+          if (!isAuthorComment) {
+            updateItemEvaluationDisplay($item, itemData).then(() => {
+              console.log(`[热更新] 作品 #${workNumber} 的评分显示已更新`);
+            });
+          }
+        }
+      });
+      
+      if (needUpdateRepeater2) {
+        console.log(`[热更新] Repeater2中作品 #${workNumber} 已热更新`);
+      }
+    } catch (error) {
+      console.error("[热更新] 更新Repeater2失败:", error);
+    }
+    
+    // 4. 如果当前正在查看该作品的评论列表，刷新评论列表
+    const dropdownFilterValue = $w("#dropdownFilter").value;
+    if (dropdownFilterValue && parseInt(dropdownFilterValue) === workNumber) {
+      console.log(`[热更新] 刷新作品 #${workNumber} 的评论列表`);
+      await setDropdownValue(workNumber, 1); // 跳转到第一页显示新评论
+    }
+    
+    const endTime = Date.now();
+    console.log(`[热更新] 增量更新完成，耗时: ${endTime - startTime}ms`);
+    
+    return { success: true };
+  } catch (error) {
+    console.error("[热更新] 增量更新失败:", error);
+    return { success: false, error };
+  }
+}
+
+// 【优化】统一刷新两个repeater（完全刷新，用于删除评论等需要完全同步的场景）
 async function refreshRepeaters() {
   try {
+    console.log("[性能优化] 开始完全刷新Repeaters...");
+    const startTime = Date.now();
+    
     // 清理缓存以确保数据同步
     clearCaches();
+    
+    // 重新批量加载所有数据
+    await loadBatchData();
     
     const currentPage = $w("#paginator").currentPage || 1;
     const searchValue = $w("#input1").value;
     const dropdownValue = $w("#dropdown1").value;
     await updateRepeaterData(currentPage, searchValue, dropdownValue);
 
-    // 重新加载缓存数据
+    // 重新加载用户评分缓存
     if (currentUserId && isUserVerified) {
       await batchLoadUserFormalRatings();
     }
@@ -869,9 +1044,8 @@ async function refreshRepeaters() {
       await loadAllFormalComments();
     }
 
-    commentsCountByWorkNumber = await getAllCommentsCount();
-
-    // console.log("Repeaters刷新完成");
+    const endTime = Date.now();
+    console.log(`[性能优化] 完全刷新完成，耗时: ${endTime - startTime}ms`);
   } catch (error) {
     console.error("刷新Repeaters时发生错误:", error);
   }
@@ -900,36 +1074,21 @@ async function parseDifficultyLevels($item, maidataUrl) {
   }
 }
 
-// 显示作者信息和样式（优化：使用缓存，统一作者身份检查）
+// 【优化】显示作者信息和样式
+// 优化：使用批量缓存，只在必要时查询作品名称
 async function displayAuthorInfo($item, itemData) {
   try {
     let contestItem = null;
-    let contestOwnerId = null;
 
-    // 优先使用缓存的作品所有者信息
-    if (workOwnersCache[itemData.workNumber]) {
-      contestOwnerId = workOwnersCache[itemData.workNumber];
-      // 获取作品名称（如果需要）
-      const results = await wixData
-        .query("enterContest034")
-        .eq("sequenceId", itemData.workNumber)
-        .find();
-      
-      if (results.items.length > 0) {
-        contestItem = results.items[0];
-      }
-    } else {
-      // 缓存中没有时才查询数据库
-      const results = await wixData
-        .query("enterContest034")
-        .eq("sequenceId", itemData.workNumber)
-        .find();
+    // 【优化】作品所有者信息已在批量缓存中，无需重复获取
+    // 只需要获取作品名称用于显示
+    const results = await wixData
+      .query("enterContest034")
+      .eq("sequenceId", itemData.workNumber)
+      .find();
 
-      if (results.items.length > 0) {
-        contestItem = results.items[0];
-        contestOwnerId = contestItem._owner;
-        workOwnersCache[itemData.workNumber] = contestOwnerId; // 缓存结果
-      }
+    if (results.items.length > 0) {
+      contestItem = results.items[0];
     }
 
     // 设置text15显示作品标题
@@ -1131,16 +1290,31 @@ async function updateButtonStatus($item, sheetId) {
   $item("#downloadAble").show();
 }
 
-// 获取评分数据（排除作者自评，使用加权平均分）
+// 【优化】获取评分数据（排除作者自评，使用加权平均分）
+// 优先使用批量缓存，大幅减少API调用
 async function getRatingData(workNumber) {
   try {
-    // 使用后端的加权评分计算函数
+    // 优先从批量缓存中获取
+    if (batchDataCache && batchDataCache.workRatings && batchDataCache.workRatings[workNumber]) {
+      const cachedData = batchDataCache.workRatings[workNumber];
+      return {
+        numRatings: cachedData.numRatings,
+        averageScore: cachedData.weightedAverage,
+        originalAverage: cachedData.originalAverage,
+        highWeightCount: cachedData.highWeightCount,
+        lowWeightCount: cachedData.lowWeightCount,
+        ratio: cachedData.ratio
+      };
+    }
+    
+    // 缓存未命中时才调用后端（降级方案）
+    console.warn(`[性能提示] 作品 ${workNumber} 未在缓存中，降级查询`);
     const weightedData = await getWorkWeightedRatingData(workNumber);
     
     return {
       numRatings: weightedData.numRatings,
-      averageScore: weightedData.weightedAverage, // 使用加权平均分作为主要评分
-      originalAverage: weightedData.originalAverage, // 保留原始平均分
+      averageScore: weightedData.weightedAverage,
+      originalAverage: weightedData.originalAverage,
       highWeightCount: weightedData.highWeightCount,
       lowWeightCount: weightedData.lowWeightCount,
       ratio: weightedData.ratio
@@ -1159,39 +1333,42 @@ async function getRatingData(workNumber) {
 }
 
 
-// 统计所有作品的评论数量（仅主评论）
+// 【已废弃】统计所有作品的评论数量（仅主评论）
+// 改用批量数据中的 commentCountMap，无需单独查询
+// 保留此函数作为降级方案
 async function getAllCommentsCount() {
+  // 优先从批量缓存获取
+  if (batchDataCache && batchDataCache.commentCountMap) {
+    return batchDataCache.commentCountMap;
+  }
+  
+  // 降级方案：直接查询（性能较低，仅作为备用）
+  console.warn("[性能提示] 批量缓存未加载，使用降级查询评论计数");
   let commentsCountByWorkNumber = {};
-  let hasMore = true;
-  let skipCount = 0;
+  
+  try {
+    // 一次性查询所有主评论
+    const allComments = await wixData
+      .query("BOFcomment")
+      .isEmpty("replyTo")
+      .limit(1000)
+      .find();
 
-  while (hasMore) {
-    try {
-      const res = await wixData
-        .query("BOFcomment")
-        .isEmpty("replyTo")
-        .skip(skipCount)
-        .find();
-
-      res.items.forEach((item) => {
-        if (commentsCountByWorkNumber[item.workNumber]) {
-          commentsCountByWorkNumber[item.workNumber] += 1;
-        } else {
-          commentsCountByWorkNumber[item.workNumber] = 1;
-        }
-      });
-      skipCount += res.items.length;
-      hasMore = res.items.length > 0;
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      hasMore = false;
-    }
+    allComments.items.forEach((item) => {
+      if (commentsCountByWorkNumber[item.workNumber]) {
+        commentsCountByWorkNumber[item.workNumber] += 1;
+      } else {
+        commentsCountByWorkNumber[item.workNumber] = 1;
+      }
+    });
+  } catch (err) {
+    console.error("获取评论计数失败:", err);
   }
 
   return commentsCountByWorkNumber;
 }
 
-// 设置作品筛选并显示对应评论（支持分页）
+// 【优化】设置作品筛选并显示对应评论（支持分页）
 async function setDropdownValue(sequenceId, pageNumber = 1) {
   $w("#dropdownFilter").value = sequenceId.toString();
 
@@ -1200,6 +1377,7 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
       .query("BOFcomment")
       .eq("workNumber", sequenceId)
       .ascending("_createdDate")
+      .limit(1000)
       .find();
 
     let commentsToShow = results.items;
@@ -1207,14 +1385,20 @@ async function setDropdownValue(sequenceId, pageNumber = 1) {
 
     if (filterMode === "ScoreOnly") {
       // 仅评分：排除楼中楼和作者自评
-      const workResults = await wixData
-        .query("enterContest034")
-        .eq("sequenceId", sequenceId)
-        .find();
-
+      // 【优化】从批量缓存获取作品所有者，避免查询数据库
       let workOwnerId = null;
-      if (workResults.items.length > 0) {
-        workOwnerId = workResults.items[0]._owner;
+      if (batchDataCache && batchDataCache.workOwnerMap) {
+        workOwnerId = batchDataCache.workOwnerMap[sequenceId];
+      } else {
+        // 降级方案：查询数据库
+        const workResults = await wixData
+          .query("enterContest034")
+          .eq("sequenceId", sequenceId)
+          .find();
+
+        if (workResults.items.length > 0) {
+          workOwnerId = workResults.items[0]._owner;
+        }
       }
 
       commentsToShow = results.items.filter((comment) => {
@@ -1558,8 +1742,15 @@ function setupSubmitButtonEvent() {
           comment: comment,
         };
 
-        await wixData.insert("BOFcomment", toInsert);
+        const insertedComment = await wixData.insert("BOFcomment", toInsert);
         $w("#submitprocess").text = "✓ 评论已保存";
+        
+        // 判断是否为作者自评
+        let isAuthorComment = false;
+        if (batchDataCache && batchDataCache.workOwnerMap) {
+          const workOwner = batchDataCache.workOwnerMap[workNumber];
+          isAuthorComment = currentUserId === workOwner;
+        }
 
         if (currentUserId) {
           // 2. 更新用户积分
@@ -1600,8 +1791,8 @@ function setupSubmitButtonEvent() {
           }
         }
 
-        // 4. 刷新界面
-        $w("#submitprocess").text = "刷新页面数据...";
+        // 4. 【优化】使用增量热更新，避免完全刷新页面
+        $w("#submitprocess").text = "更新页面状态...";
         
         // 清空输入并重置状态
         $w("#inputNumber").value = "";
@@ -1612,8 +1803,8 @@ function setupSubmitButtonEvent() {
         $w("#Comment").enable();
         $w("#inputScore").enable();
 
-        $w("#dataset1").refresh();
-        await refreshRepeaters();
+        // 增量热更新（快速，无需重新加载所有数据）
+        await incrementalUpdateAfterComment(workNumber, score, comment, isAuthorComment);
         
         // 5. 完成 - 合并显示提交成功和任务状态
         $w("#submitprocess").text = `✅ 提交成功！${taskStatusMessage}`;
@@ -1663,7 +1854,7 @@ function setupScoreCheckboxEvent() {
   });
 }
 
-// 加载所有作品的评论（支持正式评论筛选和分页）
+// 【优化】加载所有作品的评论（支持正式评论筛选和分页）
 async function loadAllFormalComments(pageNumber = 1) {
   try {
     const filterMode = getCommentFilterMode();
@@ -1695,11 +1886,17 @@ async function loadAllFormalComments(pageNumber = 1) {
 
       if (filterMode === "ScoreOnly") {
         // 仅评分：排除作者自评
-        const allWorks = await wixData.query("enterContest034").find();
-        const workOwnerMap = {};
-        allWorks.items.forEach((work) => {
-          workOwnerMap[work.sequenceId] = work._owner;
-        });
+        // 【优化】从批量缓存获取作品所有者映射，避免查询数据库
+        let workOwnerMap = {};
+        if (batchDataCache && batchDataCache.workOwnerMap) {
+          workOwnerMap = batchDataCache.workOwnerMap;
+        } else {
+          // 降级方案：查询数据库
+          const allWorks = await wixData.query("enterContest034").limit(1000).find();
+          allWorks.items.forEach((work) => {
+            workOwnerMap[work.sequenceId] = work._owner;
+          });
+        }
 
         commentsToShow = results.items.filter((comment) => {
           const workOwnerId = workOwnerMap[comment.workNumber];
