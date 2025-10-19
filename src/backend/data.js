@@ -128,6 +128,104 @@ export function enterContest034_afterInsert(item, context) {
     // 不返回任何值以避免潜在的数据覆盖问题
 }
 
+/**
+ * jobApplication089数据插入后的处理
+ * 自动检查用户是否在Team排名数据集中，如果存在则标记为高质量用户
+ * 
+ * 重要：
+ * 1. afterInsert钩子不应该返回值（数据已保存）
+ * 2. 使用 setTimeout 将更新操作推迟到事件循环的下一个周期
+ * 3. 先获取完整数据再更新，确保不会覆盖其他字段
+ */
+export function jobApplication089_afterInsert(item, context) {
+    // 记录日志
+    logInfo('jobApplication089_afterInsert', `用户报名成功，正在检查是否为Qualified用户: ${item._owner}`);
+    
+    // 使用 setTimeout 延迟执行检查和更新，确保数据保存完成
+    setTimeout(() => {
+        checkAndMarkQualifiedUser(item)
+            .then(async (result) => {
+                if (result.isQualified) {
+                    logInfo('jobApplication089_afterInsert', `用户 ${item._owner} 已自动标记为Qualified用户`);
+                    
+                    // 更新isHighQuality字段
+                    // 重要：先获取完整数据，再更新特定字段，避免覆盖其他字段
+                    try {
+                        // 先获取当前完整数据
+                        const currentItem = await wixData.get(COLLECTIONS.JOB_APPLICATION_089, item._id);
+                        
+                        // 只更新isHighQuality字段，保留其他所有字段
+                        await wixData.update(COLLECTIONS.JOB_APPLICATION_089, {
+                            ...currentItem,  // 保留所有现有字段
+                            isHighQuality: true
+                        });
+                        logInfo('jobApplication089_afterInsert', `已标记用户 ${item._owner} 为Qualified用户`);
+                    } catch (updateError) {
+                        logError('jobApplication089_afterInsert - 更新Qualified状态失败', updateError, { 
+                            itemId: item._id,
+                            userId: item._owner 
+                        });
+                    }
+                } else {
+                    logInfo('jobApplication089_afterInsert', `用户 ${item._owner} 不在Team排名中，保持普通用户状态`);
+                }
+            })
+            .catch((error) => {
+                logError('jobApplication089_afterInsert - 检查Qualified状态异常', error, { 
+                    itemId: item._id,
+                    userId: item._owner 
+                });
+            });
+    }, 0); // 延迟0ms，推迟到下一个事件循环
+    
+    // afterInsert 钩子不需要返回值，数据已经保存
+}
+
+/**
+ * 检查用户是否为Qualified用户（是否在Team排名数据集中）
+ * @param {Object} applicationItem - 报名记录对象
+ * @returns {Promise<Object>} { isQualified: boolean }
+ */
+async function checkAndMarkQualifiedUser(applicationItem) {
+    try {
+        const userId = applicationItem._owner;
+        
+        if (!userId) {
+            return { isQualified: false };
+        }
+        
+        // 查询Team数据集，检查用户是否存在
+        // Team数据集中可能通过realId或_owner字段关联用户
+        const teamResults = await wixData
+            .query(COLLECTIONS.TEAM)
+            .eq('realId', userId)
+            .find();
+        
+        // 如果在Team中找到记录，说明是Qualified用户
+        if (teamResults.items.length > 0) {
+            logInfo('checkAndMarkQualifiedUser', `用户 ${userId} 在Team排名中找到，标记为Qualified`);
+            return { isQualified: true };
+        }
+        
+        // 也尝试通过_owner字段匹配
+        const teamResultsByOwner = await wixData
+            .query(COLLECTIONS.TEAM)
+            .eq('_owner', userId)
+            .find();
+            
+        if (teamResultsByOwner.items.length > 0) {
+            logInfo('checkAndMarkQualifiedUser', `用户 ${userId} 在Team排名中找到（通过_owner），标记为Qualified`);
+            return { isQualified: true };
+        }
+        
+        return { isQualified: false };
+        
+    } catch (error) {
+        logError('checkAndMarkQualifiedUser', error, { userId: applicationItem._owner });
+        return { isQualified: false };
+    }
+}
+
 
 
 
