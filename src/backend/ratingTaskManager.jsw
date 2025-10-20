@@ -288,6 +288,58 @@ export async function markTaskCompleted(userId, workNumber) {
 }
 
 /**
+ * 取消任务完成状态（删除评论时调用）
+ * @param {string} userId - 用户ID
+ * @param {number} workNumber - 作品序号
+ * @returns {Promise<Object>} 取消结果
+ */
+export async function unmarkTaskCompleted(userId, workNumber) {
+  try {
+    console.log(`\n========== 取消任务完成: 用户 ${userId}, 作品 #${workNumber} ==========`);
+    
+    const taskRecord = await getUserTaskRecord(userId);
+    console.log(`[取消] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    
+    // 检查作品是否在已完成列表中
+    const wasCompleted = taskRecord.completedTasks.includes(workNumber);
+    
+    if (!wasCompleted) {
+      console.log(`[取消] 作品 #${workNumber} 不在已完成列表中，无需处理`);
+      return {
+        success: true,
+        wasInCompletedList: false,
+        message: '作品不在已完成列表中'
+      };
+    }
+    
+    // 从已完成列表中移除
+    taskRecord.completedTasks = taskRecord.completedTasks.filter(num => num !== workNumber);
+    taskRecord.totalCompleted = taskRecord.completedTasks.length;
+    
+    console.log(`[取消] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    
+    await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+    console.log(`[取消] 数据库已更新`);
+    console.log(`========== 取消任务完成 ==========\n`);
+    
+    return {
+      success: true,
+      wasInCompletedList: true,
+      newCompletedCount: taskRecord.totalCompleted,
+      message: '任务完成状态已取消'
+    };
+    
+  } catch (error) {
+    console.error('取消任务完成失败:', error);
+    return {
+      success: false,
+      wasInCompletedList: false,
+      message: '取消失败: ' + error.message
+    };
+  }
+}
+
+/**
  * 为用户分配下一个任务（已废弃，改用 generateUserTasks）
  * 保留此函数以兼容同步任务
  */

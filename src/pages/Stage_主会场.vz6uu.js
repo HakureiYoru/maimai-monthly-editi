@@ -12,6 +12,7 @@ import {
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
 import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData, getAllWorksWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS } from "public/constants.js";
 
 // 全局状态管理
@@ -136,6 +137,9 @@ $w.onReady(async function () {
       console.error("[主会场] 任务同步检查失败:", error);
     }
   }
+
+  // 初始化自定义HTML楼中楼回复面板
+  initCommentRepliesPanel();
 
   // Repeater2: 作品显示
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
@@ -740,30 +744,150 @@ async function handleDeleteComment(itemData, isSelfScComment = false) {
   }
 }
 
+// 初始化自定义HTML楼中楼回复面板
+function initCommentRepliesPanel() {
+  // 确保HTML元件存在（需要在Wix编辑器中添加名为 commentRepliesPanel 的HTML元件）
+  try {
+    // 初始时隐藏面板
+    $w("#commentRepliesPanel").hide();
+    
+    // 监听来自HTML元件的消息
+    $w("#commentRepliesPanel").onMessage(async (event) => {
+      const action = event.data.action;
+      
+      if (action === 'getReplies') {
+        // 获取回复数据
+        await handleGetReplies(event.data.commentId);
+      } else if (action === 'submitReply') {
+        // 提交回复
+        await handleSubmitReply(event.data);
+      } else if (action === 'closeReplies') {
+        // 关闭面板
+        closeCommentRepliesPanel();
+      }
+    });
+  } catch (error) {
+    console.error("初始化楼中楼回复面板失败:", error);
+  }
+}
+
+// 显示评论回复面板（替代原来的 lightbox）
 async function showCommentReplies(commentId, workNumber, originalComment) {
   try {
-   // console.log("准备显示回复，评论ID:", commentId);
-
+    // 查询回复数据
     const replies = await wixData
       .query("BOFcomment")
       .eq("replyTo", commentId)
       .ascending("_createdDate")
       .find();
 
-   // console.log("查询到的回复数据:", replies.items.length, "条");
-
-    const result = await wixWindow.openLightbox("CommentReplies", {
-      commentId: commentId,
-      workNumber: workNumber,
-      originalComment: originalComment,
-      replies: replies.items,
+    // 显示HTML面板
+    $w("#commentRepliesPanel").show();
+    
+    // 发送初始化数据到HTML元件
+    $w("#commentRepliesPanel").postMessage({
+      action: 'init',
+      commentData: {
+        commentId: commentId,
+        workNumber: workNumber,
+        originalComment: originalComment,
+        replies: replies.items
+      },
+      currentUserId: currentUserId
     });
-
-    if (result && result.refresh) {
-      await refreshRepeaters();
-    }
+    
+    // 滚动到顶部以确保面板可见
+    $w("#commentRepliesPanel").scrollTo();
   } catch (err) {
     console.error("显示评论回复失败", err);
+  }
+}
+
+// 关闭评论回复面板
+function closeCommentRepliesPanel() {
+  try {
+    $w("#commentRepliesPanel").hide();
+    // 刷新页面数据
+    refreshRepeaters();
+  } catch (error) {
+    console.error("关闭回复面板失败:", error);
+  }
+}
+
+// 处理获取回复数据请求
+async function handleGetReplies(commentId) {
+  try {
+    const replies = await wixData
+      .query("BOFcomment")
+      .eq("replyTo", commentId)
+      .ascending("_createdDate")
+      .find();
+    
+    // 将回复数据发送回HTML元件
+    $w("#commentRepliesPanel").postMessage({
+      action: 'repliesData',
+      replies: replies.items
+    });
+  } catch (error) {
+    console.error("获取回复数据失败:", error);
+    $w("#commentRepliesPanel").postMessage({
+      action: 'repliesData',
+      replies: []
+    });
+  }
+}
+
+// 处理提交回复请求
+async function handleSubmitReply(data) {
+  try {
+    const { commentId, workNumber, replyContent } = data;
+    
+    if (!currentUserId) {
+      $w("#commentRepliesPanel").postMessage({
+        action: 'submitReplyResult',
+        success: false,
+        error: '用户未登录'
+      });
+      return;
+    }
+    
+    // 创建回复数据
+    const replyData = {
+      workNumber: workNumber,
+      comment: replyContent,
+      score: 0, // 回复不计分
+      replyTo: commentId,
+      submissionTime: new Date().toISOString()
+    };
+    
+    // 提交到数据库
+    const insertedReply = await wixData.insert("BOFcomment", replyData);
+    
+    // 发送邮件通知（异步执行，不阻塞用户体验）
+    try {
+      await sendReplyNotification(
+        commentId,
+        replyContent,
+        workNumber,
+        currentUserId
+      );
+    } catch (emailError) {
+      console.error("发送邮件通知失败（不影响回复提交）:", emailError);
+    }
+    
+    // 通知HTML元件提交成功
+    $w("#commentRepliesPanel").postMessage({
+      action: 'submitReplyResult',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error("提交回复失败:", error);
+    $w("#commentRepliesPanel").postMessage({
+      action: 'submitReplyResult',
+      success: false,
+      error: error.message || '提交失败'
+    });
   }
 }
 

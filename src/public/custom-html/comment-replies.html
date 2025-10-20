@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>评论回复</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #444;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .close-btn {
+            background: #555;
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            background: #666;
+        }
+
+        .work-info {
+            background: #333;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .section-title {
+            font-size: 16px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .original-comment-section {
+            margin-bottom: 20px;
+        }
+
+        .original-comment {
+            background: #333;
+            padding: 10px;
+            border-left: 3px solid #666;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .reply-input-section {
+            margin-bottom: 20px;
+        }
+
+        .reply-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .reply-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .reply-input::placeholder {
+            color: #888;
+        }
+
+        .submit-btn {
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 10px 25px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            background: #666;
+        }
+
+        .submit-btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .message {
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
+            border: 1px solid;
+        }
+
+        .message.success {
+            background: #2a4a2a;
+            border-color: #4a7a4a;
+            color: #8fc88f;
+        }
+
+        .message.error {
+            background: #4a2a2a;
+            border-color: #7a4a4a;
+            color: #cf8f8f;
+        }
+
+        .replies-section {
+            margin-top: 20px;
+        }
+
+        .reply-count {
+            font-size: 16px;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+
+        .replies-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .reply-item {
+            background: #333;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 2px solid #555;
+        }
+
+        .reply-item:hover {
+            background: #3a3a3a;
+        }
+
+        .reply-header {
+            margin-bottom: 8px;
+        }
+
+        .reply-time {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .reply-text {
+            color: #ddd;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .no-replies {
+            text-align: center;
+            color: #888;
+            padding: 30px;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #ccc;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>楼中楼回复</h2>
+            <button class="close-btn" id="closeBtn">&times;</button>
+        </div>
+
+        <div class="work-info" id="workInfo">
+            作品编号: <span id="workNumber">-</span>
+        </div>
+
+        <div class="original-comment-section">
+            <div class="section-title">原评论</div>
+            <div class="original-comment" id="originalComment">加载中...</div>
+        </div>
+
+        <div class="reply-input-section">
+            <div class="section-title">添加回复</div>
+            <textarea 
+                class="reply-input" 
+                id="replyInput" 
+                placeholder="说点什么..."
+                maxlength="1000"
+            ></textarea>
+            <button class="submit-btn" id="submitBtn" disabled>Submit</button>
+            <div class="message" id="message"></div>
+        </div>
+
+        <div class="replies-section">
+            <div class="reply-count" id="replyCount">0 条回复</div>
+            <div class="replies-list" id="repliesList">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let commentData = null;
+        let currentUserId = null;
+
+        // 监听来自 Wix 页面的消息
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+            
+            if (data.action === 'init') {
+                // 初始化数据
+                commentData = data.commentData;
+                currentUserId = data.currentUserId;
+                
+                // 显示原评论信息
+                displayOriginalComment();
+                
+                // 加载回复列表
+                await loadReplies();
+            } else if (data.action === 'show') {
+                // 显示弹窗（设置为可见）
+                document.body.style.display = 'block';
+            } else if (data.action === 'hide') {
+                // 隐藏弹窗
+                document.body.style.display = 'none';
+            }
+        });
+
+        // 显示原评论信息
+        function displayOriginalComment() {
+            if (!commentData) return;
+            
+            document.getElementById('originalComment').textContent = commentData.originalComment || '原评论内容';
+            document.getElementById('workNumber').textContent = commentData.workNumber || '-';
+        }
+
+        // 加载回复列表
+        async function loadReplies() {
+            const repliesList = document.getElementById('repliesList');
+            const replyCount = document.getElementById('replyCount');
+            
+            try {
+                // 向 Wix 页面请求回复数据
+                window.parent.postMessage({
+                    action: 'getReplies',
+                    commentId: commentData.commentId
+                }, '*');
+                
+                // 等待回复数据
+                window.addEventListener('message', function handleReplies(event) {
+                    if (event.data.action === 'repliesData') {
+                        const replies = event.data.replies || [];
+                        
+                        // 更新回复数量
+                        replyCount.textContent = `${replies.length} 条回复`;
+                        
+                        // 显示回复列表
+                        if (replies.length > 0) {
+                            repliesList.innerHTML = replies.map(reply => `
+                                <div class="reply-item">
+                                    <div class="reply-header">
+                                        <span class="reply-time">${formatDate(reply._createdDate || reply.submissionTime)}</span>
+                                    </div>
+                                    <div class="reply-text">${escapeHtml(reply.comment || '无内容')}</div>
+                                </div>
+                            `).join('');
+                        } else {
+                            repliesList.innerHTML = '<div class="no-replies">暂无回复</div>';
+                        }
+                        
+                        // 移除事件监听器，防止重复处理
+                        window.removeEventListener('message', handleReplies);
+                    }
+                });
+            } catch (error) {
+                console.error('加载回复失败:', error);
+                repliesList.innerHTML = '<div class="no-replies">加载失败</div>';
+            }
+        }
+
+        // 回复输入框变化事件
+        document.getElementById('replyInput').addEventListener('input', (e) => {
+            const hasContent = e.target.value.trim().length > 0;
+            document.getElementById('submitBtn').disabled = !hasContent;
+        });
+
+        // 提交回复按钮
+        document.getElementById('submitBtn').addEventListener('click', async () => {
+            const replyContent = document.getElementById('replyInput').value.trim();
+            const message = document.getElementById('message');
+            
+            if (!replyContent) {
+                return;
+            }
+            
+            if (!currentUserId) {
+                showMessage('请先登录', 'error');
+                return;
+            }
+            
+            // 禁用提交按钮
+            document.getElementById('submitBtn').disabled = true;
+            showMessage('提交中...', 'success');
+            
+            try {
+                // 向 Wix 页面发送提交回复请求
+                window.parent.postMessage({
+                    action: 'submitReply',
+                    commentId: commentData.commentId,
+                    workNumber: commentData.workNumber,
+                    replyContent: replyContent
+                }, '*');
+                
+                // 等待提交结果
+                window.addEventListener('message', function handleSubmitResult(event) {
+                    if (event.data.action === 'submitReplyResult') {
+                        if (event.data.success) {
+                            showMessage('回复提交成功！', 'success');
+                            document.getElementById('replyInput').value = '';
+                            
+                            // 1秒后刷新回复列表
+                            setTimeout(async () => {
+                                hideMessage();
+                                await loadReplies();
+                            }, 1000);
+                        } else {
+                            showMessage('提交失败: ' + (event.data.error || '未知错误'), 'error');
+                            document.getElementById('submitBtn').disabled = false;
+                        }
+                        
+                        // 移除事件监听器
+                        window.removeEventListener('message', handleSubmitResult);
+                    }
+                });
+            } catch (error) {
+                console.error('提交回复失败:', error);
+                showMessage('提交失败，请重试', 'error');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+
+        // 关闭按钮
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            // 通知 Wix 页面关闭
+            window.parent.postMessage({
+                action: 'closeReplies'
+            }, '*');
+        });
+
+        // 显示消息
+        function showMessage(text, type) {
+            const message = document.getElementById('message');
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+        }
+
+        // 隐藏消息
+        function hideMessage() {
+            document.getElementById('message').style.display = 'none';
+        }
+
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hour = String(date.getHours()).padStart(2, '0');
+            const minute = String(date.getMinutes()).padStart(2, '0');
+            return `${year}.${month}.${day} ${hour}:${minute}`;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
