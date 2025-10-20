@@ -122,6 +122,13 @@ async function loadBatchData() {
 
 // 页面初始化
 $w.onReady(async function () {
+  // 初始化删除提示文字元件（隐藏）
+  try {
+    $w("#textDelete").hide();
+  } catch (error) {
+    console.log("textDelete 元件未找到，跳过初始化");
+  }
+
   await checkUserVerification();
   updateCommentControlsVerificationStatus();
 
@@ -724,23 +731,106 @@ async function handleDeleteComment(itemData, isSelfScComment = false) {
 
     if (shouldDelete) {
       try {
+        // 显示删除开始提示
+        const commentPreview = itemData.comment.length > 30 
+          ? itemData.comment.substring(0, 30) + "..." 
+          : itemData.comment;
+        
+        $w("#textDelete").text = `🔄 正在删除评论...\n作品: #${itemData.workNumber}\n评分: ${itemData.score}\n评论: ${commentPreview}`;
+        $w("#textDelete").style.color = "#0066FF";
+        $w("#textDelete").show();
+        
+        // 执行删除操作
         const deleteResult = await deleteComment(
           itemData._id,
           currentUserId,
           deleteReason,
           isSelfScComment // 传递标记给后端，决定是否保存到 deleteInfor
         );
+        
         if (deleteResult.success) {
+          // 显示删除成功信息
+          let successMessage = `✅ 评论删除成功！\n作品: #${itemData.workNumber}\n`;
+          
+          if (isSelfScComment) {
+            successMessage += "类型: 自主评论删除\n不记录删除信息，不影响任务状态";
+          } else {
+            successMessage += `删除理由: ${deleteReason}\n已记录删除信息`;
+            
+            // 检查是否为作者自评
+            let isAuthorComment = false;
+            if (batchDataCache && batchDataCache.workOwnerMap) {
+              const workOwner = batchDataCache.workOwnerMap[itemData.workNumber];
+              isAuthorComment = itemData._owner === workOwner;
+            }
+            
+            if (isAuthorComment) {
+              successMessage += "\n类型: 作者自评，不影响任务状态";
+            } else {
+              successMessage += "\n类型: 正式评论，已同步任务状态";
+            }
+          }
+          
+          $w("#textDelete").text = successMessage;
+          $w("#textDelete").style.color = "#228B22";
+          
+          // 刷新页面数据
           await refreshRepeaters();
+          
+          // 3秒后隐藏提示
+          setTimeout(() => {
+            $w("#textDelete").hide();
+          }, 3000);
+          
         } else {
+          // 显示删除失败信息
+          $w("#textDelete").text = `❌ 删除评论失败\n作品: #${itemData.workNumber}\n错误: ${deleteResult.message}`;
+          $w("#textDelete").style.color = "#FF0000";
+          
           console.error("删除评论失败:", deleteResult.message);
+          
+          // 5秒后隐藏提示
+          setTimeout(() => {
+            $w("#textDelete").hide();
+          }, 5000);
         }
+        
       } catch (error) {
+        // 显示异常错误信息
+        $w("#textDelete").text = `❌ 删除评论时发生异常\n作品: #${itemData.workNumber}\n错误: ${error.message || "未知错误"}`;
+        $w("#textDelete").style.color = "#FF0000";
+        $w("#textDelete").show();
+        
         console.error("删除评论时发生错误:", error);
+        
+        // 5秒后隐藏提示
+        setTimeout(() => {
+          $w("#textDelete").hide();
+        }, 5000);
       }
+    } else {
+      // 用户取消删除
+      $w("#textDelete").text = "ℹ️ 已取消删除操作";
+      $w("#textDelete").style.color = "#A9A9A9";
+      $w("#textDelete").show();
+      
+      // 2秒后隐藏提示
+      setTimeout(() => {
+        $w("#textDelete").hide();
+      }, 2000);
     }
   } catch (error) {
     console.error("处理删除评论时发生错误:", error);
+    
+    // 显示异常信息
+    $w("#textDelete").text = `❌ 处理删除请求时发生异常\n错误: ${error.message || "未知错误"}`;
+    $w("#textDelete").style.color = "#FF0000";
+    $w("#textDelete").show();
+    
+    // 5秒后隐藏提示
+    setTimeout(() => {
+      $w("#textDelete").hide();
+    }, 5000);
   }
 }
 
