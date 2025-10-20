@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>删除确认</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 90%;
+            background: rgba(42, 42, 42, 0.95);
+            border: 2px solid #666;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #555;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .comment-info {
+            background: #333;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-left: 3px solid #666;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .comment-info div {
+            margin-bottom: 5px;
+        }
+
+        .comment-info div:last-child {
+            margin-bottom: 0;
+        }
+
+        .comment-preview {
+            background: #3a3a3a;
+            padding: 10px;
+            margin-top: 8px;
+            border-radius: 4px;
+            max-height: 80px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: #ddd;
+        }
+
+        .reason-section {
+            margin-bottom: 20px;
+        }
+
+        .reason-label {
+            font-size: 14px;
+            color: #fff;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .reason-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .reason-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .reason-input:disabled {
+            background: #2a2a2a;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .reason-input::placeholder {
+            color: #888;
+        }
+
+        .status-box {
+            background: #333;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid #666;
+            font-size: 14px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .status-box.loading {
+            display: block;
+            border-color: #64B5F6;
+            color: #64B5F6;
+        }
+
+        .status-box.success {
+            display: block;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .status-box.error {
+            display: block;
+            border-color: #f44336;
+            color: #f44336;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 25px;
+            font-size: 14px;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #555;
+            color: #fff;
+            border-color: #666;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #666;
+            border-color: #777;
+        }
+
+        .btn:disabled {
+            background: #3a3a3a;
+            color: #666;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-confirm {
+            background: #d32f2f;
+            border-color: #f44336;
+        }
+
+        .btn-confirm:hover:not(:disabled) {
+            background: #f44336;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>确认删除评论</h2>
+        </div>
+
+        <div class="comment-info" id="commentInfo">
+            <div>作品编号: <strong id="workNumber">-</strong></div>
+            <div>评分: <strong id="score">-</strong></div>
+            <div class="comment-preview" id="commentPreview">加载中...</div>
+        </div>
+
+        <div class="reason-section" id="reasonSection">
+            <label class="reason-label">删除理由</label>
+            <textarea 
+                class="reason-input" 
+                id="deleteReason" 
+                placeholder="请输入删除理由..."
+                maxlength="500"
+            ></textarea>
+        </div>
+
+        <div class="status-box" id="statusBox"></div>
+
+        <div class="button-container" id="buttonContainer">
+            <button class="btn btn-confirm" id="confirmBtn">确认删除</button>
+            <button class="btn" id="cancelBtn">取消</button>
+        </div>
+    </div>
+
+    <script>
+        let commentData = null;
+        let isDeleting = false;
+        let autoCloseInterval = null;
+        let autoCloseTimeout = null;
+
+        // 监听来自 Wix 页面的消息
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            
+            if (data.action === 'init') {
+                // 重置所有状态（确保每次打开都是干净的状态）
+                resetPanel();
+                
+                // 初始化数据
+                commentData = data.commentData;
+                displayCommentInfo();
+                
+                // 如果是自己删除自己的Sc评论，自动填写理由并禁用输入
+                if (commentData.isSelfScComment) {
+                    document.getElementById('deleteReason').value = '自主评论删除';
+                    document.getElementById('deleteReason').disabled = true;
+                }
+            } else if (data.action === 'deleteResult') {
+                // 接收删除结果
+                handleDeleteResult(data.result);
+            }
+        });
+
+        // 重置面板状态
+        function resetPanel() {
+            // 重置标志
+            isDeleting = false;
+            clearAutoCloseCountdown();
+            
+            // 重置删除理由输入框
+            const deleteReasonInput = document.getElementById('deleteReason');
+            deleteReasonInput.value = '';
+            deleteReasonInput.disabled = false;
+            
+            // 重置按钮状态
+            enableButtons();
+            
+            // 隐藏状态显示框
+            const statusBox = document.getElementById('statusBox');
+            statusBox.style.display = 'none';
+            statusBox.className = 'status-box';
+            statusBox.textContent = '';
+            
+            // 重置评论信息显示
+            document.getElementById('workNumber').textContent = '-';
+            document.getElementById('score').textContent = '-';
+            document.getElementById('commentPreview').textContent = '加载中...';
+        }
+
+        function clearAutoCloseCountdown() {
+            if (autoCloseInterval) {
+                clearInterval(autoCloseInterval);
+                autoCloseInterval = null;
+            }
+            if (autoCloseTimeout) {
+                clearTimeout(autoCloseTimeout);
+                autoCloseTimeout = null;
+            }
+        }
+
+        function startAutoCloseCountdown(seconds, baseMessage, statusType) {
+            clearAutoCloseCountdown();
+            let remaining = seconds;
+            const statusBox = document.getElementById('statusBox');
+            
+            // 确保状态框保持正确的样式类和可见性
+            statusBox.className = `status-box ${statusType}`;
+            // 关键：清除内联样式，让 CSS 类的 display: block 生效
+            statusBox.style.display = '';
+            
+            const update = () => {
+                statusBox.textContent = `${baseMessage}\n\n在 ${remaining} 秒后关闭该窗口…`;
+            };
+            update();
+            
+            autoCloseInterval = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearInterval(autoCloseInterval);
+                    autoCloseInterval = null;
+                    return;
+                }
+                update();
+            }, 1000);
+            
+            autoCloseTimeout = setTimeout(() => {
+                clearAutoCloseCountdown();
+                window.parent.postMessage({ action: 'closeDeleteConfirmation' }, '*');
+            }, seconds * 1000);
+        }
+
+        // 显示评论信息
+        function displayCommentInfo() {
+            if (!commentData) return;
+            
+            document.getElementById('workNumber').textContent = commentData.workNumber || '-';
+            document.getElementById('score').textContent = commentData.score || '-';
+            
+            const comment = commentData.comment || '无内容';
+            const preview = comment.length > 100 ? comment.substring(0, 100) + '...' : comment;
+            document.getElementById('commentPreview').textContent = preview;
+        }
+
+        // 确认删除按钮
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            if (isDeleting) return;
+            
+            const deleteReason = document.getElementById('deleteReason').value.trim();
+            
+            // 验证删除理由（如果不是自己删除自己的Sc评论）
+            if (!commentData.isSelfScComment && !deleteReason) {
+                showStatus('请填写删除理由', 'error');
+                return;
+            }
+            
+            // 显示删除中状态
+            isDeleting = true;
+            showStatus('正在删除评论，请稍候...', 'loading');
+            disableButtons();
+            
+            // 发送删除请求到 Wix 页面
+            window.parent.postMessage({
+                action: 'confirmDelete',
+                commentData: commentData,
+                deleteReason: deleteReason || '自主评论删除'
+            }, '*');
+        });
+
+        // 取消按钮
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            if (isDeleting) return;
+            
+            // 通知 Wix 页面取消删除
+            window.parent.postMessage({
+                action: 'cancelDelete'
+            }, '*');
+        });
+
+        // 显示状态信息
+        function showStatus(message, type) {
+            const statusBox = document.getElementById('statusBox');
+            statusBox.textContent = message;
+            statusBox.className = `status-box ${type}`;
+            // 清除内联样式，让 CSS 类的 display: block 生效
+            statusBox.style.display = '';
+        }
+
+        // 禁用按钮
+        function disableButtons() {
+            document.getElementById('confirmBtn').disabled = true;
+            document.getElementById('cancelBtn').disabled = true;
+        }
+
+        // 启用按钮
+        function enableButtons() {
+            document.getElementById('confirmBtn').disabled = false;
+            document.getElementById('cancelBtn').disabled = false;
+        }
+
+        // 处理删除结果
+        function handleDeleteResult(result) {
+            isDeleting = false;
+            
+            if (result.success) {
+                // 删除成功
+                let message = `删除成功！\n作品: #${commentData.workNumber}`;
+                
+                if (commentData.isSelfScComment) {
+                    message += '\n类型: 自主评论删除\n不记录删除信息';
+                } else {
+                    message += `\n删除理由: ${result.deleteReason}\n已记录删除信息`;
+                }
+                
+                if (result.isAuthorComment) {
+                    message += '\n类型: 作者自评';
+                } else if (!commentData.isSelfScComment) {
+                    message += '\n类型: 正式评论，已同步任务状态';
+                }
+                
+                // 显示成功状态并启动倒计时（5秒）
+                startAutoCloseCountdown(5, message, 'success');
+                
+            } else {
+                // 删除失败
+                showStatus(`删除失败\n${result.message || '未知错误'}`, 'error');
+                enableButtons();
+            }
+        }
+    </script>
+</body>
+</html>
+

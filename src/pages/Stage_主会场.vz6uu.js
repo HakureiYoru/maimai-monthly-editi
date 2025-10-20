@@ -147,6 +147,9 @@ $w.onReady(async function () {
 
   // 初始化自定义HTML楼中楼回复面板
   initCommentRepliesPanel();
+  
+  // 初始化删除确认面板
+  initDeleteConfirmationPanel();
 
   // Repeater2: 作品显示
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
@@ -704,133 +707,117 @@ function showTextPopup(content) {
   wixWindow.openLightbox("TextPopup", { content: content });
 }
 
+// 显示删除确认面板（替代原来的 lightbox）
 async function handleDeleteComment(itemData, isSelfScComment = false) {
   try {
-    const result = await wixWindow.openLightbox("DeleteConfirmation", {
-      commentId: itemData._id,
-      workNumber: itemData.workNumber,
-      score: itemData.score,
-      comment: itemData.comment,
-      isSelfScComment: isSelfScComment, // 传递标记给 lightbox
-    });
-
-    let shouldDelete = false;
-    let deleteReason = "";
-
-    if (typeof result === "string" && result === "confirm") {
-      shouldDelete = true;
-      deleteReason = isSelfScComment ? "自主评论删除" : "未填写删除理由";
-    } else if (
-      result &&
-      typeof result === "object" &&
-      result.action === "confirm"
-    ) {
-      shouldDelete = true;
-      deleteReason = result.reason || (isSelfScComment ? "自主评论删除" : "未填写删除理由");
-    }
-
-    if (shouldDelete) {
-      try {
-        // 显示删除开始提示
-        const commentPreview = itemData.comment.length > 30 
-          ? itemData.comment.substring(0, 30) + "..." 
-          : itemData.comment;
-        
-        $w("#textDelete").text = `🔄 正在删除评论...\n作品: #${itemData.workNumber}\n评分: ${itemData.score}\n评论: ${commentPreview}`;
-        $w("#textDelete").style.color = "#0066FF";
-        $w("#textDelete").show();
-        
-        // 执行删除操作
-        const deleteResult = await deleteComment(
-          itemData._id,
-          currentUserId,
-          deleteReason,
-          isSelfScComment // 传递标记给后端，决定是否保存到 deleteInfor
-        );
-        
-        if (deleteResult.success) {
-          // 显示删除成功信息
-          let successMessage = `✅ 评论删除成功！\n作品: #${itemData.workNumber}\n`;
-          
-          if (isSelfScComment) {
-            successMessage += "类型: 自主评论删除\n不记录删除信息，不影响任务状态";
-          } else {
-            successMessage += `删除理由: ${deleteReason}\n已记录删除信息`;
-            
-            // 检查是否为作者自评
-            let isAuthorComment = false;
-            if (batchDataCache && batchDataCache.workOwnerMap) {
-              const workOwner = batchDataCache.workOwnerMap[itemData.workNumber];
-              isAuthorComment = itemData._owner === workOwner;
-            }
-            
-            if (isAuthorComment) {
-              successMessage += "\n类型: 作者自评，不影响任务状态";
-            } else {
-              successMessage += "\n类型: 正式评论，已同步任务状态";
-            }
-          }
-          
-          $w("#textDelete").text = successMessage;
-          $w("#textDelete").style.color = "#228B22";
-          
-          // 刷新页面数据
-          await refreshRepeaters();
-          
-          // 3秒后隐藏提示
-          setTimeout(() => {
-            $w("#textDelete").hide();
-          }, 3000);
-          
-        } else {
-          // 显示删除失败信息
-          $w("#textDelete").text = `❌ 删除评论失败\n作品: #${itemData.workNumber}\n错误: ${deleteResult.message}`;
-          $w("#textDelete").style.color = "#FF0000";
-          
-          console.error("删除评论失败:", deleteResult.message);
-          
-          // 5秒后隐藏提示
-          setTimeout(() => {
-            $w("#textDelete").hide();
-          }, 5000);
-        }
-        
-      } catch (error) {
-        // 显示异常错误信息
-        $w("#textDelete").text = `❌ 删除评论时发生异常\n作品: #${itemData.workNumber}\n错误: ${error.message || "未知错误"}`;
-        $w("#textDelete").style.color = "#FF0000";
-        $w("#textDelete").show();
-        
-        console.error("删除评论时发生错误:", error);
-        
-        // 5秒后隐藏提示
-        setTimeout(() => {
-          $w("#textDelete").hide();
-        }, 5000);
+    // 显示删除确认面板
+    $w("#deleteConfirmation").show();
+    
+    // 发送初始化数据到HTML元件
+    $w("#deleteConfirmation").postMessage({
+      action: 'init',
+      commentData: {
+        commentId: itemData._id,
+        workNumber: itemData.workNumber,
+        score: itemData.score,
+        comment: itemData.comment,
+        isSelfScComment: isSelfScComment,
+        _owner: itemData._owner
       }
-    } else {
-      // 用户取消删除
-      $w("#textDelete").text = "ℹ️ 已取消删除操作";
-      $w("#textDelete").style.color = "#A9A9A9";
-      $w("#textDelete").show();
-      
-      // 2秒后隐藏提示
-      setTimeout(() => {
-        $w("#textDelete").hide();
-      }, 2000);
-    }
+    });
+    
   } catch (error) {
-    console.error("处理删除评论时发生错误:", error);
+    console.error("显示删除确认面板失败:", error);
+  }
+}
+
+// 关闭删除确认面板
+function closeDeleteConfirmation() {
+  try {
+    $w("#deleteConfirmation").hide();
+  } catch (error) {
+    console.error("关闭删除确认面板失败:", error);
+  }
+}
+
+// 执行删除操作
+async function executeDelete(commentData, deleteReason) {
+  try {
+    // 执行删除
+    const deleteResult = await deleteComment(
+      commentData.commentId,
+      currentUserId,
+      deleteReason,
+      commentData.isSelfScComment
+    );
     
-    // 显示异常信息
-    $w("#textDelete").text = `❌ 处理删除请求时发生异常\n错误: ${error.message || "未知错误"}`;
-    $w("#textDelete").style.color = "#FF0000";
-    $w("#textDelete").show();
+    if (deleteResult.success) {
+      // 检查是否为作者自评
+      let isAuthorComment = false;
+      if (batchDataCache && batchDataCache.workOwnerMap) {
+        const workOwner = batchDataCache.workOwnerMap[commentData.workNumber];
+        isAuthorComment = commentData._owner === workOwner;
+      }
+      
+      // 发送删除成功结果到HTML元件
+      $w("#deleteConfirmation").postMessage({
+        action: 'deleteResult',
+        result: {
+          success: true,
+          deleteReason: deleteReason,
+          isAuthorComment: isAuthorComment
+        }
+      });
+      
+    } else {
+      // 发送删除失败结果到HTML元件
+      $w("#deleteConfirmation").postMessage({
+        action: 'deleteResult',
+        result: {
+          success: false,
+          message: deleteResult.message || '删除失败'
+        }
+      });
+    }
     
-    // 5秒后隐藏提示
-    setTimeout(() => {
-      $w("#textDelete").hide();
-    }, 5000);
+  } catch (error) {
+    console.error("执行删除操作失败:", error);
+    
+    // 发送错误结果到HTML元件
+    $w("#deleteConfirmation").postMessage({
+      action: 'deleteResult',
+      result: {
+        success: false,
+        message: error.message || '删除时发生异常'
+      }
+    });
+  }
+}
+
+// 初始化删除确认面板
+function initDeleteConfirmationPanel() {
+  try {
+    // 初始时隐藏面板
+    $w("#deleteConfirmation").hide();
+    
+    // 监听来自HTML元件的消息
+    $w("#deleteConfirmation").onMessage(async (event) => {
+      const action = event.data.action;
+      
+      if (action === 'confirmDelete') {
+        // 执行删除操作
+        await executeDelete(event.data.commentData, event.data.deleteReason);
+      } else if (action === 'cancelDelete') {
+        // 取消删除
+        closeDeleteConfirmation();
+      } else if (action === 'closeDeleteConfirmation') {
+        // 关闭面板并刷新数据
+        closeDeleteConfirmation();
+        await refreshRepeaters();
+      }
+    });
+  } catch (error) {
+    console.error("初始化删除确认面板失败:", error);
   }
 }
 

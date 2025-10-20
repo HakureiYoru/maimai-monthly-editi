@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提交须知</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 90%;
+            max-height: 85vh;
+            background: rgba(42, 42, 42, 0.92); /* 半透明 */
+            border: 2px solid #666;
+            border-radius: 18px; /* 圆角 */
+            padding: 30px;
+            overflow-y: auto;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.24);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #555;
+        }
+
+        .header h2 {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .section-box {
+            background: #333;
+            border-left: 3px solid #666;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .section-box .title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .section-box p {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #ddd;
+            margin-bottom: 10px;
+        }
+
+        .section-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .link-box {
+            text-align: center;
+            padding: 15px;
+            background: #333;
+            border: 1px solid #555;
+            margin-bottom: 20px;
+        }
+
+        .link-box a {
+            display: inline-block;
+            color: #ccc;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 10px 20px;
+            border: 1px solid #666;
+            background: #444;
+            transition: all 0.3s;
+        }
+
+        .link-box a:hover {
+            background: #555;
+            border-color: #777;
+            color: #fff;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-top: 25px;
+        }
+
+        .close-btn {
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 12px 40px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: #666;
+            border-color: #777;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>提交须知</h2>
+            <div class="subtitle">请仔细阅读以下内容</div>
+        </div>
+
+        <div class="section-box">
+            <div class="title">公开性声明</div>
+            <p>你的谱面在整个会场、整个比赛流程的谱面文件可以被下载，其他比赛成员能在过程中拿到谱面文件进行私下游玩。</p>
+            <p>提交到MMFC赛场的谱面至少会在赛程中作为公共资源使用。</p>
+        </div>
+
+        <div class="section-box">
+            <div class="title">对于本系统，请您务必做到</div>
+            <p><strong>不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。</strong></p>
+        </div>
+
+        <div class="section-box">
+            <p>本次海选系统同时由 <strong>majdata</strong> 开发者支持并更新了在线预览页面。您可以在net上的"mmfc_bot"账号查询到实时同步的作品。</p>
+        </div>
+
+        <div class="link-box">
+            <a href="https://majdata.net/" target="_blank" rel="noopener noreferrer">
+                访问 Majdata.net
+            </a>
+        </div>
+
+        <div class="button-container">
+            <button class="close-btn" id="closeBtn">我已了解</button>
+        </div>
+    </div>
+
+    <script>
+        // 关闭按钮
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            // 通知 Wix 页面关闭
+            window.parent.postMessage({
+                action: 'closeNotification'
+            }, '*');
+        });
+    </script>
+</body>
+</html>
+

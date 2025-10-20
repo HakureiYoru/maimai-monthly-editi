@@ -13,9 +13,64 @@ async function isAdmin() {
     return false;
 }
 
+// 初始化提交须知通知面板
+function initSubmitNotification() {
+    try {
+        // 初始时隐藏面板
+        $w("#notification").hide();
+        
+        // 监听来自HTML元件的消息
+        $w("#notification").onMessage((event) => {
+            const action = event.data.action;
+            
+            if (action === 'closeNotification') {
+                // 关闭通知面板
+                closeSubmitNotification();
+            }
+        });
+    } catch (error) {
+        console.error("初始化提交须知面板失败:", error);
+    }
+}
+
+// 显示提交须知面板
+function showSubmitNotification() {
+    try {
+        $w("#notification").show();
+    } catch (error) {
+        console.error("显示提交须知面板失败:", error);
+    }
+}
+
+// 关闭提交须知面板
+function closeSubmitNotification() {
+    try {
+        $w("#notification").hide();
+    } catch (error) {
+        console.error("关闭提交须知面板失败:", error);
+    }
+}
+
 $w.onReady(async function () {
     const isUserAdmin = await isAdmin(); 
     const currentUserId = wixUsers.currentUser.id;
+    
+    // 初始化提交须知通知面板
+    initSubmitNotification();
+    
+    // 页面加载时自动显示通知
+    setTimeout(() => {
+        showSubmitNotification();
+    }, 500);
+    
+    // 设置重新打开通知按钮的点击事件
+    try {
+        $w("#openNotification").onClick(() => {
+            showSubmitNotification();
+        });
+    } catch (error) {
+        console.log("openNotification 按钮未找到或未配置");
+    }
     
     // 逻辑流程：管理员 → 是否报名 → 是否重复提交
     if (isUserAdmin) {
