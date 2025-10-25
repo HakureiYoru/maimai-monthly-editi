@@ -236,6 +236,37 @@
             border-color: #777;
         }
 
+        .comment-content {
+            background: #2a2a2a;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            border: 1px solid #444;
+        }
+
+        .comment-content.show {
+            display: block;
+        }
+
+        .comment-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .comment-content::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .comment-content::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -523,20 +554,25 @@
                     <span class="info-label">删除理由:</span>
                     ${escapeHtml(record.deleteReason || '未填写')}
                 </div>
-                <button class="view-btn" data-comment="${escapeHtml(record.deletedComment || '评论内容获取失败')}">
+                <button class="view-btn">
                     查看评论内容
                 </button>
+                <div class="comment-content">
+                    ${escapeHtml(record.deletedComment || '评论内容获取失败').replace(/\n/g, '<br>')}
+                </div>
             `;
 
             // 绑定查看评论按钮事件
             const viewBtn = div.querySelector('.view-btn');
+            const commentContent = div.querySelector('.comment-content');
+            
             viewBtn.addEventListener('click', () => {
-                const comment = record.deletedComment || '评论内容获取失败';
-                // 通知 Wix 页面打开弹窗
-                window.parent.postMessage({
-                    action: 'openTextPopup',
-                    content: comment
-                }, '*');
+                commentContent.classList.toggle('show');
+                if (commentContent.classList.contains('show')) {
+                    viewBtn.textContent = '收起评论内容';
+                } else {
+                    viewBtn.textContent = '查看评论内容';
+                }
             });
 
             return div;

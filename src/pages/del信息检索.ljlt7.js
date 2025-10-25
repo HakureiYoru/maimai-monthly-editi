@@ -2,7 +2,6 @@
 // "Hello, World!" Example: https://learn-code.wix.com/en/article/hello-world
 
 import wixData from 'wix-data';
-import wixWindow from 'wix-window';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
 /**
@@ -135,11 +134,5 @@ async function handleHtmlMessage(event) {
                 workTitle: workTitle
             });
         }
-        
-    } else if (data.action === 'openTextPopup') {
-        // HTML元件请求打开文本弹窗
-        wixWindow.openLightbox("TextPopup", { 
-            content: data.content 
-        });
     }
 }
