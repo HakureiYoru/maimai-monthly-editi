@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>评论检索</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            background: rgba(42, 42, 42, 0.92);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 2px solid #555;
+            flex-shrink: 0;
+        }
+
+        .header h2 {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .controls {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .search-input::placeholder {
+            color: #888;
+        }
+
+        select {
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .view-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #333;
+            padding: 10px 15px;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        .view-switch-label {
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #FFD700;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .work-card {
+            background: #333;
+            border-left: 3px solid #666;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .work-card:hover {
+            background: #3a3a3a;
+            border-left-color: #888;
+        }
+
+        .work-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #444;
+        }
+
+        .work-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .work-id {
+            background: #555;
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        .comment-count {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .weight-info {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+
+        .weight-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+        }
+
+        .weight-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .high-weight-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .low-weight-badge {
+            background: linear-gradient(135deg, #90EE90, #32CD32);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .comments-section {
+            margin-top: 10px;
+        }
+
+        .comments-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ccc;
+            margin-bottom: 10px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .comments-header:hover {
+            color: #fff;
+        }
+
+        .toggle-icon {
+            transition: transform 0.3s;
+        }
+
+        .toggle-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .comments-list {
+            display: grid;
+            gap: 10px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .comments-list.expanded {
+            max-height: 5000px;
+        }
+
+        .comment-item {
+            background: #2a2a2a;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 3px solid #555;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .comment-user {
+            font-weight: bold;
+            color: #ddd;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .comment-time {
+            font-size: 11px;
+            color: #888;
+            font-weight: normal;
+            margin-left: 8px;
+        }
+
+        .comment-score {
+            font-weight: bold;
+            font-size: 16px;
+            color: #FFD700;
+        }
+
+        .comment-text {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.5;
+            max-height: 60px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+        }
+
+        .expand-comment {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #888;
+            cursor: pointer;
+        }
+
+        .expand-comment:hover {
+            color: #aaa;
+            text-decoration: underline;
+        }
+
+        .comment-text.full {
+            max-height: none;
+            -webkit-line-clamp: unset;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 15px;
+            margin: 10px 20px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+
+        @media (max-width: 768px) {
+            .weight-stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>评论检索系统</h2>
+            <div class="controls">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        id="searchInput" 
+                        placeholder="搜索作品ID或标题..."
+                    />
+                </div>
+                <select id="sortBy">
+                    <option value="id">按ID排序</option>
+                    <option value="comments">按评论数排序</option>
+                </select>
+                <div class="view-switch">
+                    <span class="view-switch-label">按用户视图</span>
+                    <label class="switch">
+                        <input type="checkbox" id="viewToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div class="content" id="content">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script>
+        let allWorks = [];
+        let userIdToNumberMap = {}; // 用户ID到编号的映射
+        let nextUserNumber = 1; // 下一个分配的用户编号
+        let isUserView = false; // 当前是否为用户视图
+
+        // 监听来自 Wix 页面的消息
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+            
+            if (data.action === 'init') {
+                // 初始化：接收作品评论数据
+                allWorks = data.works || [];
+                await displayCurrentView();
+            }
+        });
+
+        // 获取加密的用户名（一对一映射）
+        function getEncryptedUserName(userId) {
+            // 如果已经分配过编号，直接返回
+            if (userIdToNumberMap[userId]) {
+                return `选手${String(userIdToNumberMap[userId]).padStart(3, '0')}`;
+            }
+            
+            // 分配新编号
+            userIdToNumberMap[userId] = nextUserNumber;
+            nextUserNumber++;
+            
+            return `选手${String(userIdToNumberMap[userId]).padStart(3, '0')}`;
+        }
+
+        // 显示当前视图
+        async function displayCurrentView() {
+            if (isUserView) {
+                await displayUserView();
+            } else {
+                await displayWorks(allWorks);
+            }
+        }
+
+        // 按用户分组数据
+        function groupByUser() {
+            const userCommentsMap = {};
+            
+            for (const work of allWorks) {
+                if (!work.raters) continue;
+                
+                for (const rater of work.raters) {
+                    const userId = rater.userId;
+                    
+                    if (!userCommentsMap[userId]) {
+                        userCommentsMap[userId] = {
+                            isHighQuality: rater.isHighQuality === true, // 明确转换为布尔值
+                            comments: []
+                        };
+                    }
+                    
+                    userCommentsMap[userId].comments.push({
+                        workId: work.sequenceId,
+                        workTitle: work.title,
+                        score: rater.score,
+                        comment: rater.comment,
+                        createdDate: rater.createdDate
+                    });
+                }
+            }
+            
+            // 转换为数组并排序
+            const usersData = [];
+            for (const userId in userCommentsMap) {
+                const userData = userCommentsMap[userId];
+                
+                // 按作品ID排序
+                userData.comments.sort((a, b) => a.workId - b.workId);
+                
+                usersData.push({
+                    userId: userId,
+                    commentCount: userData.comments.length,
+                    isHighQuality: userData.isHighQuality, // 已经是明确的布尔值
+                    comments: userData.comments
+                });
+            }
+            
+            // 按用户编号排序
+            usersData.sort((a, b) => {
+                const numA = userIdToNumberMap[a.userId] || 0;
+                const numB = userIdToNumberMap[b.userId] || 0;
+                return numA - numB;
+            });
+            
+            return usersData;
+        }
+
+        // 显示按用户视图
+        async function displayUserView() {
+            const content = document.getElementById('content');
+            const usersData = groupByUser();
+            
+            if (usersData.length === 0) {
+                content.innerHTML = '<div class="no-data">暂无评论数据</div>';
+                return;
+            }
+
+            content.innerHTML = '';
+
+            for (const userData of usersData) {
+                const card = await createUserCard(userData);
+                content.appendChild(card);
+            }
+        }
+
+        // 创建用户卡片
+        async function createUserCard(userData) {
+            const card = document.createElement('div');
+            card.className = 'work-card';
+
+            const encryptedName = getEncryptedUserName(userData.userId);
+            
+            // 用户权重标记
+            const userWeightBadge = userData.isHighQuality 
+                ? '<span class="high-weight-badge">⭐高权重用户</span>'
+                : '<span class="low-weight-badge">●低权重用户</span>';
+
+            // 构建评论列表HTML（不显示每条评论的权重标记）
+            let commentsHtml = userData.comments.map(comment => {
+                const commentText = comment.comment || '无评论';
+                const needsExpand = commentText.length > 100;
+                const timeStr = formatDate(comment.createdDate);
+                
+                return `
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <div class="comment-user">
+                                <span>#${comment.workId} - ${escapeHtml(comment.workTitle)}</span>
+                                ${timeStr ? `<span class="comment-time">${timeStr}</span>` : ''}
+                            </div>
+                            <div class="comment-score">${comment.score} 分</div>
+                        </div>
+                        <div class="comment-text" data-full-text="${escapeHtml(commentText)}">
+                            ${escapeHtml(commentText)}
+                        </div>
+                        ${needsExpand ? '<div class="expand-comment" onclick="toggleComment(this)">展开全文</div>' : ''}
+                    </div>
+                `;
+            }).join('');
+
+            card.innerHTML = `
+                <div class="work-header">
+                    <div class="work-title">
+                        <span class="work-id">${encryptedName}</span>
+                        ${userWeightBadge}
+                    </div>
+                    <div class="comment-count">${userData.commentCount} 条评论</div>
+                </div>
+                <div class="comments-section">
+                    <div class="comments-header" onclick="toggleComments(this)">
+                        <span class="toggle-icon">▶</span>
+                        <span>评论列表 (${userData.commentCount})</span>
+                    </div>
+                    <div class="comments-list">
+                        ${commentsHtml}
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // 显示作品列表
+        async function displayWorks(works) {
+            const content = document.getElementById('content');
+            
+            if (works.length === 0) {
+                content.innerHTML = '<div class="no-data">暂无评论数据</div>';
+                return;
+            }
+
+            content.innerHTML = '';
+
+            for (const work of works) {
+                const card = await createWorkCard(work);
+                content.appendChild(card);
+            }
+        }
+
+        // 创建作品卡片
+        async function createWorkCard(work) {
+            const card = document.createElement('div');
+            card.className = 'work-card';
+
+            // 权重统计
+            const highPercent = work.numRatings > 0 
+                ? (work.highWeightCount / work.numRatings * 100).toFixed(1)
+                : 0;
+            const lowPercent = work.numRatings > 0
+                ? (work.lowWeightCount / work.numRatings * 100).toFixed(1)
+                : 0;
+
+            // 构建评论列表HTML
+            let commentsHtml = '';
+            if (work.raters && work.raters.length > 0) {
+                for (const rater of work.raters) {
+                    // 使用加密的用户名
+                    const encryptedName = getEncryptedUserName(rater.userId);
+                    const weightBadge = (rater.isHighQuality === true)
+                        ? '<span class="high-weight-badge">⭐高权重</span>'
+                        : '<span class="low-weight-badge">●低权重</span>';
+                    
+                    const commentText = rater.comment || '无评论';
+                    const needsExpand = commentText.length > 100;
+                    const timeStr = formatDate(rater.createdDate);
+                    
+                    commentsHtml += `
+                        <div class="comment-item">
+                            <div class="comment-header">
+                                <div class="comment-user">
+                                    <span>${encryptedName}</span>
+                                    ${weightBadge}
+                                    ${timeStr ? `<span class="comment-time">${timeStr}</span>` : ''}
+                                </div>
+                                <div class="comment-score">${rater.score} 分</div>
+                            </div>
+                            <div class="comment-text" data-full-text="${escapeHtml(commentText)}">
+                                ${escapeHtml(commentText)}
+                            </div>
+                            ${needsExpand ? '<div class="expand-comment" onclick="toggleComment(this)">展开全文</div>' : ''}
+                        </div>
+                    `;
+                }
+            } else {
+                commentsHtml = '<div class="no-data">暂无评论</div>';
+            }
+
+            card.innerHTML = `
+                <div class="work-header">
+                    <div class="work-title">
+                        <span class="work-id">#${work.sequenceId}</span>
+                        <span>${escapeHtml(work.title)}</span>
+                    </div>
+                    <div class="comment-count">${work.numRatings} 条评论</div>
+                </div>
+                ${work.numRatings > 0 ? `
+                <div class="weight-info">
+                    <div class="weight-stats">
+                        <div class="weight-item">
+                            <span style="color: #FFA500;">⭐ 高权重:</span>
+                            <strong>${work.highWeightCount} 人 (${highPercent}%)</strong>
+                        </div>
+                        <div class="weight-item">
+                            <span style="color: #32CD32;">● 低权重:</span>
+                            <strong>${work.lowWeightCount} 人 (${lowPercent}%)</strong>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="comments-section">
+                    <div class="comments-header" onclick="toggleComments(this)">
+                        <span class="toggle-icon">▶</span>
+                        <span>评论列表 (${work.numRatings})</span>
+                    </div>
+                    <div class="comments-list">
+                        ${commentsHtml}
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // 切换评论列表显示
+        function toggleComments(header) {
+            const icon = header.querySelector('.toggle-icon');
+            const list = header.nextElementSibling;
+            
+            icon.classList.toggle('expanded');
+            list.classList.toggle('expanded');
+        }
+
+        // 切换评论展开/收起
+        function toggleComment(btn) {
+            const commentText = btn.previousElementSibling;
+            const isExpanded = commentText.classList.contains('full');
+            
+            if (isExpanded) {
+                commentText.classList.remove('full');
+                btn.textContent = '展开全文';
+            } else {
+                commentText.classList.add('full');
+                btn.textContent = '收起';
+            }
+        }
+
+
+        // 视图切换
+        document.getElementById('viewToggle').addEventListener('change', (e) => {
+            isUserView = e.target.checked;
+            displayCurrentView();
+        });
+
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchValue = e.target.value.trim().toLowerCase();
+            // 搜索功能在用户视图下暂不支持
+            if (isUserView) {
+                return;
+            }
+            filterWorks(searchValue);
+        });
+
+        function filterWorks(searchValue) {
+            if (!searchValue) {
+                displayWorks(allWorks);
+                return;
+            }
+
+            const filtered = allWorks.filter(work => {
+                const id = String(work.sequenceId).toLowerCase();
+                const title = String(work.title || '').toLowerCase();
+                return id.includes(searchValue) || title.includes(searchValue);
+            });
+
+            displayWorks(filtered);
+        }
+
+        // 排序功能
+        document.getElementById('sortBy').addEventListener('change', (e) => {
+            const sortBy = e.target.value;
+            // 排序功能在用户视图下暂不支持
+            if (isUserView) {
+                return;
+            }
+            sortWorks(sortBy);
+        });
+
+        function sortWorks(sortBy) {
+            let sorted = [...allWorks];
+            
+            if (sortBy === 'id') {
+                sorted.sort((a, b) => a.sequenceId - b.sequenceId);
+            } else if (sortBy === 'comments') {
+                sorted.sort((a, b) => b.numRatings - a.numRatings);
+            }
+            
+            allWorks = sorted;
+            displayWorks(sorted);
+        }
+
+        // HTML 转义
+        // 格式化时间显示
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+

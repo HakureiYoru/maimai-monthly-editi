@@ -548,13 +548,16 @@ export async function getWorkWeightedRatingData(workNumber) {
         originalAverage: 0,
         highWeightCount: 0, 
         lowWeightCount: 0,
-        ratio: 0
+        ratio: 0,
+        userQualityMap: {}
       };
     }
     
     // 排除作者自评
     const validRatings = comments.items.filter(c => c._owner !== work._owner);
     
+    // 构建用户权重映射
+    const userQualityMap = {};
     let highWeightSum = 0;
     let highWeightCount = 0;
     let lowWeightSum = 0;
@@ -562,6 +565,8 @@ export async function getWorkWeightedRatingData(workNumber) {
     
     for (const comment of validRatings) {
       const isHighQuality = await isUserHighQuality(comment._owner);
+      userQualityMap[comment._owner] = isHighQuality;
+      
       if (isHighQuality) {
         highWeightSum += comment.score;
         highWeightCount++;
@@ -592,7 +597,8 @@ export async function getWorkWeightedRatingData(workNumber) {
       originalAverage: originalAverage,
       highWeightCount: highWeightCount,
       lowWeightCount: lowWeightCount,
-      ratio: ratio
+      ratio: ratio,
+      userQualityMap: userQualityMap
     };
   } catch (error) {
     // console.error('获取加权评分数据失败:', error);
@@ -600,9 +606,10 @@ export async function getWorkWeightedRatingData(workNumber) {
       numRatings: 0, 
       weightedAverage: 0, 
       originalAverage: 0,
-      highWeightCount: 0, 
+      highWeightCount: 0,
       lowWeightCount: 0,
-      ratio: 0
+      ratio: 0,
+      userQualityMap: {}
     };
   }
 }
