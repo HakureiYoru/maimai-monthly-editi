@@ -6,7 +6,7 @@ import wixWindow from 'wix-window';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
 /**
- * 本地函数：获取用户昵称，模仿getFullUserRanking的方式
+ * 本地函数：获取用户昵称
  */
 async function getUserNickname(userId) {
     try {
@@ -25,7 +25,7 @@ async function getUserNickname(userId) {
             return result.items[0].nickname;
         }
         
-        // 如果都失败了，返回"失效账号"（与getFullUserRanking保持一致）
+        // 如果都失败了，返回"失效账号"
         return '失效账号';
         
     } catch (error) {
@@ -34,36 +34,64 @@ async function getUserNickname(userId) {
     }
 }
 
+/**
+ * 本地函数：获取作品标题
+ */
+async function getWorkTitle(workNumber) {
+    try {
+        // 查询 enterContest034 数据集
+        const result = await wixData.query("enterContest034")
+            .eq("sequenceId", workNumber)
+            .find();
+            
+        if (result.items.length > 0 && result.items[0].firstName) {
+            return result.items[0].firstName;
+        }
+        
+        // 如果没找到，返回未知
+        return '未知标题';
+        
+    } catch (error) {
+        console.error('获取作品标题失败:', error);
+        return '未知标题';
+    }
+}
+
 $w.onReady(async function () {
-    // 初始化页面数据
+    // 加载删除记录数据
     await loadDeleteRecords();
     
-    // 设置删除记录重复器的事件处理
-    $w('#delRepeater').onItemReady(async ($item, itemData, index) => {
-        await setupDeleteRecordItem($item, itemData);
-    });
+    // 监听来自自定义HTML元件的消息
+    // @ts-ignore - 自定义HTML元件ID
+    const htmlElement = $w('#deleteRecordsHtml');
+    if (htmlElement && htmlElement.onMessage) {
+        htmlElement.onMessage((event) => {
+            handleHtmlMessage(event);
+        });
+    }
 });
 
 /**
  * 加载删除记录数据
  */
-async function loadDeleteRecords(searchValue = '') {
+async function loadDeleteRecords() {
     try {
-        let query = wixData.query('deleteInfor').descending('deletedAt');
-        
-        // 如果有搜索值，添加搜索条件
-        if (searchValue) {
-            query = query.contains('deletedComment', searchValue)
-                .or(query.contains('deleteReason', searchValue))
-                .or(query.eq('workNumber', parseInt(searchValue)));
-        }
-        
-        const results = await query.find();
-        
-        // 设置数据到重复器
-        $w('#delRepeater').data = results.items;
+        // 查询所有删除记录，按删除时间倒序
+        const results = await wixData.query('deleteInfor')
+            .descending('deletedAt')
+            .find();
         
         console.log(`加载了 ${results.items.length} 条删除记录`);
+        
+        // 发送数据到自定义HTML元件
+        // @ts-ignore - 自定义HTML元件ID
+        const htmlElement = $w('#deleteRecordsHtml');
+        if (htmlElement && htmlElement.postMessage) {
+            htmlElement.postMessage({
+                action: 'init',
+                records: results.items
+            });
+        }
         
     } catch (error) {
         console.error('加载删除记录失败:', error);
@@ -71,59 +99,47 @@ async function loadDeleteRecords(searchValue = '') {
 }
 
 /**
- * 设置删除记录重复器项目
+ * 处理来自HTML元件的消息
  */
-async function setupDeleteRecordItem($item, itemData) {
-    try {
-        console.log('处理删除记录:', itemData);
-        console.log('originalCommentOwner:', itemData.originalCommentOwner);
-        console.log('deletedBy:', itemData.deletedBy);
+async function handleHtmlMessage(event) {
+    const data = event.data;
+    
+    if (data.action === 'getUserInfo') {
+        // HTML元件请求获取用户信息
+        const userId = data.userId;
+        const userName = await getUserNickname(userId);
         
-        // 获取原评论发布者信息
-        const originalUserName = await getUserNickname(itemData.originalCommentOwner);
-        
-        // 获取处理删除的审核员信息
-        const managerName = await getUserNickname(itemData.deletedBy);
-        
-        console.log('最终用户名:', originalUserName, managerName);
-        
-        // 设置显示内容，添加前缀
-        $item('#oriUser').text = `原评论用户: ${originalUserName}`;
-        $item('#manager').text = `处理审核员: ${managerName}`;
-        
-        // 设置其他信息
-        $item('#workNumber').text = `作品编号: ${itemData.workNumber}`;
-        $item('#deleteReason').text = `删除理由: ${itemData.deleteReason}`;
-        $item('#deletedScore').text = `原评分: ${itemData.deletedScore}`;
-        
-        // 格式化删除时间
-        const deleteDate = new Date(itemData.deletedAt);
-        const formattedDate = `${deleteDate.getFullYear()}-${String(deleteDate.getMonth() + 1).padStart(2, '0')}-${String(deleteDate.getDate()).padStart(2, '0')} ${String(deleteDate.getHours()).padStart(2, '0')}:${String(deleteDate.getMinutes()).padStart(2, '0')}`;
-        $item('#deleteTime').text = `删除时间: ${formattedDate}`;
-        
-        // 设置查看评论内容按钮事件
-        $item('#checkText').onClick(() => {
-            // 打开评论内容弹窗
-            wixWindow.openLightbox("TextPopup", { 
-                content: itemData.deletedComment 
+        // 返回用户信息
+        // @ts-ignore - 自定义HTML元件ID
+        const htmlElement = $w('#deleteRecordsHtml');
+        if (htmlElement && htmlElement.postMessage) {
+            htmlElement.postMessage({
+                action: 'userInfo',
+                userId: userId,
+                userName: userName
             });
-        });
+        }
         
-    } catch (error) {
-        console.error('设置删除记录项目时出错:', error);
+    } else if (data.action === 'getWorkTitle') {
+        // HTML元件请求获取作品标题
+        const workNumber = data.workNumber;
+        const workTitle = await getWorkTitle(workNumber);
         
-        // 设置默认值
-        $item('#oriUser').text = '获取失败';
-        $item('#manager').text = '获取失败';
-        $item('#workNumber').text = `作品编号: ${itemData.workNumber || '未知'}`;
-        $item('#deleteReason').text = `删除理由: ${itemData.deleteReason || '未填写'}`;
-        $item('#deletedScore').text = `原评分: ${itemData.deletedScore || '未知'}`;
-        
-        // 设置查看评论内容按钮事件
-        $item('#checkText').onClick(() => {
-            wixWindow.openLightbox("TextPopup", { 
-                content: itemData.deletedComment || '评论内容获取失败' 
+        // 返回作品标题
+        // @ts-ignore - 自定义HTML元件ID
+        const htmlElement = $w('#deleteRecordsHtml');
+        if (htmlElement && htmlElement.postMessage) {
+            htmlElement.postMessage({
+                action: 'workTitle',
+                workNumber: workNumber,
+                workTitle: workTitle
             });
+        }
+        
+    } else if (data.action === 'openTextPopup') {
+        // HTML元件请求打开文本弹窗
+        wixWindow.openLightbox("TextPopup", { 
+            content: data.content 
         });
     }
 }

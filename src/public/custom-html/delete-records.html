@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>删除记录检索</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            background: rgba(42, 42, 42, 0.92);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 2px solid #555;
+            flex-shrink: 0;
+        }
+
+        .header h2 {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .search-filter-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .search-input::placeholder {
+            color: #888;
+        }
+
+        .search-btn {
+            padding: 10px 25px;
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-btn:hover {
+            background: #666;
+            border-color: #777;
+        }
+
+        .filters-box {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            color: #999;
+            padding-left: 5px;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .filter-select option {
+            background: #333;
+            color: #fff;
+        }
+
+        .clear-filters-btn {
+            padding: 8px 20px;
+            background: #444;
+            color: #ccc;
+            border: 1px solid #555;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .clear-filters-btn:hover {
+            background: #555;
+            border-color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .filters-box {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .records-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .record-item {
+            background: #333;
+            border-left: 3px solid #666;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .record-item:hover {
+            background: #3a3a3a;
+            border-left-color: #888;
+        }
+
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .work-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .delete-time {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .record-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .info-item {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .info-label {
+            color: #888;
+            margin-right: 5px;
+        }
+
+        .reason-box {
+            background: #2a2a2a;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.5;
+        }
+
+        .view-btn {
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 8px 20px;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .view-btn:hover {
+            background: #666;
+            border-color: #777;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .no-records {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 15px;
+            margin: 10px 20px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-message.error {
+            background: #4a2a2a;
+            border-color: #7a4a4a;
+            color: #cf8f8f;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>删除记录检索</h2>
+            <div class="search-filter-container">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        id="searchInput" 
+                        placeholder="搜索作品编号、删除理由或评论内容..."
+                    />
+                    <button class="search-btn" id="searchBtn">搜索</button>
+                </div>
+                <div class="filters-box">
+                    <div class="filter-group">
+                        <label class="filter-label">原评论用户</label>
+                        <select class="filter-select" id="userFilter">
+                            <option value="">全部用户</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">处理审核员</label>
+                        <select class="filter-select" id="managerFilter">
+                            <option value="">全部审核员</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">作品编号</label>
+                        <select class="filter-select" id="workFilter">
+                            <option value="">全部作品</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="clear-filters-btn" id="clearFiltersBtn">清除所有筛选</button>
+            </div>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div class="records-container" id="recordsContainer">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script>
+        let allRecords = [];
+        let userCache = {};
+        let workTitleCache = {};
+        let currentFilters = {
+            search: '',
+            user: '',
+            manager: '',
+            work: ''
+        };
+
+        // 监听来自 Wix 页面的消息
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+            
+            if (data.action === 'init') {
+                // 初始化：接收删除记录数据
+                allRecords = data.records || [];
+                await initializeFilters();
+                await applyFilters();
+            } else if (data.action === 'userInfo') {
+                // 接收用户信息
+                if (data.userId && data.userName) {
+                    userCache[data.userId] = data.userName;
+                }
+            } else if (data.action === 'workTitle') {
+                // 接收作品标题
+                if (data.workNumber && data.workTitle) {
+                    workTitleCache[data.workNumber] = data.workTitle;
+                }
+            }
+        });
+
+        // 初始化筛选器选项
+        async function initializeFilters() {
+            const userSet = new Set();
+            const managerSet = new Set();
+            const workSet = new Set();
+
+            // 收集所有唯一的用户、审核员和作品编号
+            for (const record of allRecords) {
+                if (record.originalCommentOwner) {
+                    userSet.add(record.originalCommentOwner);
+                }
+                if (record.deletedBy) {
+                    managerSet.add(record.deletedBy);
+                }
+                if (record.workNumber) {
+                    workSet.add(record.workNumber);
+                }
+            }
+
+            // 构建用户筛选器选项
+            const userFilter = document.getElementById('userFilter');
+            userFilter.innerHTML = '<option value="">全部用户</option>';
+            for (const userId of Array.from(userSet).sort()) {
+                const userName = await getUserNickname(userId);
+                const option = document.createElement('option');
+                option.value = userId;
+                option.textContent = userName;
+                userFilter.appendChild(option);
+            }
+
+            // 构建审核员筛选器选项
+            const managerFilter = document.getElementById('managerFilter');
+            managerFilter.innerHTML = '<option value="">全部审核员</option>';
+            for (const userId of Array.from(managerSet).sort()) {
+                const userName = await getUserNickname(userId);
+                const option = document.createElement('option');
+                option.value = userId;
+                option.textContent = userName;
+                managerFilter.appendChild(option);
+            }
+
+            // 构建作品编号筛选器选项
+            const workFilter = document.getElementById('workFilter');
+            workFilter.innerHTML = '<option value="">全部作品</option>';
+            for (const workNumber of Array.from(workSet).sort((a, b) => a - b)) {
+                const workTitle = await getWorkTitle(workNumber);
+                const option = document.createElement('option');
+                option.value = workNumber;
+                option.textContent = `#${workNumber} - ${workTitle}`;
+                workFilter.appendChild(option);
+            }
+        }
+
+        // 应用筛选器
+        async function applyFilters() {
+            let filteredRecords = [...allRecords];
+
+            // 应用搜索过滤
+            if (currentFilters.search) {
+                const searchLower = currentFilters.search.toLowerCase();
+                filteredRecords = filteredRecords.filter(record => {
+                    const workNumber = String(record.workNumber || '').toLowerCase();
+                    const deleteReason = String(record.deleteReason || '').toLowerCase();
+                    const deletedComment = String(record.deletedComment || '').toLowerCase();
+                    
+                    return workNumber.includes(searchLower) || 
+                           deleteReason.includes(searchLower) || 
+                           deletedComment.includes(searchLower);
+                });
+            }
+
+            // 应用用户筛选
+            if (currentFilters.user) {
+                filteredRecords = filteredRecords.filter(record => 
+                    record.originalCommentOwner === currentFilters.user
+                );
+            }
+
+            // 应用审核员筛选
+            if (currentFilters.manager) {
+                filteredRecords = filteredRecords.filter(record => 
+                    record.deletedBy === currentFilters.manager
+                );
+            }
+
+            // 应用作品编号筛选
+            if (currentFilters.work) {
+                filteredRecords = filteredRecords.filter(record => 
+                    String(record.workNumber) === String(currentFilters.work)
+                );
+            }
+
+            // 显示过滤后的记录
+            await displayRecords(filteredRecords);
+
+            // 显示筛选结果提示
+            const activeFiltersCount = Object.values(currentFilters).filter(v => v).length;
+            if (activeFiltersCount > 0 && filteredRecords.length === 0) {
+                showMessage('没有符合筛选条件的记录', 'error');
+            }
+        }
+
+        // 显示记录列表
+        async function displayRecords(records) {
+            const container = document.getElementById('recordsContainer');
+            
+            if (records.length === 0) {
+                container.innerHTML = '<div class="no-records">暂无删除记录</div>';
+                return;
+            }
+
+            // 清空容器
+            container.innerHTML = '';
+
+            // 遍历记录并创建DOM元素
+            for (const record of records) {
+                const recordElement = await createRecordElement(record);
+                container.appendChild(recordElement);
+            }
+        }
+
+        // 创建单条记录的DOM元素
+        async function createRecordElement(record) {
+            const div = document.createElement('div');
+            div.className = 'record-item';
+
+            // 获取用户昵称
+            const originalUserName = await getUserNickname(record.originalCommentOwner);
+            const managerName = await getUserNickname(record.deletedBy);
+            
+            // 获取作品标题
+            const workTitle = await getWorkTitle(record.workNumber);
+
+            // 格式化删除时间
+            const deleteDate = new Date(record.deletedAt);
+            const formattedDate = `${deleteDate.getFullYear()}-${String(deleteDate.getMonth() + 1).padStart(2, '0')}-${String(deleteDate.getDate()).padStart(2, '0')} ${String(deleteDate.getHours()).padStart(2, '0')}:${String(deleteDate.getMinutes()).padStart(2, '0')}`;
+
+            // 构建HTML
+            div.innerHTML = `
+                <div class="record-header">
+                    <div class="work-number">#${record.workNumber} - ${escapeHtml(workTitle)}</div>
+                    <div class="delete-time">${formattedDate}</div>
+                </div>
+                <div class="record-info">
+                    <div class="info-item">
+                        <span class="info-label">原评论用户:</span>
+                        <strong>${escapeHtml(originalUserName)}</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">处理审核员:</span>
+                        <strong>${escapeHtml(managerName)}</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">原评分:</span>
+                        <strong>${record.deletedScore || '未知'}</strong>
+                    </div>
+                </div>
+                <div class="reason-box">
+                    <span class="info-label">删除理由:</span>
+                    ${escapeHtml(record.deleteReason || '未填写')}
+                </div>
+                <button class="view-btn" data-comment="${escapeHtml(record.deletedComment || '评论内容获取失败')}">
+                    查看评论内容
+                </button>
+            `;
+
+            // 绑定查看评论按钮事件
+            const viewBtn = div.querySelector('.view-btn');
+            viewBtn.addEventListener('click', () => {
+                const comment = record.deletedComment || '评论内容获取失败';
+                // 通知 Wix 页面打开弹窗
+                window.parent.postMessage({
+                    action: 'openTextPopup',
+                    content: comment
+                }, '*');
+            });
+
+            return div;
+        }
+
+        // 获取用户昵称
+        async function getUserNickname(userId) {
+            // 如果已缓存，直接返回
+            if (userCache[userId]) {
+                return userCache[userId];
+            }
+
+            // 请求 Wix 页面获取用户信息
+            window.parent.postMessage({
+                action: 'getUserInfo',
+                userId: userId
+            }, '*');
+
+            // 等待响应（简单的轮询，最多等待2秒）
+            const startTime = Date.now();
+            while (!userCache[userId] && Date.now() - startTime < 2000) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return userCache[userId] || '失效账号';
+        }
+
+        // 获取作品标题
+        async function getWorkTitle(workNumber) {
+            // 如果已缓存，直接返回
+            if (workTitleCache[workNumber]) {
+                return workTitleCache[workNumber];
+            }
+
+            // 请求 Wix 页面获取作品标题
+            window.parent.postMessage({
+                action: 'getWorkTitle',
+                workNumber: workNumber
+            }, '*');
+
+            // 等待响应（简单的轮询，最多等待2秒）
+            const startTime = Date.now();
+            while (!workTitleCache[workNumber] && Date.now() - startTime < 2000) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return workTitleCache[workNumber] || '未知标题';
+        }
+
+        // 搜索功能
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            performSearch();
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        function performSearch() {
+            currentFilters.search = document.getElementById('searchInput').value.trim();
+            applyFilters();
+        }
+
+        // 筛选器变化事件
+        document.getElementById('userFilter').addEventListener('change', (e) => {
+            currentFilters.user = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('managerFilter').addEventListener('change', (e) => {
+            currentFilters.manager = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('workFilter').addEventListener('change', (e) => {
+            currentFilters.work = e.target.value;
+            applyFilters();
+        });
+
+        // 清除所有筛选
+        document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+            // 重置所有筛选器
+            currentFilters = {
+                search: '',
+                user: '',
+                manager: '',
+                work: ''
+            };
+            
+            // 重置UI
+            document.getElementById('searchInput').value = '';
+            document.getElementById('userFilter').value = '';
+            document.getElementById('managerFilter').value = '';
+            document.getElementById('workFilter').value = '';
+            
+            // 重新应用筛选（显示所有记录）
+            applyFilters();
+            
+            showMessage('已清除所有筛选条件', 'success');
+        });
+
+        // 显示消息
+        function showMessage(text, type = '') {
+            const message = document.getElementById('statusMessage');
+            message.textContent = text;
+            message.className = `status-message ${type}`;
+            message.style.display = 'block';
+
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
