@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评论系统</title>
+  <!-- Markdown解析库 -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+      background: transparent;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* 毛玻璃卡片 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+
+    /* 评论输入区域 */
+    .comment-input-section {
+      margin-bottom: 25px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 20px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+    }
+
+    .input-field {
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .input-field:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.4);
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .input-field::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .input-field:disabled {
+      background: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+    }
+
+    select.input-field {
+      cursor: pointer;
+    }
+
+    select.input-field option {
+      background: #333;
+      color: #fff;
+    }
+
+    textarea.input-field {
+      min-height: 100px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .submit-button {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.9) 0%, rgba(255, 165, 0, 0.9) 100%);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      box-shadow: 0 4px 20px rgba(255, 165, 0, 0.3);
+      transition: all 0.3s ease;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .submit-button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255, 165, 0, 0.4);
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    }
+
+    .submit-button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .submit-button:disabled {
+      background: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .work-status-info {
+      margin-top: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      font-size: 14px;
+      color: #fff;
+      text-align: center;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .work-status-info.task {
+      background: linear-gradient(135deg, rgba(0, 102, 255, 0.4) 0%, rgba(0, 82, 204, 0.4) 100%);
+      border: 1px solid rgba(0, 102, 255, 0.6);
+    }
+
+    .work-status-info.cold-work {
+      background: linear-gradient(135deg, rgba(255, 165, 0, 0.4) 0%, rgba(255, 140, 0, 0.4) 100%);
+      border: 1px solid rgba(255, 165, 0, 0.6);
+    }
+
+    .work-status-info.completed-task {
+      background: linear-gradient(135deg, rgba(34, 139, 34, 0.4) 0%, rgba(46, 125, 50, 0.4) 100%);
+      border: 1px solid rgba(34, 139, 34, 0.6);
+    }
+
+    .work-status-info.author {
+      background: linear-gradient(135deg, rgba(138, 43, 226, 0.4) 0%, rgba(123, 31, 162, 0.4) 100%);
+      border: 1px solid rgba(138, 43, 226, 0.6);
+    }
+
+    .submit-status {
+      margin-top: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      font-size: 14px;
+      color: #fff;
+      text-align: center;
+      display: none;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .submit-status.show {
+      display: block;
+    }
+
+    /* 筛选区域 */
+    .filter-section {
+      margin-bottom: 20px;
+    }
+
+    .filter-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tab {
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .filter-tab:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .filter-tab.active {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.6) 0%, rgba(255, 165, 0, 0.6) 100%);
+      border-color: rgba(255, 215, 0, 0.8);
+    }
+
+    /* 分页器 */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    .page-button {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .page-button:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .page-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .page-info {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* 评论列表 */
+    .comment-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .comment-item {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      transition: all 0.3s;
+    }
+
+    .comment-item:hover {
+      background: rgba(255, 255, 255, 0.35);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .comment-score-badge {
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      min-width: 60px;
+      text-align: center;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .comment-work-title {
+      font-size: 15px;
+      color: #fff;
+      font-weight: 600;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .comment-rating-info {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.2);
+      padding: 6px 12px;
+      border-radius: 10px;
+    }
+
+    .comment-content {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.6;
+      max-height: 120px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .comment-content:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .comment-content.expanded {
+      max-height: none;
+      overflow-y: auto;
+    }
+
+    .comment-content.has-overflow::after {
+      content: '点击展开';
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      left: 0;
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.8), transparent);
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.7);
+      font-weight: 600;
+    }
+
+    .comment-content.expanded::after {
+      content: '点击收起';
+      position: relative;
+      background: rgba(255, 255, 255, 0.3);
+      margin-top: 10px;
+      display: block;
+    }
+
+    .comment-content.short {
+      cursor: default;
+    }
+
+    .comment-content.short::after {
+      display: none;
+    }
+    .comment-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .comment-content::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    .comment-content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+    }
+
+    /* Markdown内容样式 */
+    .comment-content h1,
+    .comment-content h2,
+    .comment-content h3,
+    .comment-content h4,
+    .comment-content h5,
+    .comment-content h6 {
+      margin: 12px 0 8px 0;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .comment-content h1 { font-size: 20px; }
+    .comment-content h2 { font-size: 18px; }
+    .comment-content h3 { font-size: 16px; }
+    .comment-content h4 { font-size: 15px; }
+    .comment-content h5 { font-size: 14px; }
+    .comment-content h6 { font-size: 13px; }
+
+    .comment-content p {
+      margin: 8px 0;
+    }
+
+    .comment-content a {
+      color: #FFD700;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    .comment-content a:hover {
+      color: #FFA500;
+    }
+
+    .comment-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin: 10px 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      display: block;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .comment-content img:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 图片加载失败时的样式 */
+    .comment-content img[alt]::before {
+      content: '🖼️ 图片加载失败';
+      display: block;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+    }
+
+    .comment-content blockquote {
+      border-left: 3px solid rgba(255, 215, 0, 0.6);
+      padding-left: 12px;
+      margin: 10px 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-style: italic;
+    }
+
+    .comment-content code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #FFD700;
+    }
+
+    .comment-content pre {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+
+    .comment-content pre code {
+      background: none;
+      padding: 0;
+      color: #fff;
+    }
+
+    .comment-content ul,
+    .comment-content ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+
+    .comment-content li {
+      margin: 4px 0;
+    }
+
+    .comment-content hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+      margin: 12px 0;
+    }
+
+    .comment-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+    }
+
+    .comment-content th,
+    .comment-content td {
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 8px;
+      text-align: left;
+    }
+
+    .comment-content th {
+      background: rgba(255, 255, 255, 0.2);
+      font-weight: 700;
+    }
+
+    .comment-content strong {
+      font-weight: 700;
+      color: #FFD700;
+    }
+
+    .comment-content em {
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .comment-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .action-btn.delete {
+      background: rgba(211, 47, 47, 0.4);
+      border-color: rgba(244, 67, 54, 0.6);
+    }
+
+    .action-btn.delete:hover {
+      background: rgba(244, 67, 54, 0.6);
+    }
+
+    .reply-count {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #fff;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #fff;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 16px;
+      font-weight: 500;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .no-comments {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      body {
+        padding: 12px;
+      }
+
+      .glass-card {
+        padding: 20px;
+      }
+
+      .input-row, .filter-row {
+        grid-template-columns: 1fr;
+      }
+
+      .comment-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 评论输入区域 -->
+    <div class="glass-card comment-input-section">
+      <div class="section-title">提交评论</div>
+      
+      <div class="input-row">
+        <div class="input-group">
+          <label class="input-label">选择作品</label>
+          <select class="input-field" id="inputNumber">
+            <option value="">请选择作品编号</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">评分 (100-1000)</label>
+          <input type="number" class="input-field" id="inputScore" 
+                 placeholder="输入评分" min="100" max="1000" step="1" required>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">评论内容 <span style="font-size: 11px; color: rgba(255,255,255,0.7); font-weight: normal;">（支持Markdown格式和图片链接）</span></label>
+        <textarea class="input-field" id="Comment" 
+                  placeholder="输入您的评论... 支持Markdown格式&#10;&#10;示例：&#10;**粗体** *斜体*&#10;![图片](https://example.com/image.jpg)&#10;[链接](https://example.com)"></textarea>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button class="submit-button" id="submitBtn">提交评论</button>
+      </div>
+
+      <!-- 作品选择后的状态提示 -->
+      <div class="work-status-info" id="workStatusInfo" style="display: none;"></div>
+
+      <!-- 提交状态提示 -->
+      <div class="submit-status" id="submitStatus"></div>
+    </div>
+
+    <!-- 评论筛选和列表区域 -->
+    <div class="glass-card">
+      <div class="section-title">评论列表</div>
+
+      <!-- 筛选器 -->
+      <div class="filter-section">
+        <div class="filter-row">
+          <div class="input-group">
+            <label class="input-label">筛选作品</label>
+            <select class="input-field" id="dropdownFilter">
+              <option value="">显示所有评论</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">评论类型</label>
+          <div class="filter-tabs">
+            <div class="filter-tab active" data-filter="default">所有评论</div>
+            <div class="filter-tab" data-filter="ScoreOnly">仅评分</div>
+            <div class="filter-tab" data-filter="YourComment">仅你的评论</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分页器（顶部） -->
+      <div class="pagination" id="paginationTop">
+        <button class="page-button" id="prevBtnTop">上一页</button>
+        <span class="page-info" id="pageInfoTop">第 1 / 1 页</span>
+        <button class="page-button" id="nextBtnTop">下一页</button>
+      </div>
+
+      <!-- 加载状态 -->
+      <div class="loading" id="loadingState" style="display: none;">
+        <div class="spinner"></div>
+        <div class="loading-text">加载评论中...</div>
+      </div>
+
+      <!-- 评论列表 -->
+      <div class="comment-list" id="commentList"></div>
+
+      <!-- 无评论提示 -->
+      <div class="no-comments" id="noComments" style="display: none;">
+        暂无评论
+      </div>
+
+      <!-- 分页器（底部） -->
+      <div class="pagination" id="paginationBottom">
+        <button class="page-button" id="prevBtnBottom">上一页</button>
+        <span class="page-info" id="pageInfoBottom">第 1 / 1 页</span>
+        <button class="page-button" id="nextBtnBottom">下一页</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 状态管理 ====================
+    let currentUserId = null;
+    let isUserVerified = false;
+    let allWorkOptions = [];
+    let allCommentsData = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    const commentsPerPage = 20;
+    let currentFilter = 'default';
+    let currentWorkFilter = '';
+    let isSubmitting = false;
+
+    // ==================== 初始化 ====================
+    window.addEventListener('message', async (event) => {
+      if (!event.data || typeof event.data !== 'object') return;
+
+      const { type, data } = event.data;
+
+      switch (type) {
+        case 'INIT_COMMENT_SYSTEM':
+          await handleInit(data);
+          break;
+        case 'UPDATE_COMMENTS':
+          await handleCommentsUpdate(data);
+          break;
+        case 'SUBMIT_RESULT':
+          handleSubmitResult(data);
+          break;
+        case 'WORK_OPTIONS':
+          handleWorkOptions(data);
+          break;
+        case 'WORK_STATUS_UPDATE':
+          handleWorkStatusUpdate(data);
+          break;
+        case 'SUBMIT_PROGRESS':
+          handleSubmitProgress(data);
+          break;
+        case 'WORK_SELECTION_STATE':
+          handleWorkSelectionState(data);
+          break;
+        default:
+          console.log('[评论系统] 未知消息类型:', type);
+      }
+    });
+
+    async function handleInit(data) {
+      console.log('[评论系统] 初始化...', data);
+      currentUserId = data.currentUserId;
+      isUserVerified = data.isUserVerified;
+      
+      // 显示初始化加载状态
+      showLoading('正在初始化评论系统...');
+      
+      // 更新输入区域状态
+      updateInputState();
+      
+      // 请求作品选项和评论数据
+      requestWorkOptions();
+      requestCommentsData();
+    }
+
+    function handleWorkOptions(data) {
+      console.log('[评论系统] 收到作品选项:', data.options?.length);
+      allWorkOptions = data.options || [];
+      updateWorkDropdowns();
+    }
+
+    async function handleCommentsUpdate(data) {
+      console.log('[评论系统] 更新评论数据:', data.comments?.length);
+      allCommentsData = data.comments || [];
+      currentWorkFilter = data.workFilter || '';
+      currentFilter = data.filterMode || 'default';
+      currentPage = data.currentPage || 1;
+      
+      applyFilters();
+    }
+
+    function handleWorkStatusUpdate(data) {
+      const workStatusInfo = document.getElementById('workStatusInfo');
+      
+      if (!data || !data.message) {
+        workStatusInfo.style.display = 'none';
+        return;
+      }
+      
+      workStatusInfo.textContent = data.message;
+      workStatusInfo.className = 'work-status-info';
+      
+      // 根据状态类型添加不同的样式
+      if (data.statusType === 'task') {
+        workStatusInfo.classList.add('task');
+      } else if (data.statusType === 'coldWork') {
+        workStatusInfo.classList.add('cold-work');
+      } else if (data.statusType === 'completedTask') {
+        workStatusInfo.classList.add('completed-task');
+      } else if (data.statusType === 'author') {
+        workStatusInfo.classList.add('author');
+      }
+      
+      workStatusInfo.style.display = 'block';
+      console.log('[评论系统] 作品状态更新:', data.message);
+    }
+
+    function handleSubmitProgress(data) {
+      const statusEl = document.getElementById('submitStatus');
+      
+      statusEl.textContent = data.message || '处理中...';
+      statusEl.className = 'submit-status show';
+      
+      // 根据进度状态设置不同的背景色
+      if (data.stage === 'validating') {
+        statusEl.style.background = 'rgba(255, 193, 7, 0.4)'; // 黄色 - 验证中
+      } else if (data.stage === 'saving') {
+        statusEl.style.background = 'rgba(33, 150, 243, 0.4)'; // 蓝色 - 保存中
+      } else if (data.stage === 'updating') {
+        statusEl.style.background = 'rgba(156, 39, 176, 0.4)'; // 紫色 - 更新中
+      } else {
+        statusEl.style.background = 'rgba(255, 255, 255, 0.3)'; // 默认
+      }
+      
+      console.log('[评论系统] 提交进度:', data.message);
+    }
+
+    function handleWorkSelectionState(data) {
+      const inputScore = document.getElementById('inputScore');
+      const commentField = document.getElementById('Comment');
+      const submitBtn = document.getElementById('submitBtn');
+      
+      console.log('[评论系统] 处理作品选择状态:', data);
+      
+      // 根据状态更新UI
+      if (data.isAlreadyCommented && data.existingComment) {
+        // 已评论：回填数据并禁用输入
+        commentField.value = data.existingComment.comment || '';
+        inputScore.value = data.existingComment.score || '';
+        commentField.disabled = true;
+        inputScore.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '已评论';
+        console.log('[评论系统] 已评论，回填数据并禁用输入');
+      } else if (data.isAuthor) {
+        // 作者自评：清空并启用输入
+        commentField.value = '';
+        inputScore.value = '';
+        commentField.disabled = false;
+        inputScore.disabled = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '自评';
+        console.log('[评论系统] 作者自评模式');
+      } else if (data.isWorkDQ) {
+        // 淘汰作品：清空并禁用所有
+        commentField.value = '';
+        inputScore.value = '';
+        commentField.disabled = true;
+        inputScore.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '作品已淘汰';
+        console.log('[评论系统] 作品已淘汰');
+      } else {
+        // 正常未评论：清空并启用输入
+        commentField.value = '';
+        inputScore.value = '';
+        commentField.disabled = false;
+        inputScore.disabled = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '提交评论';
+        console.log('[评论系统] 正常状态，可以评论');
+      }
+    }
+
+    function resetWorkSelection() {
+      const inputScore = document.getElementById('inputScore');
+      const commentField = document.getElementById('Comment');
+      const submitBtn = document.getElementById('submitBtn');
+      const workStatusInfo = document.getElementById('workStatusInfo');
+      
+      // 清空输入
+      commentField.value = '';
+      inputScore.value = '';
+      
+      // 隐藏作品状态信息
+      workStatusInfo.style.display = 'none';
+      
+      // 根据登录和验证状态恢复默认状态
+      if (!currentUserId) {
+        commentField.disabled = true;
+        inputScore.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '未登录';
+      } else if (!isUserVerified) {
+        commentField.disabled = true;
+        inputScore.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '未报名';
+      } else {
+        commentField.disabled = false;
+        inputScore.disabled = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '提交评论';
+      }
+      
+      console.log('[评论系统] 已重置作品选择状态');
+    }
+
+    function handleSubmitResult(data) {
+      isSubmitting = false;
+      const statusEl = document.getElementById('submitStatus');
+      const submitBtn = document.getElementById('submitBtn');
+      const inputNumber = document.getElementById('inputNumber');
+      const inputScore = document.getElementById('inputScore');
+      const commentField = document.getElementById('Comment');
+      const workStatusInfo = document.getElementById('workStatusInfo');
+      
+      if (data.success) {
+        showStatus(data.message || '✅ 提交成功！', 'success');
+        
+        // 清空所有输入
+        inputNumber.value = '';
+        inputScore.value = '';
+        commentField.value = '';
+        
+        // 隐藏作品状态信息
+        workStatusInfo.style.display = 'none';
+        
+        // 完整重置状态：根据用户登录和验证状态恢复默认状态
+        if (!currentUserId) {
+          inputNumber.disabled = true;
+          inputScore.disabled = true;
+          commentField.disabled = true;
+          submitBtn.disabled = true;
+          submitBtn.textContent = '未登录';
+        } else if (!isUserVerified) {
+          inputNumber.disabled = true;
+          inputScore.disabled = true;
+          commentField.disabled = true;
+          submitBtn.disabled = true;
+          submitBtn.textContent = '未报名';
+        } else {
+          inputNumber.disabled = false;
+          inputScore.disabled = false;
+          commentField.disabled = false;
+          submitBtn.disabled = false;
+          submitBtn.textContent = '提交评论';
+        }
+        
+        // 立即刷新评论列表（确保新评论立即显示）
+        requestCommentsData();
+      } else {
+        // 提交失败时重新启用按钮
+        submitBtn.disabled = false;
+        showStatus(data.message || '❌ 提交失败', 'error');
+      }
+    }
+
+    // ==================== 输入区域 ====================
+    function updateInputState() {
+      const inputNumber = document.getElementById('inputNumber');
+      const inputScore = document.getElementById('inputScore');
+      const commentField = document.getElementById('Comment');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!currentUserId) {
+        inputNumber.disabled = true;
+        inputScore.disabled = true;
+        commentField.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '未登录';
+        return;
+      }
+
+      if (!isUserVerified) {
+        inputNumber.disabled = true;
+        inputScore.disabled = true;
+        commentField.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '未报名';
+        return;
+      }
+
+      inputNumber.disabled = false;
+      inputScore.disabled = false;
+      commentField.disabled = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = '提交评论';
+    }
+
+    function updateWorkDropdowns() {
+      const inputNumber = document.getElementById('inputNumber');
+      const dropdownFilter = document.getElementById('dropdownFilter');
+      
+      // 更新提交作品选择器
+      inputNumber.innerHTML = '<option value="">请选择作品编号</option>' +
+        allWorkOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+      
+      // 更新筛选作品选择器
+      dropdownFilter.innerHTML = '<option value="">显示所有评论</option>' +
+        allWorkOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+    }
+
+    function showStatus(message, type = '') {
+      const statusEl = document.getElementById('submitStatus');
+      statusEl.textContent = message;
+      statusEl.className = 'submit-status show';
+      statusEl.style.background = type === 'success' 
+        ? 'rgba(76, 175, 80, 0.4)' 
+        : type === 'error' 
+        ? 'rgba(244, 67, 54, 0.4)' 
+        : 'rgba(255, 255, 255, 0.3)';
+      
+      setTimeout(() => {
+        statusEl.classList.remove('show');
+      }, 3000);
+    }
+
+    // ==================== 事件监听 ====================
+    // 提交按钮
+    document.getElementById('submitBtn').addEventListener('click', () => {
+      if (isSubmitting) return;
+      
+      const workNumber = document.getElementById('inputNumber').value;
+      const score = document.getElementById('inputScore').value;
+      const comment = document.getElementById('Comment').value;
+
+      // 验证输入完整性
+      if (!workNumber || !score || !comment) {
+        showStatus('❌ 请填写完整信息', 'error');
+        return;
+      }
+
+      // 验证作品编号范围
+      const workNum = parseInt(workNumber);
+      if (isNaN(workNum) || workNum < 1 || workNum > 500) {
+        showStatus('❌ 作品编号必须在1-500之间', 'error');
+        return;
+      }
+
+      // 验证评分范围
+      const scoreNum = parseInt(score);
+      if (isNaN(scoreNum) || scoreNum < 100 || scoreNum > 1000) {
+        showStatus('❌ 评分必须在100-1000之间', 'error');
+        return;
+      }
+
+      // 验证评论内容不为空
+      if (comment.trim().length === 0) {
+        showStatus('❌ 评论内容不能为空', 'error');
+        return;
+      }
+
+      isSubmitting = true;
+      document.getElementById('submitBtn').disabled = true;
+      showStatus('正在提交...', '');
+
+      // 发送提交请求到Wix页面
+      window.parent.postMessage({
+        type: 'SUBMIT_COMMENT',
+        data: {
+          workNumber: workNum,
+          score: scoreNum,
+          comment: comment.trim()
+        }
+      }, '*');
+    });
+
+    // 作品编号选择 - 完整的状态处理
+    document.getElementById('inputNumber').addEventListener('change', async (e) => {
+      const workNumber = e.target.value;
+      
+      if (workNumber) {
+        // 显示加载状态
+        showLoading('正在检查作品状态...');
+        
+        // 通知Wix页面作品编号变化，获取完整的作品状态
+        window.parent.postMessage({
+          type: 'WORK_NUMBER_CHANGED',
+          data: { workNumber: parseInt(workNumber) }
+        }, '*');
+        
+        // 同步更新筛选器并加载该作品的评论
+        const dropdownFilter = document.getElementById('dropdownFilter');
+        if (dropdownFilter.value !== workNumber) {
+          dropdownFilter.value = workNumber;
+          currentWorkFilter = workNumber;
+          currentPage = 1;
+          requestCommentsData();
+        }
+      } else {
+        // 清空选择时重置状态
+        resetWorkSelection();
+        // 重新加载所有评论
+        requestCommentsData();
+      }
+    });
+
+    // 作品筛选
+    document.getElementById('dropdownFilter').addEventListener('change', (e) => {
+      currentWorkFilter = e.target.value;
+      currentPage = 1;
+      
+      // 显示加载状态
+      const message = currentWorkFilter 
+        ? `正在加载作品 #${currentWorkFilter} 的评论...` 
+        : '正在加载所有评论...';
+      showLoading(message);
+      
+      requestCommentsData();
+    });
+
+    // 评论类型筛选
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.classList.contains('active')) return; // 已选中，无需重复加载
+        
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.filter;
+        currentPage = 1;
+        
+        // 显示加载状态并请求数据
+        showLoading('正在切换筛选模式...');
+        requestCommentsData();
+      });
+    });
+
+    // 分页按钮
+    ['Top', 'Bottom'].forEach(suffix => {
+      document.getElementById(`prevBtn${suffix}`).addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          applyFilters();
+        }
+      });
+
+      document.getElementById(`nextBtn${suffix}`).addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          applyFilters();
+        }
+      });
+    });
+
+    // ==================== 评论显示 ====================
+    function applyFilters() {
+      const commentList = document.getElementById('commentList');
+      const loadingState = document.getElementById('loadingState');
+      const noComments = document.getElementById('noComments');
+
+      // 计算分页
+      totalPages = Math.max(1, Math.ceil(allCommentsData.length / commentsPerPage));
+      currentPage = Math.min(currentPage, totalPages);
+
+      const startIndex = (currentPage - 1) * commentsPerPage;
+      const endIndex = startIndex + commentsPerPage;
+      const pagedComments = allCommentsData.slice(startIndex, endIndex);
+
+      // 更新分页信息
+      updatePagination();
+
+      // 立即渲染（加载状态已在requestCommentsData中显示）
+      loadingState.style.display = 'none';
+
+      if (pagedComments.length === 0) {
+        noComments.style.display = 'block';
+        commentList.innerHTML = '';
+      } else {
+        noComments.style.display = 'none';
+        renderComments(pagedComments);
+      }
+    }
+
+    function updatePagination() {
+      ['Top', 'Bottom'].forEach(suffix => {
+        const prevBtn = document.getElementById(`prevBtn${suffix}`);
+        const nextBtn = document.getElementById(`nextBtn${suffix}`);
+        const pageInfo = document.getElementById(`pageInfo${suffix}`);
+
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+        pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页`;
+      });
+    }
+
+    function renderComments(comments) {
+      const commentList = document.getElementById('commentList');
+      commentList.innerHTML = '';
+
+      comments.forEach(comment => {
+        const commentEl = createCommentElement(comment);
+        commentList.appendChild(commentEl);
+      });
+    }
+
+    function createCommentElement(comment) {
+      const div = document.createElement('div');
+      div.className = 'comment-item';
+
+      // 构建评分徽章
+      const scoreBadgeHTML = createScoreBadge(comment);
+
+      // 构建操作按钮
+      const actionsHTML = createActionButtons(comment);
+
+      // 渲染评论内容（支持Markdown）
+      const commentContentHTML = renderMarkdown(comment.commentText || '无内容');
+      
+      div.innerHTML = `
+        <div class="comment-header">
+          ${scoreBadgeHTML}
+          <div class="comment-work-title">${escapeHtml(comment.workTitle || `#${comment.workNumber}`)}</div>
+          ${comment.ratingInfo ? `<div class="comment-rating-info">${escapeHtml(comment.ratingInfo)}</div>` : ''}
+        </div>
+        <div class="comment-content" data-full-text="${escapeHtml(comment.commentText || '无内容')}">${commentContentHTML}</div>
+        <div class="comment-actions">
+          ${actionsHTML}
+          ${comment.replyCount > 0 ? `<span class="reply-count">${comment.replyCount}条回复</span>` : ''}
+        </div>
+      `;
+
+      // 绑定事件
+      bindCommentActions(div, comment);
+      
+      // 检查评论内容是否需要展开功能
+      setTimeout(() => {
+        const commentContent = div.querySelector('.comment-content');
+        if (commentContent) {
+          // 检查内容是否溢出（超过120px高度）
+          if (commentContent.scrollHeight > commentContent.clientHeight) {
+            commentContent.classList.add('has-overflow');
+          } else {
+            commentContent.classList.add('short');
+          }
+        }
+      }, 0);
+
+      return div;
+    }
+
+    function createScoreBadge(comment) {
+      let badgeClass = 'comment-score-badge';
+      let badgeText = '';
+      let badgeStyle = '';
+
+      if (comment.isReply) {
+        badgeText = 'Re';
+        badgeStyle = 'background: #1E3A8A;';
+      } else if (comment.isAuthorComment) {
+        badgeText = 'Sc';
+        badgeStyle = 'background: #8A2BE2;';
+      } else if (comment.showScore) {
+        badgeText = comment.score;
+        const redAmount = Math.floor((comment.score / 1000) * 255);
+        badgeStyle = `background: rgb(${redAmount}, 0, 0);`;
+      } else {
+        badgeText = '?';
+        badgeStyle = 'background: #A9A9A9;';
+      }
+
+      return `<div class="${badgeClass}" style="${badgeStyle}">${badgeText}</div>`;
+    }
+
+    function createActionButtons(comment) {
+      let buttons = [];
+
+      // 跳转到作品按钮（仅主评论）
+      if (!comment.isReply) {
+        buttons.push(`<button class="action-btn goto-work-btn">跳转到作品</button>`);
+      }
+
+      // 查看回复按钮
+      buttons.push(`<button class="action-btn view-replies-btn">${comment.isReply ? '查看主评论' : '查看回复'}</button>`);
+
+      // 删除按钮
+      if (comment.canDelete) {
+        buttons.push(`<button class="action-btn delete delete-btn">删除</button>`);
+      }
+
+      return buttons.join('');
+    }
+
+    function bindCommentActions(element, comment) {
+      // 评论内容点击展开/收起（仅长评论）
+      const commentContent = element.querySelector('.comment-content');
+      if (commentContent) {
+        commentContent.addEventListener('click', (e) => {
+          // 防止点击按钮时触发展开
+          if (e.target.tagName === 'BUTTON') return;
+          
+          // 点击图片时在新标签打开
+          if (e.target.tagName === 'IMG') {
+            e.stopPropagation();
+            const imgSrc = e.target.src;
+            if (imgSrc) {
+              window.open(imgSrc, '_blank', 'noopener,noreferrer');
+              console.log('[评论系统] 在新标签打开图片:', imgSrc);
+            }
+            return;
+          }
+          
+          // 点击链接时不触发展开
+          if (e.target.tagName === 'A') {
+            e.stopPropagation();
+            return;
+          }
+          
+          // 只有溢出的评论才能展开
+          if (commentContent.classList.contains('has-overflow') || commentContent.classList.contains('expanded')) {
+            commentContent.classList.toggle('expanded');
+            console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
+          }
+        });
+      }
+
+      // 跳转到作品
+      const gotoWorkBtn = element.querySelector('.goto-work-btn');
+      if (gotoWorkBtn) {
+        gotoWorkBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 防止触发评论展开
+          
+          window.parent.postMessage({
+            type: 'GOTO_WORK',
+            data: { workNumber: comment.workNumber }
+          }, '*');
+          
+          console.log('[评论系统] 请求跳转到作品 #' + comment.workNumber);
+        });
+      }
+
+      // 查看回复
+      const viewRepliesBtn = element.querySelector('.view-replies-btn');
+      if (viewRepliesBtn) {
+        viewRepliesBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 防止触发评论展开
+          
+          window.parent.postMessage({
+            type: 'VIEW_REPLIES',
+            data: {
+              commentId: comment.commentId,
+              workNumber: comment.workNumber,
+              originalComment: comment.commentText,
+              isReply: comment.isReply,
+              replyTo: comment.replyTo
+            }
+          }, '*');
+          
+          console.log('[评论系统] 请求查看回复');
+        });
+      }
+
+      // 删除评论
+      const deleteBtn = element.querySelector('.delete-btn');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 防止触发评论展开
+          
+          window.parent.postMessage({
+            type: 'DELETE_COMMENT',
+            data: {
+              commentId: comment.commentId,
+              workNumber: comment.workNumber,
+              score: comment.score,
+              comment: comment.commentText,
+              isSelfScComment: comment.isSelfScComment,
+              _owner: comment._owner
+            }
+          }, '*');
+        });
+      }
+    }
+
+    // ==================== 工具函数 ====================
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return '';
+      
+      // 如果marked库可用，使用Markdown渲染
+      if (typeof marked !== 'undefined') {
+        try {
+          // 使用marked解析Markdown
+          let html = marked.parse(text);
+          
+          // 安全处理：确保外部链接在新标签打开，添加安全属性
+          html = html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+          
+          return html;
+        } catch (error) {
+          console.error('[评论系统] Markdown解析失败:', error);
+          // 降级为纯文本显示
+          return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+      } else {
+        // marked未加载，使用纯文本显示
+        return escapeHtml(text).replace(/\n/g, '<br>');
+      }
+    }
+
+    function showLoading(message = '加载中...') {
+      const loadingState = document.getElementById('loadingState');
+      const loadingText = loadingState.querySelector('.loading-text');
+      if (loadingText) {
+        loadingText.textContent = message;
+      }
+      loadingState.style.display = 'block';
+      document.getElementById('commentList').innerHTML = '';
+      document.getElementById('noComments').style.display = 'none';
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingState').style.display = 'none';
+    }
+
+    function requestWorkOptions() {
+      console.log('[评论系统] 请求作品选项...');
+      window.parent.postMessage({
+        type: 'REQUEST_WORK_OPTIONS'
+      }, '*');
+    }
+
+    function requestCommentsData() {
+      console.log('[评论系统] 请求评论数据...');
+      showLoading('加载评论中...');
+      
+      window.parent.postMessage({
+        type: 'REQUEST_COMMENTS',
+        data: {
+          workFilter: currentWorkFilter,
+          filterMode: currentFilter,
+          currentPage: currentPage
+        }
+      }, '*');
+    }
+
+    // ==================== Markdown配置 ====================
+    // 配置marked选项
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({
+        breaks: true, // 支持GFM换行
+        gfm: true, // 启用GitHub Flavored Markdown
+        headerIds: false, // 禁用标题ID（避免冲突）
+        mangle: false // 禁用邮箱混淆
+      });
+      console.log('[评论系统] Markdown解析器已配置');
+    } else {
+      console.warn('[评论系统] Markdown解析器未加载，将使用纯文本显示');
+    }
+
+    // ==================== 页面加载 ====================
+    // 显示初始加载状态
+    showLoading('正在连接评论系统...');
+    
+    console.log('[评论系统] HTML已加载');
+    window.parent.postMessage({
+      type: 'COMMENT_SYSTEM_READY'
+    }, '*');
+  </script>
+</body>
+</html>
+
