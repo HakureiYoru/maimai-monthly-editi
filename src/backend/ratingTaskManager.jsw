@@ -107,7 +107,7 @@ export async function getUserTaskData(userId) {
  */
 async function generateUserTasks(userId, taskRecord, limit = 3) {
   try {
-    console.log(`\n========== 生成用户任务: ${userId} ==========`);
+    // console.log(`\n========== 生成用户任务: ${userId} ==========`);
     const startTime = Date.now();
     
     const completedWorks = taskRecord.completedTasks || [];
@@ -116,7 +116,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     // 获取用户所有已经评论过的作品（包括自评和其他评论）
     const userRatedWorks = await getUserCompletedRatings(userId);
 
-    console.log(`[任务分配] 排除条件 - 已完成:${completedWorks.length}个, 自己作品:${userOwnWorks.length}个, 已评论:${userRatedWorks.length}个`);
+    // console.log(`[任务分配] 排除条件 - 已完成:${completedWorks.length}个, 自己作品:${userOwnWorks.length}个, 已评论:${userRatedWorks.length}个`);
 
     // 查询所有作品，排除被淘汰的作品
     const allWorksResult = await wixData
@@ -125,7 +125,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
       .limit(1000)
       .find();
 
-    console.log(`[任务分配] 查询到${allWorksResult.items.length}个未淘汰作品`);
+    // console.log(`[任务分配] 查询到${allWorksResult.items.length}个未淘汰作品`);
 
     // 【性能优化】批量预加载所有评分数据，避免N+1查询问题
     const allRatingsData = await getAllWorksWeightedRatingData();
@@ -133,7 +133,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     
     // 获取当前用户的权重类型（修复：变量名改为userIsHighQuality避免与函数名冲突）
     const userIsHighQuality = await isUserHighQuality(userId);
-    console.log(`[任务分配] 用户类型: ${userIsHighQuality ? 'Qualified（高权重）' : '普通（低权重）'}`);
+    // console.log(`[任务分配] 用户类型: ${userIsHighQuality ? 'Qualified（高权重）' : '普通（低权重）'}`);
 
     const candidateWorks = [];
     let excludedCount = 0;
@@ -183,15 +183,15 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
       });
     }
 
-    console.log(`[任务分配] 候选作品统计 - 总数:${allWorksResult.items.length}, 排除:${excludedCount}, 权重为0:${zeroWeightCount}, 可分配:${candidateWorks.length}`);
+    // console.log(`[任务分配] 候选作品统计 - 总数:${allWorksResult.items.length}, 排除:${excludedCount}, 权重为0:${zeroWeightCount}, 可分配:${candidateWorks.length}`);
 
     if (candidateWorks.length === 0) {
-      console.log(`[任务分配] ⚠️ 无可分配作品，返回空列表`);
-      console.log(`[任务分配] 排除原因详情:`);
-      console.log(`  - 已完成任务: ${completedWorks.join(', ') || '无'}`);
-      console.log(`  - 自己的作品: ${userOwnWorks.join(', ') || '无'}`);
-      console.log(`  - 已评论过的: ${userRatedWorks.length}个`);
-      console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
+      // console.log(`[任务分配] ⚠️ 无可分配作品，返回空列表`);
+      // console.log(`[任务分配] 排除原因详情:`);
+      // console.log(`  - 已完成任务: ${completedWorks.join(', ') || '无'}`);
+      // console.log(`  - 自己的作品: ${userOwnWorks.join(', ') || '无'}`);
+      // console.log(`  - 已评论过的: ${userRatedWorks.length}个`);
+      // console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
       return [];
     }
     
@@ -200,16 +200,16 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     
     // 记录前10个权重最高的作品（用于调试）
     const top10 = candidateWorks.slice(0, 10);
-    console.log(`[任务分配] ⭐ 权重TOP10作品 (个性化权重):`);
-    top10.forEach((w, i) => {
-      const ratingInfo = workRatings[w.workNumber] || {};
-      console.log(`  ${i + 1}. #${w.workNumber} 权重:${w.weight} | 评分:${w.currentRatings}/20 | 高低:${ratingInfo.highWeightCount || 0}:${ratingInfo.lowWeightCount || 0}`);
-    });
+    // console.log(`[任务分配] ⭐ 权重TOP10作品 (个性化权重):`);
+    // top10.forEach((w, i) => {
+    //   const ratingInfo = workRatings[w.workNumber] || {};
+    //   console.log(`  ${i + 1}. #${w.workNumber} 权重:${w.weight} | 评分:${w.currentRatings}/20 | 高低:${ratingInfo.highWeightCount || 0}:${ratingInfo.lowWeightCount || 0}`);
+    // });
     
     // 返回可用的任务数量，不强制凑齐 limit 个
     const selectedTasks = candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
-    console.log(`[任务分配] ✅ 最终分配${selectedTasks.length}个任务:`, selectedTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
-    console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
+    // console.log(`[任务分配] ✅ 最终分配${selectedTasks.length}个任务:`, selectedTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
+    // console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
     
     return selectedTasks;
   } catch (e) {
@@ -420,16 +420,16 @@ export async function markTaskCompleted(userId, workNumber) {
  */
 export async function unmarkTaskCompleted(userId, workNumber) {
   try {
-    console.log(`\n========== 取消任务完成: 用户 ${userId}, 作品 #${workNumber} ==========`);
+    // console.log(`\n========== 取消任务完成: 用户 ${userId}, 作品 #${workNumber} ==========`);
     
     const taskRecord = await getUserTaskRecord(userId);
-    console.log(`[取消] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    // console.log(`[取消] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
     
     // 检查作品是否在已完成列表中
     const wasCompleted = taskRecord.completedTasks.includes(workNumber);
     
     if (!wasCompleted) {
-      console.log(`[取消] 作品 #${workNumber} 不在已完成列表中，无需处理`);
+      // console.log(`[取消] 作品 #${workNumber} 不在已完成列表中，无需处理`);
       return {
         success: true,
         wasInCompletedList: false,
@@ -441,11 +441,11 @@ export async function unmarkTaskCompleted(userId, workNumber) {
     taskRecord.completedTasks = taskRecord.completedTasks.filter(num => num !== workNumber);
     taskRecord.totalCompleted = taskRecord.completedTasks.length;
     
-    console.log(`[取消] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
+    // console.log(`[取消] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
     
     await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-    console.log(`[取消] 数据库已更新`);
-    console.log(`========== 取消任务完成 ==========\n`);
+    // console.log(`[取消] 数据库已更新`);
+    // console.log(`========== 取消任务完成 ==========\n`);
     
     return {
       success: true,
@@ -1537,11 +1537,11 @@ function getRatioStatus(ratio) {
  */
 export async function forceRefreshUserTasks(userId) {
   try {
-    console.log(`\n========== 强制刷新用户任务: ${userId} ==========`);
+    // console.log(`\n========== 强制刷新用户任务: ${userId} ==========`);
     
     // 获取用户任务记录
     const taskRecord = await getUserTaskRecord(userId);
-    console.log(`原任务列表:`, taskRecord.currentTasks?.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
+    // console.log(`原任务列表:`, taskRecord.currentTasks?.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
     
     // 清空当前任务，强制重新生成
     taskRecord.currentTasks = [];
@@ -1552,18 +1552,18 @@ export async function forceRefreshUserTasks(userId) {
       delete userQualityCache[userId];
     }
     
-    console.log(`开始生成新任务...`);
+    // console.log(`开始生成新任务...`);
     
     // 生成新任务
     const newTasks = await generateUserTasks(userId, taskRecord, 3);
     taskRecord.currentTasks = newTasks;
     
-    console.log(`新任务列表:`, newTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
+    // console.log(`新任务列表:`, newTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
     
     // 保存到数据库
     await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
-    console.log(`任务已保存到数据库`);
-    console.log(`========== 刷新完成 ==========\n`);
+    // console.log(`任务已保存到数据库`);
+    // console.log(`========== 刷新完成 ==========\n`);
     
     return {
       success: true,
@@ -1699,13 +1699,13 @@ export async function getAllWorksWeightComparison() {
       return a.sequenceId - b.sequenceId;
     });
     
-    console.log(`[权重对比] 生成了${worksWeightData.length}个作品的权重数据`);
-    if (worksWeightData.length > 0) {
-      console.log(`[权重对比] TOP5最需关注作品:`);
-      worksWeightData.slice(0, 5).forEach((w, i) => {
-        console.log(`  ${i + 1}. #${w.sequenceId} | Q权重:${w.finalWeightHigh} 普通权重:${w.finalWeightLow} | ${w.currentRatings}/20评分`);
-      });
-    }
+    // console.log(`[权重对比] 生成了${worksWeightData.length}个作品的权重数据`);
+    // if (worksWeightData.length > 0) {
+    //   console.log(`[权重对比] TOP5最需关注作品:`);
+    //   worksWeightData.slice(0, 5).forEach((w, i) => {
+    //     console.log(`  ${i + 1}. #${w.sequenceId} | Q权重:${w.finalWeightHigh} 普通权重:${w.finalWeightLow} | ${w.currentRatings}/20评分`);
+    //   });
+    // }
     
     return {
       works: worksWeightData,

@@ -231,6 +231,12 @@
       border-color: rgba(255, 215, 0, 0.8);
     }
 
+    /* 评论列表容器（透明背景） */
+    .comments-display-container {
+      background: transparent;
+      margin-bottom: 20px;
+    }
+
     /* 分页器 */
     .pagination {
       display: flex;
@@ -238,6 +244,16 @@
       align-items: center;
       gap: 10px;
       margin: 20px 0;
+      padding: 12px 20px;
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .page-button {
@@ -569,8 +585,14 @@
     /* 加载状态 */
     .loading {
       text-align: center;
-      padding: 60px 20px;
+      padding: 40px 20px;
       color: #fff;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      margin: 20px 0;
     }
 
     .spinner {
@@ -597,9 +619,15 @@
 
     .no-comments {
       text-align: center;
-      padding: 60px 20px;
+      padding: 40px 20px;
       color: rgba(255, 255, 255, 0.9);
       font-size: 16px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      margin: 20px 0;
     }
 
     /* 响应式设计 */
@@ -660,7 +688,7 @@
       <div class="submit-status" id="submitStatus"></div>
     </div>
 
-    <!-- 评论筛选和列表区域 -->
+    <!-- 评论筛选区域 -->
     <div class="glass-card">
       <div class="section-title">评论列表</div>
 
@@ -684,7 +712,10 @@
           </div>
         </div>
       </div>
+    </div>
 
+    <!-- 评论显示区域（透明背景） -->
+    <div class="comments-display-container">
       <!-- 分页器（顶部） -->
       <div class="pagination" id="paginationTop">
         <button class="page-button" id="prevBtnTop">上一页</button>
