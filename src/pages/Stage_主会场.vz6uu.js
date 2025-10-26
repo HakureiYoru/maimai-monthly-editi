@@ -31,6 +31,11 @@ let workOwnersCache = {}; // 缓存作品所有者信息
 let allWorksRankingCache = null; // 缓存所有作品的排名信息
 let workTitlesCache = {}; // 缓存作品标题信息
 
+// 【新增】加载锁，防止并发重复加载
+let isLoadingUserFormalRatings = false; // 防止并发加载用户评分状态
+let isLoadingBatchData = false; // 防止并发加载批量数据
+let isLoadingRanking = false; // 防止并发加载排名数据
+
 // 【新增】批量数据缓存 - 一次性加载所有作品评分数据
 let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
 
@@ -96,6 +101,25 @@ function updateCommentControlsVerificationStatus() {
 
 // 【新增】批量加载所有数据（性能优化核心函数）
 async function loadBatchData() {
+   // 如果已有缓存，直接返回
+  if (batchDataCache) {
+    return batchDataCache;
+  }
+
+  // 【关键】如果正在加载，等待加载完成
+  if (isLoadingBatchData) {
+    console.log("[性能优化] 批量数据正在加载中，等待完成...");
+    let waitCount = 0;
+    while (isLoadingBatchData && waitCount < 600) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+    return batchDataCache;
+  }
+
+  // 设置加载锁
+  isLoadingBatchData = true;
+
   try {
     console.log("[性能优化] 开始批量加载所有作品数据...");
     const startTime = Date.now();
@@ -124,6 +148,9 @@ async function loadBatchData() {
       commentCountMap: {}
     };
     return batchDataCache;
+  } finally {
+    // 释放加载锁
+    isLoadingBatchData = false;
   }
 }
 
@@ -216,7 +243,10 @@ $w.onReady(async function () {
   // 预加载当前显示评论的回复数量（新系统会自动处理）
   // 【注释】旧repeater1的回复数量预加载已不需要
 
-  // 【已迁移到新HTML元件】旧事件监听器已移除
+  // 【保留】作品列表（Repeater2）的事件监听器
+  setupSearchAndPaginationEvents(); // 作品搜索、分页、排序
+
+  // 【已迁移到新HTML元件】评论系统的事件监听器已移除
   // 所有评论相关功能现在由 commentSystemPanel HTML元件处理
 });
 
@@ -603,9 +633,24 @@ async function handleSubmitReply(data) {
 // 【优化】获取所有作品的评分并计算排名百分位（排除淘汰作品）
 // 使用批量缓存数据，避免逐个查询作品评分
 async function calculateAllWorksRanking() {
+  // 如果已有缓存，直接返回
   if (allWorksRankingCache) {
     return allWorksRankingCache;
   }
+
+  // 【关键】如果正在加载，等待加载完成
+  if (isLoadingRanking) {
+    console.log("[性能优化] 排名数据正在加载中，等待完成...");
+    let waitCount = 0;
+    while (isLoadingRanking && waitCount < 600) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+    return allWorksRankingCache;
+  }
+
+  // 设置加载锁
+  isLoadingRanking = true;
 
   try {
     console.log("[性能优化] 开始计算所有作品排名...");
@@ -660,7 +705,11 @@ async function calculateAllWorksRanking() {
     return allWorksRankingCache;
   } catch (error) {
     console.error("计算作品排名失败:", error);
-    return { rankingMap: {}, totalValidWorks: 0 };
+    allWorksRankingCache = { rankingMap: {}, totalValidWorks: 0 };
+    return allWorksRankingCache;
+  } finally {
+    // 释放加载锁
+    isLoadingRanking = false;
   }
 }
 
@@ -676,9 +725,25 @@ function getTierFromPercentile(percentile) {
 // 【优化】批量获取用户正式评分状态
 // 使用批量缓存中的作品所有者信息，减少查询
 async function batchLoadUserFormalRatings() {
+  // 如果已有缓存，直接返回
   if (!currentUserId || !isUserVerified || userFormalRatingsCache) {
     return userFormalRatingsCache || {};
   }
+
+  // 【关键】如果正在加载，等待加载完成
+  if (isLoadingUserFormalRatings) {
+    console.log("[性能优化] 用户评分状态正在加载中，等待完成...");
+    // 等待加载完成（最多等待60秒）
+    let waitCount = 0;
+    while (isLoadingUserFormalRatings && waitCount < 600) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+    return userFormalRatingsCache || {};
+  }
+
+  // 设置加载锁
+  isLoadingUserFormalRatings = true;
 
   try {
     console.log("[性能优化] 批量加载用户评分状态...");
@@ -716,6 +781,9 @@ async function batchLoadUserFormalRatings() {
   } catch (error) {
     console.error("批量加载用户正式评分状态失败:", error);
     return {};
+  } finally {
+    // 释放加载锁
+    isLoadingUserFormalRatings = false;
   }
 }
 
@@ -741,6 +809,12 @@ function clearCaches() {
   allWorksRankingCache = null;
   batchDataCache = null; // 清理批量数据缓存
   userTaskDataCache = null; // 清理任务数据缓存
+  
+  // 重置所有加载锁
+  isLoadingUserFormalRatings = false;
+  isLoadingBatchData = false;
+  isLoadingRanking = false;
+  
   console.log("[性能优化] 缓存数据已清理");
 }
 
@@ -1394,36 +1468,38 @@ async function sortByRating(items) {
   }
 }
 
-/* 【已移除 - 旧系统】以下事件监听器函数已废弃，功能已迁移到HTML元件
-
+// 【保留 - Repeater2作品列表】搜索和分页事件监听器
+// ⚠️ 此函数用于作品列表（repeater2），不是评论系统
 function setupSearchAndPaginationEvents() {
-  // ... 作品列表搜索和分页（保留，属于repeater2）...
+  $w("#input1").onInput(async () => {
+    const searchValue = $w("#input1").value;
+    const dropdownValue = $w("#dropdown1").value;
+    await updateRepeaterData(1, searchValue, dropdownValue);
+  });
+
+  $w("#paginator, #paginator2").onClick(async (event) => {
+    const pageNumber = event.target.currentPage;
+    const searchValue = $w("#input1").value;
+    const dropdownValue = $w("#dropdown1").value;
+    await updateRepeaterData(pageNumber, searchValue, dropdownValue);
+  });
+
+  $w("#dropdown1").onChange(async () => {
+    const searchValue = $w("#input1").value;
+    const pageNumber = 1;
+    const dropdownValue = $w("#dropdown1").value;
+    await updateRepeaterData(pageNumber, searchValue, dropdownValue);
+  });
 }
 
-function setupCommentsPaginationEvents() {
-  // ... 评论分页（已废弃）...
-}
-
-  // ... 约200行旧提交按钮代码（已废弃）...
-}
-
-function getCommentFilterMode() {
-  // ... 获取筛选模式（已废弃）...
-}
-
-function setupScoreCheckboxEvent() {
-  // ... 评分筛选事件（已废弃）...
-}
-
-async function loadAllFormalComments(pageNumber = 1) {
-  // ... 加载评论函数（已废弃）...
-}
-
-function setupDropdownFilterEvent() {
-  // ... 下拉筛选事件（已废弃）...
-}
-
-结束旧系统函数注释 */
+/* 【已移除 - 旧评论系统】以下函数已废弃，功能已迁移到HTML元件
+- setupCommentsPaginationEvents() - 评论分页（已废弃）
+- setupSubmitButtonEvent() - 提交按钮（已废弃）
+- getCommentFilterMode() - 获取筛选模式（已废弃）
+- setupScoreCheckboxEvent() - 评分筛选（已废弃）
+- loadAllFormalComments() - 加载评论（已废弃）
+- setupDropdownFilterEvent() - 评论筛选（已废弃）
+*/
 
 // ==================== 评论系统HTML元件集成 ====================
 
