@@ -15,36 +15,36 @@ import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeigh
 import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
 
-// 全局状态管理
+// 鍏ㄥ眬鐘舵€佺鐞?
 let commentsCountByWorkNumber = {};
 const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
-const commentsPerPage = 20; // 评论列表每页显示数量
+const commentsPerPage = 20; // 璇勮鍒楄〃姣忛〉鏄剧ず鏁伴噺
 let titleValue;
 const currentUserId = wixUsers.currentUser.id;
 let isUserVerified = false;
-const commentDataCache = new Map(); // 缓存分页查询结果
-let selfScCommentIdCache = null; // 缓存作者自评评论ID集合
-let isLoadingSelfScComments = false; // 防止并发加载作者自评评论ID
+const commentDataCache = new Map(); // 缂撳瓨鍒嗛〉鏌ヨ缁撴灉
+let selfScCommentIdCache = null; // 缂撳瓨浣滆€呰嚜璇勮瘎璁篒D闆嗗悎
+let isLoadingSelfScComments = false; // 闃叉骞跺彂鍔犺浇浣滆€呰嚜璇勮瘎璁篒D
 
-// 缓存数据以减少API调用（性能优化）
-let userFormalRatingsCache = null; // 缓存用户正式评分状态
-let replyCountsCache = {}; // 缓存回复数量
-let workOwnersCache = {}; // 缓存作品所有者信息
-let allWorksRankingCache = null; // 缓存所有作品的排名信息
-let workTitlesCache = {}; // 缓存作品标题信息
+// 缂撳瓨鏁版嵁浠ュ噺灏慉PI璋冪敤锛堟€ц兘浼樺寲锛?
+let userFormalRatingsCache = null; // 缂撳瓨鐢ㄦ埛姝ｅ紡璇勫垎鐘舵€?
+let replyCountsCache = {}; // 缂撳瓨鍥炲鏁伴噺
+let workOwnersCache = {}; // 缂撳瓨浣滃搧鎵€鏈夎€呬俊鎭?
+let allWorksRankingCache = null; // 缂撳瓨鎵€鏈変綔鍝佺殑鎺掑悕淇℃伅
+let workTitlesCache = {}; // 缂撳瓨浣滃搧鏍囬淇℃伅
 
-// 【新增】加载锁，防止并发重复加载
-let isLoadingUserFormalRatings = false; // 防止并发加载用户评分状态
-let isLoadingBatchData = false; // 防止并发加载批量数据
-let isLoadingRanking = false; // 防止并发加载排名数据
+// 銆愭柊澧炪€戝姞杞介攣锛岄槻姝㈠苟鍙戦噸澶嶅姞杞?
+let isLoadingUserFormalRatings = false; // 闃叉骞跺彂鍔犺浇鐢ㄦ埛璇勫垎鐘舵€?
+let isLoadingBatchData = false; // 闃叉骞跺彂鍔犺浇鎵归噺鏁版嵁
+let isLoadingRanking = false; // 闃叉骞跺彂鍔犺浇鎺掑悕鏁版嵁
 
-// 【新增】批量数据缓存 - 一次性加载所有作品评分数据
+// 銆愭柊澧炪€戞壒閲忔暟鎹紦瀛?- 涓€娆℃€у姞杞芥墍鏈変綔鍝佽瘎鍒嗘暟鎹?
 let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
 
-// 【新增】任务数据缓存 - 避免重复调用
-let userTaskDataCache = null; // 缓存用户任务数据
+// 銆愭柊澧炪€戜换鍔℃暟鎹紦瀛?- 閬垮厤閲嶅璋冪敤
+let userTaskDataCache = null; // 缂撳瓨鐢ㄦ埛浠诲姟鏁版嵁
 
-// 用户验证功能
+// 鐢ㄦ埛楠岃瘉鍔熻兘
 async function checkUserVerification() {
   if (!currentUserId) {
     isUserVerified = false;
@@ -65,18 +65,18 @@ async function checkUserVerification() {
       return false;
     }
   } catch (error) {
-    console.error("检查用户验证状态失败：", error);
+    console.error("妫€鏌ョ敤鎴烽獙璇佺姸鎬佸け璐ワ細", error);
     isUserVerified = false;
     return false;
   }
 }
 
-// 【已移除】updateCommentControlsVerificationStatus() - 只用于旧的原生组件
+// 銆愬凡绉婚櫎銆憉pdateCommentControlsVerificationStatus() - 鍙敤浜庢棫鐨勫師鐢熺粍浠?
 /*
 function updateCommentControlsVerificationStatus() {
   if (!currentUserId) {
     $w("#submit").disable();
-    $w("#submit").label = "未登录";
+    $w("#submit").label = "鏈櫥褰?;
     $w("#Comment").disable();
     $w("#inputScore").disable();
     return;
@@ -84,7 +84,7 @@ function updateCommentControlsVerificationStatus() {
 
   if (!isUserVerified) {
     $w("#submit").disable();
-    $w("#submit").label = "未报名";
+    $w("#submit").label = "鏈姤鍚?;
     $w("#Comment").disable();
     $w("#inputScore").disable();
   } else {
@@ -93,7 +93,7 @@ function updateCommentControlsVerificationStatus() {
       $w("#inputNumber").fireEvent("change");
     } else {
       $w("#submit").enable();
-      $w("#submit").label = "提交评论";
+      $w("#submit").label = "鎻愪氦璇勮";
       $w("#Comment").enable();
       $w("#inputScore").enable();
     }
@@ -101,16 +101,16 @@ function updateCommentControlsVerificationStatus() {
 }
 */
 
-// 【新增】批量加载所有数据（性能优化核心函数）
+// 銆愭柊澧炪€戞壒閲忓姞杞芥墍鏈夋暟鎹紙鎬ц兘浼樺寲鏍稿績鍑芥暟锛?
 async function loadBatchData() {
-   // 如果已有缓存，直接返回
+   // 濡傛灉宸叉湁缂撳瓨锛岀洿鎺ヨ繑鍥?
   if (batchDataCache) {
     return batchDataCache;
   }
 
-  // 【关键】如果正在加载，等待加载完成
+  // 銆愬叧閿€戝鏋滄鍦ㄥ姞杞斤紝绛夊緟鍔犺浇瀹屾垚
   if (isLoadingBatchData) {
-    console.log("[性能优化] 批量数据正在加载中，等待完成...");
+    console.log("[鎬ц兘浼樺寲] 鎵归噺鏁版嵁姝ｅ湪鍔犺浇涓紝绛夊緟瀹屾垚...");
     let waitCount = 0;
     while (isLoadingBatchData && waitCount < 600) {
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -119,29 +119,29 @@ async function loadBatchData() {
     return batchDataCache;
   }
 
-  // 设置加载锁
+  // 璁剧疆鍔犺浇閿?
   isLoadingBatchData = true;
 
   try {
-    console.log("[性能优化] 开始批量加载所有作品数据...");
+    console.log("[鎬ц兘浼樺寲] 寮€濮嬫壒閲忓姞杞芥墍鏈変綔鍝佹暟鎹?..");
     const startTime = Date.now();
     
     batchDataCache = await getAllWorksWeightedRatingData();
     
-    // 从批量数据中提取评论计数
+    // 浠庢壒閲忔暟鎹腑鎻愬彇璇勮璁℃暟
     commentsCountByWorkNumber = batchDataCache.commentCountMap || {};
     
-    // 从批量数据中提取作品所有者信息
+    // 浠庢壒閲忔暟鎹腑鎻愬彇浣滃搧鎵€鏈夎€呬俊鎭?
     workOwnersCache = batchDataCache.workOwnerMap || {};
     
     const endTime = Date.now();
-    console.log(`[性能优化] 批量数据加载完成，耗时: ${endTime - startTime}ms`);
-    console.log(`[性能优化] 加载了 ${Object.keys(batchDataCache.workRatings || {}).length} 个作品的评分数据`);
-    console.log(`[性能优化] 加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`);
+    console.log(`[鎬ц兘浼樺寲] 鎵归噺鏁版嵁鍔犺浇瀹屾垚锛岃€楁椂: ${endTime - startTime}ms`);
+    console.log(`[鎬ц兘浼樺寲] 鍔犺浇浜?${Object.keys(batchDataCache.workRatings || {}).length} 涓綔鍝佺殑璇勫垎鏁版嵁`);
+    console.log(`[鎬ц兘浼樺寲] 鍔犺浇浜?${Object.keys(commentsCountByWorkNumber).length} 涓綔鍝佺殑璇勮璁℃暟`);
     
     return batchDataCache;
   } catch (error) {
-    console.error("[性能优化] 批量数据加载失败:", error);
+    console.error("[鎬ц兘浼樺寲] 鎵归噺鏁版嵁鍔犺浇澶辫触:", error);
     batchDataCache = {
       workRatings: {},
       userQualityMap: {},
@@ -151,47 +151,47 @@ async function loadBatchData() {
     };
     return batchDataCache;
   } finally {
-    // 释放加载锁
+    // 閲婃斁鍔犺浇閿?
     isLoadingBatchData = false;
   }
 }
 
-// 页面初始化
+// 椤甸潰鍒濆鍖?
 $w.onReady(async function () {
-  // 初始化删除提示文字元件（隐藏）
+  // 鍒濆鍖栧垹闄ゆ彁绀烘枃瀛楀厓浠讹紙闅愯棌锛?
 
   await checkUserVerification();
-  // updateCommentControlsVerificationStatus(); // 【已移除】旧系统函数
+  // updateCommentControlsVerificationStatus(); // 銆愬凡绉婚櫎銆戞棫绯荤粺鍑芥暟
 
-  // 【优化】首先批量加载所有数据（一次API调用替代数百次）
+  // 銆愪紭鍖栥€戦鍏堟壒閲忓姞杞芥墍鏈夋暟鎹紙涓€娆PI璋冪敤鏇夸唬鏁扮櫨娆★級
   await loadBatchData();
 
-  // 【优化】检查并刷新任务（仅调用一次并缓存）
+  // 銆愪紭鍖栥€戞鏌ュ苟鍒锋柊浠诲姟锛堜粎璋冪敤涓€娆″苟缂撳瓨锛?
   if (currentUserId && isUserVerified) {
     try {
       userTaskDataCache = await getUserTaskData(currentUserId);
-      console.log("[主会场] 任务同步检查完成，已缓存");
+      console.log("[涓讳細鍦篯 浠诲姟鍚屾妫€鏌ュ畬鎴愶紝宸茬紦瀛?);
     } catch (error) {
-      console.error("[主会场] 任务同步检查失败:", error);
+      console.error("[涓讳細鍦篯 浠诲姟鍚屾妫€鏌ュけ璐?", error);
       userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
     }
   }
 
-  // 初始化自定义HTML楼中楼回复面板
+  // 鍒濆鍖栬嚜瀹氫箟HTML妤间腑妤煎洖澶嶉潰鏉?
   initCommentRepliesPanel();
   
-  // 初始化删除确认面板
+  // 鍒濆鍖栧垹闄ょ‘璁ら潰鏉?
   initDeleteConfirmationPanel();
 
-  // 【新增】初始化评论系统HTML元件
+  // 銆愭柊澧炪€戝垵濮嬪寲璇勮绯荤粺HTML鍏冧欢
   initCommentSystemPanel();
 
-  // Repeater2: 作品显示
+  // Repeater2: 浣滃搧鏄剧ず
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
-    const maidataUrl = itemData.inVideo的複本;
-    const trackUrl = itemData.maidata的複本;
-    const bgUrl = itemData.track的複本;
-    const bgVideoUrl = itemData.上傳檔案欄;
+    const maidataUrl = itemData.inVideo鐨勮鏈?
+    const trackUrl = itemData.maidata鐨勮鏈?
+    const bgUrl = itemData.track鐨勮鏈?
+    const bgVideoUrl = itemData.涓婂偝妾旀娆?
     const submitTime = itemData.submissionTime;
     const formattedSubmitTime = formatDate(submitTime);
 
@@ -204,7 +204,7 @@ $w.onReady(async function () {
 
     $item("#button3").label = "Download";
 
-    // 视频显示控制
+    // 瑙嗛鏄剧ず鎺у埗
     if (bgVideoUrl) {
       $item("#movie").show();
     } else {
@@ -217,7 +217,7 @@ $w.onReady(async function () {
     await updateButtonStatus($item, itemData._id);
     await updateCommentStatus($item, itemData);
 
-    // 淘汰作品视觉效果
+    // 娣樻卑浣滃搧瑙嗚鏁堟灉
     if (itemData.isDq === true) {
       $item("#container2").style.opacity = "0.5";
       $item("#container2").style.filter = "grayscale(100%)";
@@ -227,50 +227,50 @@ $w.onReady(async function () {
     setupItemEventListeners($item, itemData, downloadUrl);
   });
 
-  // 【已移除】Repeater1评论显示功能已迁移到新的HTML元件（commentSystemPanel）
+  // 銆愬凡绉婚櫎銆慠epeater1璇勮鏄剧ず鍔熻兘宸茶縼绉诲埌鏂扮殑HTML鍏冧欢锛坈ommentSystemPanel锛?
 
-  // 数据初始化
+  // 鏁版嵁鍒濆鍖?
   await updateRepeaterData(1, "", "");
   
-  // 【优化】预加载用户评分状态（使用批量数据）
+  // 銆愪紭鍖栥€戦鍔犺浇鐢ㄦ埛璇勫垎鐘舵€侊紙浣跨敤鎵归噺鏁版嵁锛?
   if (currentUserId && isUserVerified) {
     await batchLoadUserFormalRatings();
   }
   
-  // 【优化】预加载作品排名数据（使用批量数据）
+  // 銆愪紭鍖栥€戦鍔犺浇浣滃搧鎺掑悕鏁版嵁锛堜娇鐢ㄦ壒閲忔暟鎹級
   await calculateAllWorksRanking();
   
-  // 【已移除】loadAllFormalComments() - 旧repeater1初始化，新系统通过HTML元件初始化
+  // 銆愬凡绉婚櫎銆憀oadAllFormalComments() - 鏃epeater1鍒濆鍖栵紝鏂扮郴缁熼€氳繃HTML鍏冧欢鍒濆鍖?
   
-  // 预加载当前显示评论的回复数量（新系统会自动处理）
-  // 【注释】旧repeater1的回复数量预加载已不需要
+  // 棰勫姞杞藉綋鍓嶆樉绀鸿瘎璁虹殑鍥炲鏁伴噺锛堟柊绯荤粺浼氳嚜鍔ㄥ鐞嗭級
+  // 銆愭敞閲娿€戞棫repeater1鐨勫洖澶嶆暟閲忛鍔犺浇宸蹭笉闇€瑕?
 
-  // 【保留】作品列表（Repeater2）的事件监听器
-  setupSearchAndPaginationEvents(); // 作品搜索、分页、排序
+  // 銆愪繚鐣欍€戜綔鍝佸垪琛紙Repeater2锛夌殑浜嬩欢鐩戝惉鍣?
+  setupSearchAndPaginationEvents(); // 浣滃搧鎼滅储銆佸垎椤点€佹帓搴?
 
-  // 【已迁移到新HTML元件】评论系统的事件监听器已移除
-  // 所有评论相关功能现在由 commentSystemPanel HTML元件处理
+  // 銆愬凡杩佺Щ鍒版柊HTML鍏冧欢銆戣瘎璁虹郴缁熺殑浜嬩欢鐩戝惉鍣ㄥ凡绉婚櫎
+  // 鎵€鏈夎瘎璁虹浉鍏冲姛鑳界幇鍦ㄧ敱 commentSystemPanel HTML鍏冧欢澶勭悊
 });
 
-// 核心功能函数
+// 鏍稿績鍔熻兘鍑芥暟
 
-// 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态（任务/冷门高亮提示）
-// ⚠️ 此函数被 Repeater2（作品列表）使用，用于显示作品的评论状态（#ifComment）
+// 璇勮鐘舵€佹鏌?- 浼樺厛绾э細娣樻卑 > 鏈櫥褰?> 鏈獙璇?> 璇勮鐘舵€侊紙浠诲姟/鍐烽棬楂樹寒鎻愮ず锛?
+// 鈿狅笍 姝ゅ嚱鏁拌 Repeater2锛堜綔鍝佸垪琛級浣跨敤锛岀敤浜庢樉绀轰綔鍝佺殑璇勮鐘舵€侊紙#ifComment锛?
 async function updateCommentStatus($item, itemData) {
   if (itemData.isDq === true) {
-    $item("#ifComment").text = "已淘汰";
+    $item("#ifComment").text = "宸叉窐姹?;
     $item("#ifComment").style.color = "#808080";
     return;
   }
 
   if (!currentUserId) {
-    $item("#ifComment").text = "未登录";
+    $item("#ifComment").text = "鏈櫥褰?;
     $item("#ifComment").style.color = "#A9A9A9";
     return;
   }
 
   if (!isUserVerified) {
-    $item("#ifComment").text = "未报名";
+    $item("#ifComment").text = "鏈姤鍚?;
     $item("#ifComment").style.color = "#FF0000";
     return;
   }
@@ -283,7 +283,7 @@ async function updateCommentStatus($item, itemData) {
       .isEmpty("replyTo")
       .find();
 
-    // 【优化】检查是否为任务作品或冷门作品 - 使用缓存避免重复调用
+    // 銆愪紭鍖栥€戞鏌ユ槸鍚︿负浠诲姟浣滃搧鎴栧喎闂ㄤ綔鍝?- 浣跨敤缂撳瓨閬垮厤閲嶅璋冪敤
     const taskCheck = await checkIfWorkInTaskList(currentUserId, itemData.sequenceId);
     const hasCompletedTarget = userTaskDataCache ? (userTaskDataCache.hasCompletedTarget || false) : false;
     
@@ -291,31 +291,31 @@ async function updateCommentStatus($item, itemData) {
     const isColdWork = taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
 
     if (results.items.length > 0) {
-      $item("#ifComment").text = "已评论";
+      $item("#ifComment").text = "宸茶瘎璁?;
       $item("#ifComment").style.color = "#228B22";
     } else {
-      // 未评论状态 - 区分任务和冷门作品
+      // 鏈瘎璁虹姸鎬?- 鍖哄垎浠诲姟鍜屽喎闂ㄤ綔鍝?
       if (isTask) {
-        $item("#ifComment").text = "未评论（任务！！）";
-        $item("#ifComment").style.color = "#0066FF"; // 蓝色高亮
+        $item("#ifComment").text = "鏈瘎璁猴紙浠诲姟锛侊紒锛?;
+        $item("#ifComment").style.color = "#0066FF"; // 钃濊壊楂樹寒
         $item("#ifComment").style.fontWeight = "bold";
       } else if (isColdWork) {
-        $item("#ifComment").text = "未评论（冷门）";
-        $item("#ifComment").style.color = "#FFA500"; // 橙色
+        $item("#ifComment").text = "鏈瘎璁猴紙鍐烽棬锛?;
+        $item("#ifComment").style.color = "#FFA500"; // 姗欒壊
         $item("#ifComment").style.fontWeight = "bold";
       } else {
-        $item("#ifComment").text = "未评论";
+        $item("#ifComment").text = "鏈瘎璁?;
         $item("#ifComment").style.color = "#FF4500";
       }
     }
   } catch (err) {
-    console.error("检查评论状态失败", err);
-    $item("#ifComment").text = "检查失败";
+    console.error("妫€鏌ヨ瘎璁虹姸鎬佸け璐?, err);
+    $item("#ifComment").text = "妫€鏌ュけ璐?;
     $item("#ifComment").style.color = "#A9A9A9";
   }
 }
 
-// 【已移除 - 旧系统】以下函数已废弃，功能已迁移到新的HTML元件
+// 銆愬凡绉婚櫎 - 鏃х郴缁熴€戜互涓嬪嚱鏁板凡搴熷純锛屽姛鑳藉凡杩佺Щ鍒版柊鐨凥TML鍏冧欢
 // - setupWorkSelectionEvent()
 // - setupSubmitButtonEvent()
 // - setupScoreCheckboxEvent()
@@ -327,27 +327,27 @@ async function updateCommentStatus($item, itemData) {
 // - loadAllFormalComments()
 // - setDropdownValue()
 
-/* 【已移除 - 旧系统】setupWorkSelectionEvent() 已废弃，功能已迁移到HTML元件
+/* 銆愬凡绉婚櫎 - 鏃х郴缁熴€憇etupWorkSelectionEvent() 宸插簾寮冿紝鍔熻兘宸茶縼绉诲埌HTML鍏冧欢
 function setupWorkSelectionEvent() {
   $w("#inputNumber").onChange(async () => {
     const workNumber = parseInt($w("#inputNumber").value);
-    // ... 约150行代码 ...
+    // ... 绾?50琛屼唬鐮?...
   });
 }
 */
 
-// Lightbox弹窗管理
+// Lightbox寮圭獥绠＄悊
 function showTextPopup(content) {
   wixWindow.openLightbox("TextPopup", { content: content });
 }
 
-// 显示删除确认面板（替代原来的 lightbox）
+// 鏄剧ず鍒犻櫎纭闈㈡澘锛堟浛浠ｅ師鏉ョ殑 lightbox锛?
 async function handleDeleteComment(itemData, isSelfScComment = false) {
   try {
-    // 显示删除确认面板
+    // 鏄剧ず鍒犻櫎纭闈㈡澘
     $w("#deleteConfirmation").show();
     
-    // 发送初始化数据到HTML元件
+    // 鍙戦€佸垵濮嬪寲鏁版嵁鍒癏TML鍏冧欢
     $w("#deleteConfirmation").postMessage({
       action: 'init',
       commentData: {
@@ -361,23 +361,23 @@ async function handleDeleteComment(itemData, isSelfScComment = false) {
     });
     
   } catch (error) {
-    console.error("显示删除确认面板失败:", error);
+    console.error("鏄剧ず鍒犻櫎纭闈㈡澘澶辫触:", error);
   }
 }
 
-// 关闭删除确认面板
+// 鍏抽棴鍒犻櫎纭闈㈡澘
 function closeDeleteConfirmation() {
   try {
     $w("#deleteConfirmation").hide();
   } catch (error) {
-    console.error("关闭删除确认面板失败:", error);
+    console.error("鍏抽棴鍒犻櫎纭闈㈡澘澶辫触:", error);
   }
 }
 
-// 执行删除操作
+// 鎵ц鍒犻櫎鎿嶄綔
 async function executeDelete(commentData, deleteReason) {
   try {
-    // 执行删除
+    // 鎵ц鍒犻櫎
     const deleteResult = await deleteComment(
       commentData.commentId,
       currentUserId,
@@ -388,14 +388,13 @@ async function executeDelete(commentData, deleteReason) {
     if (deleteResult.success) {
       resetCommentDataCache();
 
-      // 检查是否为作者自评
-      let isAuthorComment = false;
+      // 妫€鏌ユ槸鍚︿负浣滆€呰嚜璇?      let isAuthorComment = false;
       if (batchDataCache && batchDataCache.workOwnerMap) {
         const workOwner = batchDataCache.workOwnerMap[commentData.workNumber];
         isAuthorComment = commentData._owner === workOwner;
       }
       
-      // 发送删除成功结果到HTML元件
+      // 鍙戦€佸垹闄ゆ垚鍔熺粨鏋滃埌HTML鍏冧欢
       $w("#deleteConfirmation").postMessage({
         action: 'deleteResult',
         result: {
@@ -406,52 +405,52 @@ async function executeDelete(commentData, deleteReason) {
       });
       
     } else {
-      // 发送删除失败结果到HTML元件
+      // 鍙戦€佸垹闄ゅけ璐ョ粨鏋滃埌HTML鍏冧欢
       $w("#deleteConfirmation").postMessage({
         action: 'deleteResult',
         result: {
           success: false,
-          message: deleteResult.message || '删除失败'
+          message: deleteResult.message || '鍒犻櫎澶辫触'
         }
       });
     }
     
   } catch (error) {
-    console.error("执行删除操作失败:", error);
+    console.error("鎵ц鍒犻櫎鎿嶄綔澶辫触:", error);
     
-    // 发送错误结果到HTML元件
+    // 鍙戦€侀敊璇粨鏋滃埌HTML鍏冧欢
     $w("#deleteConfirmation").postMessage({
       action: 'deleteResult',
       result: {
         success: false,
-        message: error.message || '删除时发生异常'
+        message: error.message || '鍒犻櫎鏃跺彂鐢熷紓甯?
       }
     });
   }
 }
 
-// 初始化删除确认面板
+// 鍒濆鍖栧垹闄ょ‘璁ら潰鏉?
 function initDeleteConfirmationPanel() {
   try {
-    // 初始时隐藏面板
+    // 鍒濆鏃堕殣钘忛潰鏉?
     $w("#deleteConfirmation").hide();
     
-    // 监听来自HTML元件的消息
+    // 鐩戝惉鏉ヨ嚜HTML鍏冧欢鐨勬秷鎭?
     $w("#deleteConfirmation").onMessage(async (event) => {
       const action = event.data.action;
       
       if (action === 'confirmDelete') {
-        // 执行删除操作
+        // 鎵ц鍒犻櫎鎿嶄綔
         await executeDelete(event.data.commentData, event.data.deleteReason);
       } else if (action === 'cancelDelete') {
-        // 取消删除
+        // 鍙栨秷鍒犻櫎
         closeDeleteConfirmation();
       } else if (action === 'closeDeleteConfirmation') {
-        // 关闭面板并刷新数据
+        // 鍏抽棴闈㈡澘骞跺埛鏂版暟鎹?
         closeDeleteConfirmation();
         await refreshRepeaters();
         
-        // 【新增】同时刷新评论系统HTML元件的评论列表
+        // 銆愭柊澧炪€戝悓鏃跺埛鏂拌瘎璁虹郴缁烪TML鍏冧欢鐨勮瘎璁哄垪琛?
         if ($w("#commentSystemPanel")) {
           try {
             await sendCommentsData({
@@ -459,59 +458,59 @@ function initDeleteConfirmationPanel() {
               filterMode: 'default',
               currentPage: 1
             });
-            console.log("[评论系统] 删除后已刷新评论列表");
+            console.log("[璇勮绯荤粺] 鍒犻櫎鍚庡凡鍒锋柊璇勮鍒楄〃");
           } catch (error) {
-            console.error("[评论系统] 刷新评论列表失败:", error);
+            console.error("[璇勮绯荤粺] 鍒锋柊璇勮鍒楄〃澶辫触:", error);
           }
         }
       }
     });
   } catch (error) {
-    console.error("初始化删除确认面板失败:", error);
+    console.error("鍒濆鍖栧垹闄ょ‘璁ら潰鏉垮け璐?", error);
   }
 }
 
-// 初始化自定义HTML楼中楼回复面板
+// 鍒濆鍖栬嚜瀹氫箟HTML妤间腑妤煎洖澶嶉潰鏉?
 function initCommentRepliesPanel() {
-  // 确保HTML元件存在（需要在Wix编辑器中添加名为 commentRepliesPanel 的HTML元件）
+  // 纭繚HTML鍏冧欢瀛樺湪锛堥渶瑕佸湪Wix缂栬緫鍣ㄤ腑娣诲姞鍚嶄负 commentRepliesPanel 鐨凥TML鍏冧欢锛?
   try {
-    // 初始时隐藏面板
+    // 鍒濆鏃堕殣钘忛潰鏉?
     $w("#commentRepliesPanel").hide();
     
-    // 监听来自HTML元件的消息
+    // 鐩戝惉鏉ヨ嚜HTML鍏冧欢鐨勬秷鎭?
     $w("#commentRepliesPanel").onMessage(async (event) => {
       const action = event.data.action;
       
       if (action === 'getReplies') {
-        // 获取回复数据
+        // 鑾峰彇鍥炲鏁版嵁
         await handleGetReplies(event.data.commentId);
       } else if (action === 'submitReply') {
-        // 提交回复
+        // 鎻愪氦鍥炲
         await handleSubmitReply(event.data);
       } else if (action === 'closeReplies') {
-        // 关闭面板
+        // 鍏抽棴闈㈡澘
         closeCommentRepliesPanel();
       }
     });
   } catch (error) {
-    console.error("初始化楼中楼回复面板失败:", error);
+    console.error("鍒濆鍖栨ゼ涓ゼ鍥炲闈㈡澘澶辫触:", error);
   }
 }
 
-// 显示评论回复面板（替代原来的 lightbox）
+// 鏄剧ず璇勮鍥炲闈㈡澘锛堟浛浠ｅ師鏉ョ殑 lightbox锛?
 async function showCommentReplies(commentId, workNumber, originalComment) {
   try {
-    // 查询回复数据
+    // 鏌ヨ鍥炲鏁版嵁
     const replies = await wixData
       .query("BOFcomment")
       .eq("replyTo", commentId)
       .ascending("_createdDate")
       .find();
 
-    // 显示HTML面板
+    // 鏄剧ずHTML闈㈡澘
     $w("#commentRepliesPanel").show();
     
-    // 发送初始化数据到HTML元件
+    // 鍙戦€佸垵濮嬪寲鏁版嵁鍒癏TML鍏冧欢
     $w("#commentRepliesPanel").postMessage({
       action: 'init',
       commentData: {
@@ -523,21 +522,21 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
       currentUserId: currentUserId
     });
     
-    // 滚动到顶部以确保面板可见
+    // 婊氬姩鍒伴《閮ㄤ互纭繚闈㈡澘鍙
     $w("#commentRepliesPanel").scrollTo();
   } catch (err) {
-    console.error("显示评论回复失败", err);
+    console.error("鏄剧ず璇勮鍥炲澶辫触", err);
   }
 }
 
-// 关闭评论回复面板
+// 鍏抽棴璇勮鍥炲闈㈡澘
 function closeCommentRepliesPanel() {
   try {
     $w("#commentRepliesPanel").hide();
-    // 刷新页面数据
+    // 鍒锋柊椤甸潰鏁版嵁
     refreshRepeaters();
     
-    // 【新增】同时刷新评论系统HTML元件的评论列表（如果有新回复）
+    // 銆愭柊澧炪€戝悓鏃跺埛鏂拌瘎璁虹郴缁烪TML鍏冧欢鐨勮瘎璁哄垪琛紙濡傛灉鏈夋柊鍥炲锛?
     if ($w("#commentSystemPanel")) {
       try {
         sendCommentsData({
@@ -545,17 +544,17 @@ function closeCommentRepliesPanel() {
           filterMode: 'default',
           currentPage: 1
         });
-        console.log("[评论系统] 回复后已刷新评论列表");
+        console.log("[璇勮绯荤粺] 鍥炲鍚庡凡鍒锋柊璇勮鍒楄〃");
       } catch (error) {
-        console.error("[评论系统] 刷新评论列表失败:", error);
+        console.error("[璇勮绯荤粺] 鍒锋柊璇勮鍒楄〃澶辫触:", error);
       }
     }
   } catch (error) {
-    console.error("关闭回复面板失败:", error);
+    console.error("鍏抽棴鍥炲闈㈡澘澶辫触:", error);
   }
 }
 
-// 处理获取回复数据请求
+// 澶勭悊鑾峰彇鍥炲鏁版嵁璇锋眰
 async function handleGetReplies(commentId) {
   try {
     const replies = await wixData
@@ -564,13 +563,13 @@ async function handleGetReplies(commentId) {
       .ascending("_createdDate")
       .find();
     
-    // 将回复数据发送回HTML元件
+    // 灏嗗洖澶嶆暟鎹彂閫佸洖HTML鍏冧欢
     $w("#commentRepliesPanel").postMessage({
       action: 'repliesData',
       replies: replies.items
     });
   } catch (error) {
-    console.error("获取回复数据失败:", error);
+    console.error("鑾峰彇鍥炲鏁版嵁澶辫触:", error);
     $w("#commentRepliesPanel").postMessage({
       action: 'repliesData',
       replies: []
@@ -578,7 +577,7 @@ async function handleGetReplies(commentId) {
   }
 }
 
-// 处理提交回复请求
+// 澶勭悊鎻愪氦鍥炲璇锋眰
 async function handleSubmitReply(data) {
   try {
     const { commentId, workNumber, replyContent } = data;
@@ -587,24 +586,24 @@ async function handleSubmitReply(data) {
       $w("#commentRepliesPanel").postMessage({
         action: 'submitReplyResult',
         success: false,
-        error: '用户未登录'
+        error: '鐢ㄦ埛鏈櫥褰?
       });
       return;
     }
     
-    // 创建回复数据
+    // 鍒涘缓鍥炲鏁版嵁
     const replyData = {
       workNumber: workNumber,
       comment: replyContent,
-      score: 0, // 回复不计分
+      score: 0, // 鍥炲涓嶈鍒?
       replyTo: commentId,
       submissionTime: new Date().toISOString()
     };
     
-    // 提交到数据库
+    // 鎻愪氦鍒版暟鎹簱
     const insertedReply = await wixData.insert("BOFcomment", replyData);
     
-    // 发送邮件通知（异步执行，不阻塞用户体验）
+    // 鍙戦€侀偖浠堕€氱煡锛堝紓姝ユ墽琛岋紝涓嶉樆濉炵敤鎴蜂綋楠岋級
     try {
       await sendReplyNotification(
         commentId,
@@ -613,38 +612,38 @@ async function handleSubmitReply(data) {
         currentUserId
       );
     } catch (emailError) {
-      console.error("发送邮件通知失败（不影响回复提交）:", emailError);
+      console.error("鍙戦€侀偖浠堕€氱煡澶辫触锛堜笉褰卞搷鍥炲鎻愪氦锛?", emailError);
     }
     
-    // 通知HTML元件提交成功
+    // 閫氱煡HTML鍏冧欢鎻愪氦鎴愬姛
     $w("#commentRepliesPanel").postMessage({
       action: 'submitReplyResult',
       success: true
     });
     
   } catch (error) {
-    console.error("提交回复失败:", error);
+    console.error("鎻愪氦鍥炲澶辫触:", error);
     $w("#commentRepliesPanel").postMessage({
       action: 'submitReplyResult',
       success: false,
-      error: error.message || '提交失败'
+      error: error.message || '鎻愪氦澶辫触'
     });
   }
 }
 
-// 辅助工具函数
+// 杈呭姪宸ュ叿鍑芥暟
 
-// 【优化】获取所有作品的评分并计算排名百分位（排除淘汰作品）
-// 使用批量缓存数据，避免逐个查询作品评分
+// 銆愪紭鍖栥€戣幏鍙栨墍鏈変綔鍝佺殑璇勫垎骞惰绠楁帓鍚嶇櫨鍒嗕綅锛堟帓闄ゆ窐姹颁綔鍝侊級
+// 浣跨敤鎵归噺缂撳瓨鏁版嵁锛岄伩鍏嶉€愪釜鏌ヨ浣滃搧璇勫垎
 async function calculateAllWorksRanking() {
-  // 如果已有缓存，直接返回
+  // 濡傛灉宸叉湁缂撳瓨锛岀洿鎺ヨ繑鍥?
   if (allWorksRankingCache) {
     return allWorksRankingCache;
   }
 
-  // 【关键】如果正在加载，等待加载完成
+  // 銆愬叧閿€戝鏋滄鍦ㄥ姞杞斤紝绛夊緟鍔犺浇瀹屾垚
   if (isLoadingRanking) {
-    console.log("[性能优化] 排名数据正在加载中，等待完成...");
+    console.log("[鎬ц兘浼樺寲] 鎺掑悕鏁版嵁姝ｅ湪鍔犺浇涓紝绛夊緟瀹屾垚...");
     let waitCount = 0;
     while (isLoadingRanking && waitCount < 600) {
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -653,25 +652,25 @@ async function calculateAllWorksRanking() {
     return allWorksRankingCache;
   }
 
-  // 设置加载锁
+  // 璁剧疆鍔犺浇閿?
   isLoadingRanking = true;
 
   try {
-    console.log("[性能优化] 开始计算所有作品排名...");
+    console.log("[鎬ц兘浼樺寲] 寮€濮嬭绠楁墍鏈変綔鍝佹帓鍚?..");
     const startTime = Date.now();
     
-    // 【优化】直接从批量缓存中获取数据
+    // 銆愪紭鍖栥€戠洿鎺ヤ粠鎵归噺缂撳瓨涓幏鍙栨暟鎹?
     if (!batchDataCache || !batchDataCache.workRatings) {
-      console.warn("[性能提示] 批量缓存未加载，重新加载");
+      console.warn("[鎬ц兘鎻愮ず] 鎵归噺缂撳瓨鏈姞杞斤紝閲嶆柊鍔犺浇");
       await loadBatchData();
     }
     
     const workRatings = batchDataCache.workRatings;
     
-    // 构建作品评分数组，排除淘汰作品
+    // 鏋勫缓浣滃搧璇勫垎鏁扮粍锛屾帓闄ゆ窐姹颁綔鍝?
     const worksWithScores = [];
     for (const [workNumber, ratingData] of Object.entries(workRatings)) {
-      // 排除淘汰作品
+      // 鎺掗櫎娣樻卑浣滃搧
       if (ratingData.isDQ) continue;
       
       worksWithScores.push({
@@ -681,13 +680,13 @@ async function calculateAllWorksRanking() {
       });
     }
 
-    // 只考虑有足够评分的作品（>=阈值人评分）
+    // 鍙€冭檻鏈夎冻澶熻瘎鍒嗙殑浣滃搧锛?=闃堝€间汉璇勫垎锛?
     const validWorks = worksWithScores.filter(w => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING);
     
-    // 按平均分降序排序
+    // 鎸夊钩鍧囧垎闄嶅簭鎺掑簭
     validWorks.sort((a, b) => b.averageScore - a.averageScore);
     
-    // 创建排名映射
+    // 鍒涘缓鎺掑悕鏄犲皠
     const rankingMap = {};
     validWorks.forEach((work, index) => {
       const percentile = (index + 1) / validWorks.length;
@@ -705,19 +704,19 @@ async function calculateAllWorksRanking() {
     };
 
     const endTime = Date.now();
-    console.log(`[性能优化] 作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${endTime - startTime}ms`);
+    console.log(`[鎬ц兘浼樺寲] 浣滃搧鎺掑悕璁＄畻瀹屾垚锛屽叡${validWorks.length}涓湁鏁堜綔鍝侊紝鑰楁椂: ${endTime - startTime}ms`);
     return allWorksRankingCache;
   } catch (error) {
-    console.error("计算作品排名失败:", error);
+    console.error("璁＄畻浣滃搧鎺掑悕澶辫触:", error);
     allWorksRankingCache = { rankingMap: {}, totalValidWorks: 0 };
     return allWorksRankingCache;
   } finally {
-    // 释放加载锁
+    // 閲婃斁鍔犺浇閿?
     isLoadingRanking = false;
   }
 }
 
-// 根据百分位获取等级
+// 鏍规嵁鐧惧垎浣嶈幏鍙栫瓑绾?
 function getTierFromPercentile(percentile) {
   if (percentile <= 0.05) return "T0";
   if (percentile <= 0.20) return "T1";
@@ -726,18 +725,18 @@ function getTierFromPercentile(percentile) {
   return "T4";
 }
 
-// 【优化】批量获取用户正式评分状态
-// 使用批量缓存中的作品所有者信息，减少查询
+// 銆愪紭鍖栥€戞壒閲忚幏鍙栫敤鎴锋寮忚瘎鍒嗙姸鎬?
+// 浣跨敤鎵归噺缂撳瓨涓殑浣滃搧鎵€鏈夎€呬俊鎭紝鍑忓皯鏌ヨ
 async function batchLoadUserFormalRatings() {
-  // 如果已有缓存，直接返回
+  // 濡傛灉宸叉湁缂撳瓨锛岀洿鎺ヨ繑鍥?
   if (!currentUserId || !isUserVerified || userFormalRatingsCache) {
     return userFormalRatingsCache || {};
   }
 
-  // 【关键】如果正在加载，等待加载完成
+  // 銆愬叧閿€戝鏋滄鍦ㄥ姞杞斤紝绛夊緟鍔犺浇瀹屾垚
   if (isLoadingUserFormalRatings) {
-    console.log("[性能优化] 用户评分状态正在加载中，等待完成...");
-    // 等待加载完成（最多等待60秒）
+    console.log("[鎬ц兘浼樺寲] 鐢ㄦ埛璇勫垎鐘舵€佹鍦ㄥ姞杞戒腑锛岀瓑寰呭畬鎴?..");
+    // 绛夊緟鍔犺浇瀹屾垚锛堟渶澶氱瓑寰?0绉掞級
     let waitCount = 0;
     while (isLoadingUserFormalRatings && waitCount < 600) {
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -746,22 +745,22 @@ async function batchLoadUserFormalRatings() {
     return userFormalRatingsCache || {};
   }
 
-  // 设置加载锁
+  // 璁剧疆鍔犺浇閿?
   isLoadingUserFormalRatings = true;
 
   try {
-    console.log("[性能优化] 批量加载用户评分状态...");
+    console.log("[鎬ц兘浼樺寲] 鎵归噺鍔犺浇鐢ㄦ埛璇勫垎鐘舵€?..");
     const startTime = Date.now();
     
-    // 【优化】从批量缓存获取作品所有者信息
+    // 銆愪紭鍖栥€戜粠鎵归噺缂撳瓨鑾峰彇浣滃搧鎵€鏈夎€呬俊鎭?
     if (!batchDataCache || !batchDataCache.workOwnerMap) {
-      console.warn("[性能提示] 批量缓存未加载，重新加载");
+      console.warn("[鎬ц兘鎻愮ず] 鎵归噺缂撳瓨鏈姞杞斤紝閲嶆柊鍔犺浇");
       await loadBatchData();
     }
     
     const workOwnerMap = batchDataCache.workOwnerMap;
 
-    // 获取用户所有评论
+    // 鑾峰彇鐢ㄦ埛鎵€鏈夎瘎璁?
     const userComments = await wixData
       .query("BOFcomment")
       .eq("_owner", currentUserId)
@@ -769,7 +768,7 @@ async function batchLoadUserFormalRatings() {
       .limit(1000)
       .find();
 
-    // 计算用户正式评分状态
+    // 璁＄畻鐢ㄦ埛姝ｅ紡璇勫垎鐘舵€?
     const formalRatings = {};
     userComments.items.forEach((comment) => {
       const workOwnerId = workOwnerMap[comment.workNumber];
@@ -780,18 +779,18 @@ async function batchLoadUserFormalRatings() {
 
     userFormalRatingsCache = formalRatings;
     const endTime = Date.now();
-    console.log(`[性能优化] 用户评分状态加载完成，共${Object.keys(formalRatings).length}个作品有正式评分，耗时: ${endTime - startTime}ms`);
+    console.log(`[鎬ц兘浼樺寲] 鐢ㄦ埛璇勫垎鐘舵€佸姞杞藉畬鎴愶紝鍏?{Object.keys(formalRatings).length}涓綔鍝佹湁姝ｅ紡璇勫垎锛岃€楁椂: ${endTime - startTime}ms`);
     return formalRatings;
   } catch (error) {
-    console.error("批量加载用户正式评分状态失败:", error);
+    console.error("鎵归噺鍔犺浇鐢ㄦ埛姝ｅ紡璇勫垎鐘舵€佸け璐?", error);
     return {};
   } finally {
-    // 释放加载锁
+    // 閲婃斁鍔犺浇閿?
     isLoadingUserFormalRatings = false;
   }
 }
 
-// 检查用户是否对作品有正式评分（使用缓存）
+// 妫€鏌ョ敤鎴锋槸鍚﹀浣滃搧鏈夋寮忚瘎鍒嗭紙浣跨敤缂撳瓨锛?
 async function checkUserHasFormalRating(workNumber) {
   if (!currentUserId || !isUserVerified) {
     return false;
@@ -804,52 +803,52 @@ async function checkUserHasFormalRating(workNumber) {
   return userFormalRatingsCache[workNumber] || false;
 }
 
-// 【优化】清理缓存数据
+// 銆愪紭鍖栥€戞竻鐞嗙紦瀛樻暟鎹?
 function clearCaches() {
   userFormalRatingsCache = null;
   replyCountsCache = {};
   workOwnersCache = {};
-  workTitlesCache = {}; // 清理作品标题缓存
+  workTitlesCache = {}; // 娓呯悊浣滃搧鏍囬缂撳瓨
   allWorksRankingCache = null;
-  batchDataCache = null; // 清理批量数据缓存
-  userTaskDataCache = null; // 清理任务数据缓存
-  resetCommentDataCache(); // 清理评论分页缓存
+  batchDataCache = null; // 娓呯悊鎵归噺鏁版嵁缂撳瓨
+  userTaskDataCache = null; // 娓呯悊浠诲姟鏁版嵁缂撳瓨
+  resetCommentDataCache(); // 娓呯悊璇勮鍒嗛〉缂撳瓨
   
-  // 重置所有加载锁
+  // 閲嶇疆鎵€鏈夊姞杞介攣
   isLoadingUserFormalRatings = false;
   isLoadingBatchData = false;
   isLoadingRanking = false;
   
-  console.log("[性能优化] 缓存数据已清理");
+  console.log("[鎬ц兘浼樺寲] 缂撳瓨鏁版嵁宸叉竻鐞?);
 }
 
-// 【新增】增量热更新 - 评论提交后快速更新状态（无需完全刷新）
+// 銆愭柊澧炪€戝閲忕儹鏇存柊 - 璇勮鎻愪氦鍚庡揩閫熸洿鏂扮姸鎬侊紙鏃犻渶瀹屽叏鍒锋柊锛?
 async function incrementalUpdateAfterComment(workNumber, score, comment, isAuthorComment = false) {
   try {
-    console.log(`[热更新] 开始增量更新作品 #${workNumber} 的状态...`);
+    console.log(`[鐑洿鏂癩 寮€濮嬪閲忔洿鏂颁綔鍝?#${workNumber} 鐨勭姸鎬?..`);
     const startTime = Date.now();
     
-    // 1. 更新评论计数缓存
+    // 1. 鏇存柊璇勮璁℃暟缂撳瓨
     if (batchDataCache && batchDataCache.commentCountMap) {
       const currentCount = batchDataCache.commentCountMap[workNumber] || 0;
       batchDataCache.commentCountMap[workNumber] = currentCount + 1;
       commentsCountByWorkNumber[workNumber] = currentCount + 1;
-      console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
+      console.log(`[鐑洿鏂癩 璇勮璁℃暟鏇存柊: ${currentCount} -> ${currentCount + 1}`);
     }
     
-    // 2. 如果不是作者自评，更新用户正式评分缓存和作品评分数据
+    // 2. 濡傛灉涓嶆槸浣滆€呰嚜璇勶紝鏇存柊鐢ㄦ埛姝ｅ紡璇勫垎缂撳瓨鍜屼綔鍝佽瘎鍒嗘暟鎹?
     if (!isAuthorComment) {
-      // 更新用户正式评分状态
+      // 鏇存柊鐢ㄦ埛姝ｅ紡璇勫垎鐘舵€?
       if (userFormalRatingsCache) {
         userFormalRatingsCache[workNumber] = true;
-        console.log(`[热更新] 用户评分状态已更新`);
+        console.log(`[鐑洿鏂癩 鐢ㄦ埛璇勫垎鐘舵€佸凡鏇存柊`);
       }
       
-      // 【修复】等待评分数据更新完成后再更新显示
+      // 銆愪慨澶嶃€戠瓑寰呰瘎鍒嗘暟鎹洿鏂板畬鎴愬悗鍐嶆洿鏂版樉绀?
       let updatedRatingData = null;
       if (batchDataCache && batchDataCache.workRatings) {
         try {
-          // 同步等待评分数据更新完成
+          // 鍚屾绛夊緟璇勫垎鏁版嵁鏇存柊瀹屾垚
           const newRating = await getWorkWeightedRatingData(workNumber);
           if (newRating && batchDataCache.workRatings) {
             const oldRating = batchDataCache.workRatings[workNumber] || {};
@@ -863,18 +862,18 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
               isDQ: oldRating.isDQ
             };
             updatedRatingData = newRating;
-            console.log(`[热更新] 评分数据已更新: 作品 #${workNumber} 现有 ${newRating.numRatings}人评分`);
+            console.log(`[鐑洿鏂癩 璇勫垎鏁版嵁宸叉洿鏂? 浣滃搧 #${workNumber} 鐜版湁 ${newRating.numRatings}浜鸿瘎鍒哷);
           }
         } catch (error) {
-          console.error("[热更新] 更新评分数据失败:", error);
+          console.error("[鐑洿鏂癩 鏇存柊璇勫垎鏁版嵁澶辫触:", error);
         }
       }
       
-      // 清理排名缓存，强制重新计算（因为评分可能影响排名）
+      // 娓呯悊鎺掑悕缂撳瓨锛屽己鍒堕噸鏂拌绠楋紙鍥犱负璇勫垎鍙兘褰卞搷鎺掑悕锛?
       allWorksRankingCache = null;
     }
     
-    // 3. 热更新 Repeater2（作品列表）中当前页的该作品状态
+    // 3. 鐑洿鏂?Repeater2锛堜綔鍝佸垪琛級涓綋鍓嶉〉鐨勮浣滃搧鐘舵€?
     try {
       const repeater2Data = $w("#repeater2").data;
       let needUpdateRepeater2 = false;
@@ -882,64 +881,64 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
       $w("#repeater2").forEachItem(($item, itemData, index) => {
         if (itemData.sequenceId === workNumber) {
           needUpdateRepeater2 = true;
-          // 更新评论计数显示
+          // 鏇存柊璇勮璁℃暟鏄剧ず
           const newCount = commentsCountByWorkNumber[workNumber] || 0;
           $item("#Commments").text = `${newCount}`;
           
-          // 更新评论状态（异步更新）
+          // 鏇存柊璇勮鐘舵€侊紙寮傛鏇存柊锛?
           updateCommentStatus($item, itemData).then(() => {
-            console.log(`[热更新] 作品 #${workNumber} 的评论状态已更新`);
+            console.log(`[鐑洿鏂癩 浣滃搧 #${workNumber} 鐨勮瘎璁虹姸鎬佸凡鏇存柊`);
           });
           
-          // 【修复】等待评分数据更新后再更新显示，确保使用最新数据
+          // 銆愪慨澶嶃€戠瓑寰呰瘎鍒嗘暟鎹洿鏂板悗鍐嶆洿鏂版樉绀猴紝纭繚浣跨敤鏈€鏂版暟鎹?
           if (!isAuthorComment) {
             updateItemEvaluationDisplay($item, itemData).then(() => {
-              console.log(`[热更新] 作品 #${workNumber} 的评分显示已更新`);
+              console.log(`[鐑洿鏂癩 浣滃搧 #${workNumber} 鐨勮瘎鍒嗘樉绀哄凡鏇存柊`);
             });
           }
         }
       });
       
       if (needUpdateRepeater2) {
-        console.log(`[热更新] Repeater2中作品 #${workNumber} 已热更新`);
+        console.log(`[鐑洿鏂癩 Repeater2涓綔鍝?#${workNumber} 宸茬儹鏇存柊`);
       }
     } catch (error) {
-      console.error("[热更新] 更新Repeater2失败:", error);
+      console.error("[鐑洿鏂癩 鏇存柊Repeater2澶辫触:", error);
     }
     
-    // 4. 【优化】通知新评论系统刷新（如果正在查看该作品的评论）
-    // 新系统会自动在提交后刷新，这里无需额外操作
-    // 旧的 setDropdownValue 已废弃
+    // 4. 銆愪紭鍖栥€戦€氱煡鏂拌瘎璁虹郴缁熷埛鏂帮紙濡傛灉姝ｅ湪鏌ョ湅璇ヤ綔鍝佺殑璇勮锛?
+    // 鏂扮郴缁熶細鑷姩鍦ㄦ彁浜ゅ悗鍒锋柊锛岃繖閲屾棤闇€棰濆鎿嶄綔
+    // 鏃х殑 setDropdownValue 宸插簾寮?
     
     const endTime = Date.now();
-    console.log(`[热更新] 增量更新完成，耗时: ${endTime - startTime}ms`);
+    console.log(`[鐑洿鏂癩 澧為噺鏇存柊瀹屾垚锛岃€楁椂: ${endTime - startTime}ms`);
     
     return { success: true };
   } catch (error) {
-    console.error("[热更新] 增量更新失败:", error);
+    console.error("[鐑洿鏂癩 澧為噺鏇存柊澶辫触:", error);
     return { success: false, error };
   }
 }
 
-// 【优化】统一刷新两个repeater（完全刷新，用于删除评论等需要完全同步的场景）
+// 銆愪紭鍖栥€戠粺涓€鍒锋柊涓や釜repeater锛堝畬鍏ㄥ埛鏂帮紝鐢ㄤ簬鍒犻櫎璇勮绛夐渶瑕佸畬鍏ㄥ悓姝ョ殑鍦烘櫙锛?
 async function refreshRepeaters() {
   try {
-    console.log("[性能优化] 开始完全刷新Repeaters...");
+    console.log("[鎬ц兘浼樺寲] 寮€濮嬪畬鍏ㄥ埛鏂癛epeaters...");
     const startTime = Date.now();
     
-    // 清理缓存以确保数据同步
+    // 娓呯悊缂撳瓨浠ョ‘淇濇暟鎹悓姝?
     clearCaches();
     
-    // 重新批量加载所有数据
+    // 閲嶆柊鎵归噺鍔犺浇鎵€鏈夋暟鎹?
     await loadBatchData();
     
-    // 【优化】重新加载任务数据缓存
+    // 銆愪紭鍖栥€戦噸鏂板姞杞戒换鍔℃暟鎹紦瀛?
     if (currentUserId && isUserVerified) {
       try {
         userTaskDataCache = await getUserTaskData(currentUserId);
-        console.log("[性能优化] 任务数据缓存已重新加载");
+        console.log("[鎬ц兘浼樺寲] 浠诲姟鏁版嵁缂撳瓨宸查噸鏂板姞杞?);
       } catch (error) {
-        console.error("[性能优化] 任务数据重新加载失败:", error);
+        console.error("[鎬ц兘浼樺寲] 浠诲姟鏁版嵁閲嶆柊鍔犺浇澶辫触:", error);
         userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
       }
     }
@@ -949,15 +948,15 @@ async function refreshRepeaters() {
     const dropdownValue = $w("#dropdown1").value;
     await updateRepeaterData(currentPage, searchValue, dropdownValue);
 
-    // 重新加载用户评分缓存
+    // 閲嶆柊鍔犺浇鐢ㄦ埛璇勫垎缂撳瓨
     if (currentUserId && isUserVerified) {
       await batchLoadUserFormalRatings();
     }
     
-    // 重新加载排名数据
+    // 閲嶆柊鍔犺浇鎺掑悕鏁版嵁
     await calculateAllWorksRanking();
 
-    // 【优化】通知新评论系统HTML元件刷新评论列表
+    // 銆愪紭鍖栥€戦€氱煡鏂拌瘎璁虹郴缁烪TML鍏冧欢鍒锋柊璇勮鍒楄〃
     if ($w("#commentSystemPanel")) {
       try {
         await sendCommentsData({
@@ -965,20 +964,20 @@ async function refreshRepeaters() {
           filterMode: 'default',
           currentPage: 1
         });
-        console.log("[评论系统] 已刷新评论列表");
+        console.log("[璇勮绯荤粺] 宸插埛鏂拌瘎璁哄垪琛?);
       } catch (error) {
-        console.error("[评论系统] 刷新评论列表失败:", error);
+        console.error("[璇勮绯荤粺] 鍒锋柊璇勮鍒楄〃澶辫触:", error);
       }
     }
 
     const endTime = Date.now();
-    console.log(`[性能优化] 完全刷新完成，耗时: ${endTime - startTime}ms`);
+    console.log(`[鎬ц兘浼樺寲] 瀹屽叏鍒锋柊瀹屾垚锛岃€楁椂: ${endTime - startTime}ms`);
   } catch (error) {
-    console.error("刷新Repeaters时发生错误:", error);
+    console.error("鍒锋柊Repeaters鏃跺彂鐢熼敊璇?", error);
   }
 }
 
-// 解析maidata文件中的难度等级
+// 瑙ｆ瀽maidata鏂囦欢涓殑闅惧害绛夌骇
 async function parseDifficultyLevels($item, maidataUrl) {
   try {
     const { downloadUrl, fileContent } = await getFileDownloadUrlAndContent(
@@ -1001,14 +1000,14 @@ async function parseDifficultyLevels($item, maidataUrl) {
   }
 }
 
-// 【优化】显示作者信息和样式
-// 优化：使用批量缓存，只在必要时查询作品名称
+// 銆愪紭鍖栥€戞樉绀轰綔鑰呬俊鎭拰鏍峰紡
+// 浼樺寲锛氫娇鐢ㄦ壒閲忕紦瀛橈紝鍙湪蹇呰鏃舵煡璇綔鍝佸悕绉?
 async function displayAuthorInfo($item, itemData) {
   try {
     let contestItem = null;
 
-    // 【优化】作品所有者信息已在批量缓存中，无需重复获取
-    // 只需要获取作品名称用于显示
+    // 銆愪紭鍖栥€戜綔鍝佹墍鏈夎€呬俊鎭凡鍦ㄦ壒閲忕紦瀛樹腑锛屾棤闇€閲嶅鑾峰彇
+    // 鍙渶瑕佽幏鍙栦綔鍝佸悕绉扮敤浜庢樉绀?
     const results = await wixData
       .query("enterContest034")
       .eq("sequenceId", itemData.workNumber)
@@ -1018,20 +1017,20 @@ async function displayAuthorInfo($item, itemData) {
       contestItem = results.items[0];
     }
 
-    // 设置text15显示作品标题
+    // 璁剧疆text15鏄剧ず浣滃搧鏍囬
     if (contestItem && contestItem.firstName) {
       $item("#text15").text = contestItem.firstName;
     } else {
-      $item("#text15").text = "未知作品";
+      $item("#text15").text = "鏈煡浣滃搧";
     }
    
   } catch (error) {
-    console.error("显示作者信息失败:", error);
+    console.error("鏄剧ず浣滆€呬俊鎭け璐?", error);
     $item("#text15").text = "Unknown";
   }
 }
 
-// 批量加载回复数量
+// 鎵归噺鍔犺浇鍥炲鏁伴噺
 async function batchLoadReplyCounts(commentIds) {
   const uncachedIds = commentIds.filter(id => !(id in replyCountsCache));
   
@@ -1040,37 +1039,37 @@ async function batchLoadReplyCounts(commentIds) {
   }
 
   try {
-   // console.log(`批量加载${uncachedIds.length}个评论的回复数量...`);
+   // console.log(`鎵归噺鍔犺浇${uncachedIds.length}涓瘎璁虹殑鍥炲鏁伴噺...`);
     
-    // 批量查询所有回复
+    // 鎵归噺鏌ヨ鎵€鏈夊洖澶?
     const allReplies = await wixData
       .query("BOFcomment")
       .hasSome("replyTo", uncachedIds)
       .find();
 
-    // 统计每个评论的回复数量
+    // 缁熻姣忎釜璇勮鐨勫洖澶嶆暟閲?
     const counts = {};
     allReplies.items.forEach(reply => {
       const parentId = reply.replyTo;
       counts[parentId] = (counts[parentId] || 0) + 1;
     });
 
-    // 更新缓存
+    // 鏇存柊缂撳瓨
     uncachedIds.forEach(id => {
       replyCountsCache[id] = counts[id] || 0;
     });
 
-   // console.log(`回复数量加载完成，共${Object.keys(counts).length}个评论有回复`);
+   // console.log(`鍥炲鏁伴噺鍔犺浇瀹屾垚锛屽叡${Object.keys(counts).length}涓瘎璁烘湁鍥炲`);
   } catch (err) {
-    console.error("批量加载回复数量失败", err);
-    // 为未能加载的ID设置默认值
+    console.error("鎵归噺鍔犺浇鍥炲鏁伴噺澶辫触", err);
+    // 涓烘湭鑳藉姞杞界殑ID璁剧疆榛樿鍊?
     uncachedIds.forEach(id => {
       replyCountsCache[id] = 0;
     });
   }
 }
 
-// 显示回复数量（使用缓存）
+// 鏄剧ず鍥炲鏁伴噺锛堜娇鐢ㄧ紦瀛橈級
 async function displayReplyCount($item, commentId) {
   try {
     if (!(commentId in replyCountsCache)) {
@@ -1080,20 +1079,20 @@ async function displayReplyCount($item, commentId) {
     const replyCount = replyCountsCache[commentId] || 0;
 
     if (replyCount > 0) {
-      $item("#replyCountText").text = `${replyCount}条回复`;
+      $item("#replyCountText").text = `${replyCount}鏉″洖澶峘;
       $item("#replyCountText").show();
     } else {
       $item("#replyCountText").text = "";
       $item("#replyCountText").hide();
     }
   } catch (err) {
-    console.error("显示回复数量失败", err);
+    console.error("鏄剧ず鍥炲鏁伴噺澶辫触", err);
     $item("#replyCountText").text = "";
     $item("#replyCountText").hide();
   }
 }
 
-// 设置作品项目的事件监听器
+// 璁剧疆浣滃搧椤圭洰鐨勪簨浠剁洃鍚櫒
 function setupItemEventListeners($item, itemData, downloadUrl) {
   $item("#button3").onClick(() => {
     $w("#htmlDownloadHelper").postMessage({
@@ -1109,7 +1108,7 @@ function setupItemEventListeners($item, itemData, downloadUrl) {
   });
 
   $item("#vectorImage2").onClick(async () => {
-    // 【优化】通知新评论系统筛选该作品的评论
+    // 銆愪紭鍖栥€戦€氱煡鏂拌瘎璁虹郴缁熺瓫閫夎浣滃搧鐨勮瘎璁?
     if ($w("#commentSystemPanel")) {
       try {
         await sendCommentsData({
@@ -1117,15 +1116,15 @@ function setupItemEventListeners($item, itemData, downloadUrl) {
           filterMode: 'default',
           currentPage: 1
         });
-        console.log(`[评论系统] 已切换到作品 #${itemData.sequenceId} 的评论`);
+        console.log(`[璇勮绯荤粺] 宸插垏鎹㈠埌浣滃搧 #${itemData.sequenceId} 鐨勮瘎璁篳);
       } catch (error) {
-        console.error("[评论系统] 切换评论筛选失败:", error);
+        console.error("[璇勮绯荤粺] 鍒囨崲璇勮绛涢€夊け璐?", error);
       }
     }
   });
 }
 
-// 日期格式化工具
+// 鏃ユ湡鏍煎紡鍖栧伐鍏?
 function formatDate(date) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -1135,7 +1134,7 @@ function formatDate(date) {
 }
 
 
-// 数据处理与分页
+// 鏁版嵁澶勭悊涓庡垎椤?
 async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   $w("#loadingSpinner").show();
 
@@ -1149,7 +1148,7 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
 
   let results = await query.limit(1000).find();
 
-  // 更新下拉菜单选项（排除淘汰作品）
+  // 鏇存柊涓嬫媺鑿滃崟閫夐」锛堟帓闄ゆ窐姹颁綔鍝侊級
   const filteredItems = results.items.filter((item) => item.isDq !== true);
   const options = [{ label: "Please Choose ID", value: "" }].concat(
     filteredItems.map((item) => {
@@ -1171,7 +1170,7 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
     items = await sortByTask(items);
   }
 
-  // 分页处理
+  // 鍒嗛〉澶勭悊
   const totalPages = Math.ceil(items.length / itemsPerPage);
   $w("#paginator").totalPages = totalPages;
   $w("#paginator").currentPage = pageNumber;
@@ -1197,7 +1196,7 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   }
 }
 
-// 标记谱面查看状态
+// 鏍囪璋遍潰鏌ョ湅鐘舵€?
 async function markSheetAsViewed(sheetId, userId) {
   try {
     const currentItemResult = await wixData
@@ -1222,18 +1221,18 @@ async function markSheetAsViewed(sheetId, userId) {
   }
 }
 
-// 更新下载按钮状态
+// 鏇存柊涓嬭浇鎸夐挳鐘舵€?
 async function updateButtonStatus($item, sheetId) {
   $item("#button3").enable();
   $item("#button3").show();
   $item("#downloadAble").show();
 }
 
-// 【优化】获取评分数据（排除作者自评，使用加权平均分）
-// 优先使用批量缓存，大幅减少API调用
+// 銆愪紭鍖栥€戣幏鍙栬瘎鍒嗘暟鎹紙鎺掗櫎浣滆€呰嚜璇勶紝浣跨敤鍔犳潈骞冲潎鍒嗭級
+// 浼樺厛浣跨敤鎵归噺缂撳瓨锛屽ぇ骞呭噺灏慉PI璋冪敤
 async function getRatingData(workNumber) {
   try {
-    // 优先从批量缓存中获取
+    // 浼樺厛浠庢壒閲忕紦瀛樹腑鑾峰彇
     if (batchDataCache && batchDataCache.workRatings && batchDataCache.workRatings[workNumber]) {
       const cachedData = batchDataCache.workRatings[workNumber];
       return {
@@ -1246,8 +1245,8 @@ async function getRatingData(workNumber) {
       };
     }
     
-    // 缓存未命中时才调用后端（降级方案）
-    console.warn(`[性能提示] 作品 ${workNumber} 未在缓存中，降级查询`);
+    // 缂撳瓨鏈懡涓椂鎵嶈皟鐢ㄥ悗绔紙闄嶇骇鏂规锛?
+    console.warn(`[鎬ц兘鎻愮ず] 浣滃搧 ${workNumber} 鏈湪缂撳瓨涓紝闄嶇骇鏌ヨ`);
     const weightedData = await getWorkWeightedRatingData(workNumber);
     
     return {
@@ -1259,7 +1258,7 @@ async function getRatingData(workNumber) {
       ratio: weightedData.ratio
     };
   } catch (error) {
-    console.error("获取评分数据失败:", error);
+    console.error("鑾峰彇璇勫垎鏁版嵁澶辫触:", error);
     return {
       numRatings: 0,
       averageScore: 0,
@@ -1272,21 +1271,21 @@ async function getRatingData(workNumber) {
 }
 
 
-// 【已废弃】统计所有作品的评论数量（仅主评论）
-// 改用批量数据中的 commentCountMap，无需单独查询
-// 保留此函数作为降级方案
+// 銆愬凡搴熷純銆戠粺璁℃墍鏈変綔鍝佺殑璇勮鏁伴噺锛堜粎涓昏瘎璁猴級
+// 鏀圭敤鎵归噺鏁版嵁涓殑 commentCountMap锛屾棤闇€鍗曠嫭鏌ヨ
+// 淇濈暀姝ゅ嚱鏁颁綔涓洪檷绾ф柟妗?
 async function getAllCommentsCount() {
-  // 优先从批量缓存获取
+  // 浼樺厛浠庢壒閲忕紦瀛樿幏鍙?
   if (batchDataCache && batchDataCache.commentCountMap) {
     return batchDataCache.commentCountMap;
   }
   
-  // 降级方案：直接查询（性能较低，仅作为备用）
-  console.warn("[性能提示] 批量缓存未加载，使用降级查询评论计数");
+  // 闄嶇骇鏂规锛氱洿鎺ユ煡璇紙鎬ц兘杈冧綆锛屼粎浣滀负澶囩敤锛?
+  console.warn("[鎬ц兘鎻愮ず] 鎵归噺缂撳瓨鏈姞杞斤紝浣跨敤闄嶇骇鏌ヨ璇勮璁℃暟");
   let commentsCountByWorkNumber = {};
   
   try {
-    // 一次性查询所有主评论
+    // 涓€娆℃€ф煡璇㈡墍鏈変富璇勮
     const allComments = await wixData
       .query("BOFcomment")
       .isEmpty("replyTo")
@@ -1301,24 +1300,24 @@ async function getAllCommentsCount() {
       }
     });
   } catch (err) {
-    console.error("获取评论计数失败:", err);
+    console.error("鑾峰彇璇勮璁℃暟澶辫触:", err);
   }
 
   return commentsCountByWorkNumber;
 }
 
-/* 【已移除 - 旧系统】setDropdownValue() 已废弃，功能已迁移到HTML元件
+/* 銆愬凡绉婚櫎 - 鏃х郴缁熴€憇etDropdownValue() 宸插簾寮冿紝鍔熻兘宸茶縼绉诲埌HTML鍏冧欢
 async function setDropdownValue(sequenceId, pageNumber = 1) {
-  // ... 约80行设置下拉筛选的代码（已废弃）...
+  // ... 绾?0琛岃缃笅鎷夌瓫閫夌殑浠ｇ爜锛堝凡搴熷純锛?..
 }
 */
 
-// 更新作品评分显示（基于排名百分位的等级系统，排除淘汰作品）
+// 鏇存柊浣滃搧璇勫垎鏄剧ず锛堝熀浜庢帓鍚嶇櫨鍒嗕綅鐨勭瓑绾х郴缁燂紝鎺掗櫎娣樻卑浣滃搧锛?
 async function updateItemEvaluationDisplay($item, itemData) {
   try {
     const workNumber = itemData.sequenceId;
 
-    // 淘汰作品不显示评分
+    // 娣樻卑浣滃搧涓嶆樉绀鸿瘎鍒?
     if (itemData.isDq === true) {
       $item("#totalscore").text = "";
       $item("#box1").style.backgroundColor = "transparent";
@@ -1339,51 +1338,51 @@ async function updateItemEvaluationDisplay($item, itemData) {
 
     if (evaluationCount > 0) {
       if (evaluationCount >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING) {
-        // 获取排名信息
+        // 鑾峰彇鎺掑悕淇℃伅
         const rankingData = await calculateAllWorksRanking();
         const workRanking = rankingData.rankingMap[workNumber];
         
         if (workRanking) {
           const tier = getTierFromPercentile(workRanking.percentile);
-          $item("#totalscore").text = `${tier} (${evaluationCount}人评分)`;
+          $item("#totalscore").text = `${tier} (${evaluationCount}浜鸿瘎鍒?`;
 
-          // 根据等级设置背景色
+          // 鏍规嵁绛夌骇璁剧疆鑳屾櫙鑹?
           if (tier === "T0") {
-            $item("#box1").style.backgroundColor = "rgba(255, 215, 0, 0.6)"; // 金色
+            $item("#box1").style.backgroundColor = "rgba(255, 215, 0, 0.6)"; // 閲戣壊
           } else if (tier === "T1") {
-            $item("#box1").style.backgroundColor = "rgba(135, 206, 235, 0.5)"; // 天蓝色
+            $item("#box1").style.backgroundColor = "rgba(135, 206, 235, 0.5)"; // 澶╄摑鑹?
           } else if (tier === "T2") {
-            $item("#box1").style.backgroundColor = "rgba(144, 238, 144, 0.4)"; // 浅绿色
+            $item("#box1").style.backgroundColor = "rgba(144, 238, 144, 0.4)"; // 娴呯豢鑹?
           } else if (tier === "T3") {
-            $item("#box1").style.backgroundColor = "rgba(255, 255, 224, 0.4)"; // 浅黄色
+            $item("#box1").style.backgroundColor = "rgba(255, 255, 224, 0.4)"; // 娴呴粍鑹?
           } else {
-            $item("#box1").style.backgroundColor = "rgba(211, 211, 211, 0.3)"; // 浅灰色
+            $item("#box1").style.backgroundColor = "rgba(211, 211, 211, 0.3)"; // 娴呯伆鑹?
           }
         } else {
-          // 有评分但未进入排名（可能被淘汰或其他原因）
+          // 鏈夎瘎鍒嗕絾鏈繘鍏ユ帓鍚嶏紙鍙兘琚窐姹版垨鍏朵粬鍘熷洜锛?
           $item("#totalscore").text = "";
           $item("#box1").style.backgroundColor = "transparent";
         }
       } else {
         $item(
           "#totalscore"
-        ).text = `评分量不足(${evaluationCount}人评分)`;
+        ).text = `璇勫垎閲忎笉瓒?${evaluationCount}浜鸿瘎鍒?`;
         $item("#box1").style.backgroundColor = "rgba(255, 255, 0, 0.3)";
       }
     } else {
-      $item("#totalscore").text = "暂无评分";
+      $item("#totalscore").text = "鏆傛棤璇勫垎";
       $item("#box1").style.backgroundColor = "transparent";
     }
   } catch (error) {
-    console.error("更新评分显示时出错:", error);
-    $item("#totalscore").text = "评分加载失败";
+    console.error("鏇存柊璇勫垎鏄剧ず鏃跺嚭閿?", error);
+    $item("#totalscore").text = "璇勫垎鍔犺浇澶辫触";
   }
 }
 
-// 基于任务排序作品（任务作品优先，淘汰作品后置）
+// 鍩轰簬浠诲姟鎺掑簭浣滃搧锛堜换鍔′綔鍝佷紭鍏堬紝娣樻卑浣滃搧鍚庣疆锛?
 async function sortByTask(items) {
   try {
-    // 如果用户未登录或未验证，按默认顺序返回
+    // 濡傛灉鐢ㄦ埛鏈櫥褰曟垨鏈獙璇侊紝鎸夐粯璁ら『搴忚繑鍥?
     if (!currentUserId || !isUserVerified) {
       return items;
     }
@@ -1397,34 +1396,34 @@ async function sortByTask(items) {
 
         return {
           ...item,
-          isTask: isTask, // 未完成的任务
-          isTaskCompleted: isTaskCompleted, // 已完成的任务
-          isDQ: isDQ // 淘汰作品
+          isTask: isTask, // 鏈畬鎴愮殑浠诲姟
+          isTaskCompleted: isTaskCompleted, // 宸插畬鎴愮殑浠诲姟
+          isDQ: isDQ // 娣樻卑浣滃搧
         };
       })
     );
 
-    // 四级分类：未完成的任务 > 已完成的任务 > 其他作品 > 淘汰作品
+    // 鍥涚骇鍒嗙被锛氭湭瀹屾垚鐨勪换鍔?> 宸插畬鎴愮殑浠诲姟 > 鍏朵粬浣滃搧 > 娣樻卑浣滃搧
     const uncompletedTaskItems = itemsWithTaskStatus.filter(item => item.isTask && !item.isDQ);
     const completedTaskItems = itemsWithTaskStatus.filter(item => item.isTaskCompleted && !item.isDQ && !item.isTask);
     const otherItems = itemsWithTaskStatus.filter(item => !item.isTask && !item.isTaskCompleted && !item.isDQ);
     const disqualifiedItems = itemsWithTaskStatus.filter(item => item.isDQ);
 
-    // 各分类内部按sequenceId排序
+    // 鍚勫垎绫诲唴閮ㄦ寜sequenceId鎺掑簭
     uncompletedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
     completedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
     otherItems.sort((a, b) => a.sequenceId - b.sequenceId);
     disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
 
-    // 排序优先级：未完成任务 > 已完成任务 > 其他作品 > 淘汰作品
+    // 鎺掑簭浼樺厛绾э細鏈畬鎴愪换鍔?> 宸插畬鎴愪换鍔?> 鍏朵粬浣滃搧 > 娣樻卑浣滃搧
     return [...uncompletedTaskItems, ...completedTaskItems, ...otherItems, ...disqualifiedItems];
   } catch (error) {
-    console.error("按任务排序时出错:", error);
+    console.error("鎸変换鍔℃帓搴忔椂鍑洪敊:", error);
     return items;
   }
 }
 
-// 基于评分排序作品（排除作者自评，考虑用户评分权限，淘汰作品后置）
+// 鍩轰簬璇勫垎鎺掑簭浣滃搧锛堟帓闄や綔鑰呰嚜璇勶紝鑰冭檻鐢ㄦ埛璇勫垎鏉冮檺锛屾窐姹颁綔鍝佸悗缃級
 async function sortByRating(items) {
   try {
     const itemsWithRating = await Promise.all(
@@ -1432,7 +1431,7 @@ async function sortByRating(items) {
         const ratingData = await getRatingData(item.sequenceId);
         const userHasFormalRating = await checkUserHasFormalRating(item.sequenceId);
         
-        // 只有用户对该作品有正式评分时，才能看到并参与排序
+        // 鍙湁鐢ㄦ埛瀵硅浣滃搧鏈夋寮忚瘎鍒嗘椂锛屾墠鑳界湅鍒板苟鍙備笌鎺掑簭
         const canSeeRating = userHasFormalRating && ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING;
         const averageScore = canSeeRating ? ratingData.averageScore : 0;
 
@@ -1440,18 +1439,18 @@ async function sortByRating(items) {
           ...item,
           rating: averageScore,
           numRatings: ratingData.numRatings,
-          canSeeRating: canSeeRating, // 标记用户是否能看到评分
-          isDQ: item.isDq === true, // 标记是否淘汰
+          canSeeRating: canSeeRating, // 鏍囪鐢ㄦ埛鏄惁鑳界湅鍒拌瘎鍒?
+          isDQ: item.isDq === true, // 鏍囪鏄惁娣樻卑
         };
       })
     );
 
-    // 三级分类：能看到评分的非淘汰作品、不能看到评分的非淘汰作品、淘汰作品
+    // 涓夌骇鍒嗙被锛氳兘鐪嬪埌璇勫垎鐨勯潪娣樻卑浣滃搧銆佷笉鑳界湅鍒拌瘎鍒嗙殑闈炴窐姹颁綔鍝併€佹窐姹颁綔鍝?
     const visibleRatingItems = itemsWithRating.filter(item => item.canSeeRating && !item.isDQ);
     const hiddenRatingItems = itemsWithRating.filter(item => !item.canSeeRating && !item.isDQ);
     const disqualifiedItems = itemsWithRating.filter(item => item.isDQ);
 
-    // 能看到评分的作品按评分排序
+    // 鑳界湅鍒拌瘎鍒嗙殑浣滃搧鎸夎瘎鍒嗘帓搴?
     visibleRatingItems.sort((a, b) => {
       if (a.rating === b.rating) {
         return b.numRatings - a.numRatings;
@@ -1459,22 +1458,22 @@ async function sortByRating(items) {
       return b.rating - a.rating;
     });
 
-    // 不能看到评分的作品按sequenceId排序
+    // 涓嶈兘鐪嬪埌璇勫垎鐨勪綔鍝佹寜sequenceId鎺掑簭
     hiddenRatingItems.sort((a, b) => a.sequenceId - b.sequenceId);
 
-    // 淘汰作品按sequenceId排序
+    // 娣樻卑浣滃搧鎸塻equenceId鎺掑簭
     disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
 
-    // 排序优先级：有评分可见 > 评分不可见 > 淘汰作品
+    // 鎺掑簭浼樺厛绾э細鏈夎瘎鍒嗗彲瑙?> 璇勫垎涓嶅彲瑙?> 娣樻卑浣滃搧
     return [...visibleRatingItems, ...hiddenRatingItems, ...disqualifiedItems];
   } catch (error) {
-    console.error("排序时出错:", error);
+    console.error("鎺掑簭鏃跺嚭閿?", error);
     return items;
   }
 }
 
-// 【保留 - Repeater2作品列表】搜索和分页事件监听器
-// ⚠️ 此函数用于作品列表（repeater2），不是评论系统
+// 銆愪繚鐣?- Repeater2浣滃搧鍒楄〃銆戞悳绱㈠拰鍒嗛〉浜嬩欢鐩戝惉鍣?
+// 鈿狅笍 姝ゅ嚱鏁扮敤浜庝綔鍝佸垪琛紙repeater2锛夛紝涓嶆槸璇勮绯荤粺
 function setupSearchAndPaginationEvents() {
   $w("#input1").onInput(async () => {
     const searchValue = $w("#input1").value;
@@ -1497,32 +1496,32 @@ function setupSearchAndPaginationEvents() {
   });
 }
 
-/* 【已移除 - 旧评论系统】以下函数已废弃，功能已迁移到HTML元件
-- setupCommentsPaginationEvents() - 评论分页（已废弃）
-- setupSubmitButtonEvent() - 提交按钮（已废弃）
-- getCommentFilterMode() - 获取筛选模式（已废弃）
-- setupScoreCheckboxEvent() - 评分筛选（已废弃）
-- loadAllFormalComments() - 加载评论（已废弃）
-- setupDropdownFilterEvent() - 评论筛选（已废弃）
+/* 銆愬凡绉婚櫎 - 鏃ц瘎璁虹郴缁熴€戜互涓嬪嚱鏁板凡搴熷純锛屽姛鑳藉凡杩佺Щ鍒癏TML鍏冧欢
+- setupCommentsPaginationEvents() - 璇勮鍒嗛〉锛堝凡搴熷純锛?
+- setupSubmitButtonEvent() - 鎻愪氦鎸夐挳锛堝凡搴熷純锛?
+- getCommentFilterMode() - 鑾峰彇绛涢€夋ā寮忥紙宸插簾寮冿級
+- setupScoreCheckboxEvent() - 璇勫垎绛涢€夛紙宸插簾寮冿級
+- loadAllFormalComments() - 鍔犺浇璇勮锛堝凡搴熷純锛?
+- setupDropdownFilterEvent() - 璇勮绛涢€夛紙宸插簾寮冿級
 */
 
-// ==================== 评论系统HTML元件集成 ====================
+// ==================== 璇勮绯荤粺HTML鍏冧欢闆嗘垚 ====================
 
-// 初始化评论系统HTML元件
+// 鍒濆鍖栬瘎璁虹郴缁烪TML鍏冧欢
 function initCommentSystemPanel() {
   try {
-    // 确保HTML元件存在
+    // 纭繚HTML鍏冧欢瀛樺湪
     if (!$w("#commentSystemPanel")) {
-      console.error("[评论系统] HTML元件未找到");
+      console.error("[璇勮绯荤粺] HTML鍏冧欢鏈壘鍒?);
       return;
     }
 
-    console.log("[评论系统] 开始初始化...");
+    console.log("[璇勮绯荤粺] 寮€濮嬪垵濮嬪寲...");
 
-    // 监听来自HTML元件的消息
+    // 鐩戝惉鏉ヨ嚜HTML鍏冧欢鐨勬秷鎭?
     $w("#commentSystemPanel").onMessage(async (event) => {
       const { type, data } = event.data;
-      console.log(`[评论系统] 收到消息: ${type}`, data);
+      console.log(`[璇勮绯荤粺] 鏀跺埌娑堟伅: ${type}`, data);
 
       switch (type) {
         case 'COMMENT_SYSTEM_READY':
@@ -1550,21 +1549,21 @@ function initCommentSystemPanel() {
           await handleDeleteComment(data, data.isSelfScComment);
           break;
         default:
-          console.log('[评论系统] 未知消息类型:', type);
+          console.log('[璇勮绯荤粺] 鏈煡娑堟伅绫诲瀷:', type);
       }
     });
 
-    console.log("[评论系统] 初始化完成");
+    console.log("[璇勮绯荤粺] 鍒濆鍖栧畬鎴?);
   } catch (error) {
-    console.error("[评论系统] 初始化失败:", error);
+    console.error("[璇勮绯荤粺] 鍒濆鍖栧け璐?", error);
   }
 }
 
-// HTML元件准备就绪
+// HTML鍏冧欢鍑嗗灏辩华
 async function handleCommentSystemReady() {
-  console.log("[评论系统] HTML元件已准备就绪");
+  console.log("[璇勮绯荤粺] HTML鍏冧欢宸插噯澶囧氨缁?);
 
-  // 发送初始化数据
+  // 鍙戦€佸垵濮嬪寲鏁版嵁
   $w("#commentSystemPanel").postMessage({
     type: 'INIT_COMMENT_SYSTEM',
     data: {
@@ -1574,18 +1573,18 @@ async function handleCommentSystemReady() {
   });
 }
 
-// 发送作品选项
+// 鍙戦€佷綔鍝侀€夐」
 async function sendWorkOptions() {
   try {
-    // 查询所有作品（排除淘汰作品）
+    // 鏌ヨ鎵€鏈変綔鍝侊紙鎺掗櫎娣樻卑浣滃搧锛?
     const results = await wixData.query("enterContest034").limit(1000).find();
     const filteredItems = results.items.filter((item) => item.isDq !== true);
     
-    // 【优化】同时缓存所有作品标题，避免后续查询
+    // 銆愪紭鍖栥€戝悓鏃剁紦瀛樻墍鏈変綔鍝佹爣棰橈紝閬垮厤鍚庣画鏌ヨ
     results.items.forEach((item) => {
       workTitlesCache[item.sequenceId] = item.firstName;
     });
-    console.log(`[评论系统] 已缓存 ${Object.keys(workTitlesCache).length} 个作品标题`);
+    console.log(`[璇勮绯荤粺] 宸茬紦瀛?${Object.keys(workTitlesCache).length} 涓綔鍝佹爣棰榒);
     
     const options = filteredItems.map((item) => ({
       label: `${item.sequenceId} - ${item.firstName}`,
@@ -1597,13 +1596,13 @@ async function sendWorkOptions() {
       data: { options }
     });
 
-    console.log(`[评论系统] 已发送 ${options.length} 个作品选项`);
+    console.log(`[璇勮绯荤粺] 宸插彂閫?${options.length} 涓綔鍝侀€夐」`);
   } catch (error) {
-    console.error("[评论系统] 发送作品选项失败:", error);
+    console.error("[璇勮绯荤粺] 鍙戦€佷綔鍝侀€夐」澶辫触:", error);
   }
 }
 
-// ==================== 评论分页辅助函数 ====================
+// ==================== 璇勮鍒嗛〉杈呭姪鍑芥暟 ====================
 function normalizeWorkFilter(workFilter) {
   if (workFilter === undefined || workFilter === null || workFilter === "") {
     return null;
@@ -1693,7 +1692,7 @@ async function loadSelfScCommentIdSet() {
     selfScCommentIdCache = scCommentIds;
     return selfScCommentIdCache;
   } catch (error) {
-    console.error("[评论系统] 加载作者自评评论ID失败:", error);
+    console.error("[璇勮绯荤粺] 鍔犺浇浣滆€呰嚜璇勮瘎璁篒D澶辫触:", error);
     selfScCommentIdCache = new Set();
     return selfScCommentIdCache;
   } finally {
@@ -1830,7 +1829,7 @@ async function fetchMoreComments(state) {
     }
   } catch (error) {
     state.noMoreData = true;
-    console.error("[评论系统] 分页加载评论失败:", error);
+    console.error("[璇勮绯荤粺] 鍒嗛〉鍔犺浇璇勮澶辫触:", error);
     throw error;
   }
 }
@@ -1849,7 +1848,7 @@ async function ensureCommentPage(state, requestedPage) {
     } else {
       state.loadingPromise = fetchMoreComments(state)
         .catch((error) => {
-          console.error("[评论系统] 加载评论页面数据失败:", error);
+          console.error("[璇勮绯荤粺] 鍔犺浇璇勮椤甸潰鏁版嵁澶辫触:", error);
         })
         .finally(() => {
           state.loadingPromise = null;
@@ -1865,11 +1864,11 @@ async function ensureCommentPage(state, requestedPage) {
   return targetPage;
 }
 
-// 发送评论数据
+// 鍙戦€佽瘎璁烘暟鎹?
 async function sendCommentsData(requestData) {
   try {
     const { workFilter = "", filterMode = "default", currentPage = 1 } = requestData || {};
-    console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
+    console.log(`[璇勮绯荤粺] 璇锋眰璇勮鏁版嵁: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
 
     const cacheKey = getCommentCacheKey(workFilter, filterMode);
     let state = commentDataCache.get(cacheKey);
@@ -1894,20 +1893,20 @@ async function sendCommentsData(requestData) {
       },
     });
 
-    console.log(`[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`);
+    console.log(`[璇勮绯荤粺] 宸插彂閫?${comments.length} 鏉¤瘎璁烘暟鎹?(page ${targetPage}/${state.totalPages}, total=${state.totalCount})`);
   } catch (error) {
-    console.error("[评论系统] 发送评论数据失败:", error);
+    console.error("[璇勮绯荤粺] 鍙戦€佽瘎璁烘暟鎹け璐?", error);
     $w("#commentSystemPanel").postMessage({
       type: "UPDATE_COMMENTS_ERROR",
       data: {
-        message: error.message || "加载评论数据失败，请稍后重试",
+        message: error.message || "鍔犺浇璇勮鏁版嵁澶辫触锛岃绋嶅悗閲嶈瘯",
       },
     });
   }
 }
 
-// 格式化评论数据供HTML使用
-// 【优化】优先使用批量缓存，减少数据库查询，避免504超时
+// 鏍煎紡鍖栬瘎璁烘暟鎹緵HTML浣跨敤
+// 銆愪紭鍖栥€戜紭鍏堜娇鐢ㄦ壒閲忕紦瀛橈紝鍑忓皯鏁版嵁搴撴煡璇紝閬垮厤504瓒呮椂
 async function formatCommentForHTML(comment) {
   try {
     let formattedComment = {
@@ -1927,7 +1926,7 @@ async function formatCommentForHTML(comment) {
       isSelfScComment: false
     };
 
-    // 【优化】优先从批量缓存获取作品信息，避免逐个查询
+    // 銆愪紭鍖栥€戜紭鍏堜粠鎵归噺缂撳瓨鑾峰彇浣滃搧淇℃伅锛岄伩鍏嶉€愪釜鏌ヨ
     let workOwnerId = null;
     let isWorkDQ = false;
     let workTitle = "";
@@ -1938,32 +1937,32 @@ async function formatCommentForHTML(comment) {
       workTitle = workTitlesCache[comment.workNumber] || "";
     }
 
-    // 如果缓存中没有作品标题，尝试从已加载的作品选项中获取
+    // 濡傛灉缂撳瓨涓病鏈変綔鍝佹爣棰橈紝灏濊瘯浠庡凡鍔犺浇鐨勪綔鍝侀€夐」涓幏鍙?
     if (!workTitle && workOwnerId) {
-      // 避免查询数据库，只使用缓存数据
+      // 閬垮厤鏌ヨ鏁版嵁搴擄紝鍙娇鐢ㄧ紦瀛樻暟鎹?
       workTitle = workTitlesCache[comment.workNumber] || "";
     }
 
-    // 设置作品标题（优先使用缓存，避免504超时）
+    // 璁剧疆浣滃搧鏍囬锛堜紭鍏堜娇鐢ㄧ紦瀛橈紝閬垮厤504瓒呮椂锛?
     formattedComment.workTitle = workTitle ? `#${comment.workNumber} - ${workTitle}` : `#${comment.workNumber}`;
     
-    // 判断是否为作者自评
+    // 鍒ゆ柇鏄惁涓轰綔鑰呰嚜璇?
     if (workOwnerId) {
       formattedComment.isAuthorComment = comment._owner === workOwnerId;
       formattedComment.isSelfScComment = formattedComment.isAuthorComment;
     }
 
-    // 判断是否淘汰
+    // 鍒ゆ柇鏄惁娣樻卑
     if (isWorkDQ) {
-      formattedComment.commentText = "*该作品已淘汰*" + formattedComment.commentText;
+      formattedComment.commentText = "*璇ヤ綔鍝佸凡娣樻卑*" + formattedComment.commentText;
     }
 
-    // 判断是否显示评分
+    // 鍒ゆ柇鏄惁鏄剧ず璇勫垎
     if (!comment.replyTo) {
       const userHasFormalRating = await checkUserHasFormalRating(comment.workNumber);
       formattedComment.showScore = userHasFormalRating && !formattedComment.isAuthorComment;
 
-      // 获取评分信息
+      // 鑾峰彇璇勫垎淇℃伅
       if (userHasFormalRating && !formattedComment.isAuthorComment) {
         const ratingData = await getRatingData(comment.workNumber);
         if (ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING) {
@@ -1971,27 +1970,27 @@ async function formatCommentForHTML(comment) {
           const workRanking = rankingData.rankingMap[comment.workNumber];
           if (workRanking) {
             const tier = getTierFromPercentile(workRanking.percentile);
-            formattedComment.ratingInfo = `${tier} (${ratingData.numRatings}人评分)`;
+            formattedComment.ratingInfo = `${tier} (${ratingData.numRatings}浜鸿瘎鍒?`;
           }
         } else if (ratingData.numRatings > 0) {
-          formattedComment.ratingInfo = `评分量不足(${ratingData.numRatings}人评分)`;
+          formattedComment.ratingInfo = `璇勫垎閲忎笉瓒?${ratingData.numRatings}浜鸿瘎鍒?`;
         }
       }
 
-      // 获取回复数量
+      // 鑾峰彇鍥炲鏁伴噺
       if (!(comment._id in replyCountsCache)) {
         await batchLoadReplyCounts([comment._id]);
       }
       formattedComment.replyCount = replyCountsCache[comment._id] || 0;
     }
 
-    // 判断删除权限
+    // 鍒ゆ柇鍒犻櫎鏉冮檺
     if (currentUserId && !comment.replyTo) {
       if (formattedComment.isAuthorComment) {
-        // Sc评论：只有作者自己能删除
+        // Sc璇勮锛氬彧鏈変綔鑰呰嚜宸辫兘鍒犻櫎
         formattedComment.canDelete = currentUserId === comment._owner;
       } else {
-        // 普通评论：海选组成员可以删除
+        // 鏅€氳瘎璁猴細娴烽€夌粍鎴愬憳鍙互鍒犻櫎
         const isSeaSelectionMember = await checkIsSeaSelectionMember();
         formattedComment.canDelete = isSeaSelectionMember;
       }
@@ -1999,7 +1998,7 @@ async function formatCommentForHTML(comment) {
 
     return formattedComment;
   } catch (error) {
-    console.error("格式化评论数据失败:", error);
+    console.error("鏍煎紡鍖栬瘎璁烘暟鎹け璐?", error);
     return {
       commentId: comment._id,
       workNumber: comment.workNumber,
@@ -2015,40 +2014,40 @@ async function formatCommentForHTML(comment) {
   }
 }
 
-// 处理评论提交 - 添加详细的进度反馈
+// 澶勭悊璇勮鎻愪氦 - 娣诲姞璇︾粏鐨勮繘搴﹀弽棣?
 async function handleCommentSubmit(data) {
   try {
     const { workNumber, score, comment } = data;
-    console.log(`[评论系统] 提交评论: 作品#${workNumber}, 评分${score}`);
+    console.log(`[璇勮绯荤粺] 鎻愪氦璇勮: 浣滃搧#${workNumber}, 璇勫垎${score}`);
 
-    // 步骤1: 验证用户登录和报名状态
-    sendSubmitProgress("🔍 验证用户身份...", "validating");
+    // 姝ラ1: 楠岃瘉鐢ㄦ埛鐧诲綍鍜屾姤鍚嶇姸鎬?
+    sendSubmitProgress("馃攳 楠岃瘉鐢ㄦ埛韬唤...", "validating");
     
     if (!currentUserId) {
-      sendSubmitResult(false, "❌ 用户未登录");
+      sendSubmitResult(false, "鉂?鐢ㄦ埛鏈櫥褰?);
       return;
     }
 
     if (!isUserVerified) {
-      sendSubmitResult(false, "❌ 用户未报名");
+      sendSubmitResult(false, "鉂?鐢ㄦ埛鏈姤鍚?);
       return;
     }
 
-    // 步骤2: 验证输入
-    sendSubmitProgress("🔍 验证输入数据...", "validating");
+    // 姝ラ2: 楠岃瘉杈撳叆
+    sendSubmitProgress("馃攳 楠岃瘉杈撳叆鏁版嵁...", "validating");
     
     if (!workNumber || !score || !comment) {
-      sendSubmitResult(false, "❌ 请填写完整信息");
+      sendSubmitResult(false, "鉂?璇峰～鍐欏畬鏁翠俊鎭?);
       return;
     }
 
     if (score < 100 || score > 1000) {
-      sendSubmitResult(false, "❌ 评分必须在100-1000之间");
+      sendSubmitResult(false, "鉂?璇勫垎蹇呴』鍦?00-1000涔嬮棿");
       return;
     }
 
-    // 步骤3: 检查作品状态
-    sendSubmitProgress("🔍 检查作品状态...", "validating");
+    // 姝ラ3: 妫€鏌ヤ綔鍝佺姸鎬?
+    sendSubmitProgress("馃攳 妫€鏌ヤ綔鍝佺姸鎬?..", "validating");
     
     const workResults = await wixData
       .query("enterContest034")
@@ -2056,7 +2055,7 @@ async function handleCommentSubmit(data) {
       .find();
 
     if (workResults.items.length === 0) {
-      sendSubmitResult(false, "❌ 作品不存在");
+      sendSubmitResult(false, "鉂?浣滃搧涓嶅瓨鍦?);
       return;
     }
 
@@ -2065,13 +2064,13 @@ async function handleCommentSubmit(data) {
     const isWorkDQ = workItem.isDq === true;
 
     if (isWorkDQ) {
-      sendSubmitResult(false, "❌ 作品已淘汰，无法评论");
+      sendSubmitResult(false, "鉂?浣滃搧宸叉窐姹帮紝鏃犳硶璇勮");
       return;
     }
 
-    // 步骤4: 非作者检查是否已评论
+    // 姝ラ4: 闈炰綔鑰呮鏌ユ槸鍚﹀凡璇勮
     if (!isAuthor) {
-      sendSubmitProgress("🔍 检查评论记录...", "validating");
+      sendSubmitProgress("馃攳 妫€鏌ヨ瘎璁鸿褰?..", "validating");
       
       const existingComment = await wixData
         .query("BOFcomment")
@@ -2081,13 +2080,13 @@ async function handleCommentSubmit(data) {
         .find();
 
       if (existingComment.items.length > 0) {
-        sendSubmitResult(false, "❌ 已评论过此作品");
+        sendSubmitResult(false, "鉂?宸茶瘎璁鸿繃姝や綔鍝?);
         return;
       }
     }
 
-    // 步骤5: 插入评论
-    sendSubmitProgress("💾 正在保存评论...", "saving");
+    // 姝ラ5: 鎻掑叆璇勮
+    sendSubmitProgress("馃捑 姝ｅ湪淇濆瓨璇勮...", "saving");
     
     let toInsert = {
       workNumber: workNumber,
@@ -2097,52 +2096,52 @@ async function handleCommentSubmit(data) {
 
     const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
-    // 步骤6: 更新积分
-    sendSubmitProgress("⚙️ 更新积分...", "updating");
+    // 姝ラ6: 鏇存柊绉垎
+    sendSubmitProgress("鈿欙笍 鏇存柊绉垎...", "updating");
     
     try {
       await updateUserPoints(currentUserId, 1, false, false);
     } catch (error) {
-      console.error("更新积分失败:", error);
+      console.error("鏇存柊绉垎澶辫触:", error);
     }
 
-    // 步骤7: 检查并标记任务完成
-    sendSubmitProgress("⚙️ 检查任务状态...", "updating");
+    // 姝ラ7: 妫€鏌ュ苟鏍囪浠诲姟瀹屾垚
+    sendSubmitProgress("鈿欙笍 妫€鏌ヤ换鍔＄姸鎬?..", "updating");
     
     let taskStatusMessage = "";
     try {
       const result = await markTaskCompleted(currentUserId, workNumber);
       
       if (result.taskCompleted) {
-        taskStatusMessage = `\n\n🎯 任务完成！进度: ${result.completedCount}/10`;
+        taskStatusMessage = `\n\n馃幆 浠诲姟瀹屾垚锛佽繘搴? ${result.completedCount}/10`;
         
-        // 更新任务数据缓存
+        // 鏇存柊浠诲姟鏁版嵁缂撳瓨
         if (userTaskDataCache) {
           userTaskDataCache.hasCompletedTarget = result.hasCompletedTarget || false;
         }
       } else if (result.alreadyCompleted) {
-        taskStatusMessage = "\n\n✅ 此任务已完成过";
+        taskStatusMessage = "\n\n鉁?姝や换鍔″凡瀹屾垚杩?;
       } else if (result.isColdWork) {
-        taskStatusMessage = "\n\n🔶 冷门作品已评分（已完成任务目标）";
+        taskStatusMessage = "\n\n馃敹 鍐烽棬浣滃搧宸茶瘎鍒嗭紙宸插畬鎴愪换鍔＄洰鏍囷級";
       } else if (!result.isInTaskList) {
-        taskStatusMessage = "\n\n💡 非任务作品（不计入进度）";
+        taskStatusMessage = "\n\n馃挕 闈炰换鍔′綔鍝侊紙涓嶈鍏ヨ繘搴︼級";
       }
     } catch (error) {
-      console.error("标记任务完成失败:", error);
+      console.error("鏍囪浠诲姟瀹屾垚澶辫触:", error);
     }
 
-    // 步骤8: 增量热更新
-    sendSubmitProgress("🔄 更新页面数据...", "updating");
+    // 姝ラ8: 澧為噺鐑洿鏂?
+    sendSubmitProgress("馃攧 鏇存柊椤甸潰鏁版嵁...", "updating");
     await incrementalUpdateAfterComment(workNumber, score, comment, isAuthor);
 
-    // 步骤9: 发送成功结果并立即刷新评论列表
+    // 姝ラ9: 鍙戦€佹垚鍔熺粨鏋滃苟绔嬪嵆鍒锋柊璇勮鍒楄〃
     const successMessage = isAuthor 
-      ? `✅ 自评提交成功！\n\n✍️ 自评不计入评分统计${taskStatusMessage}`
-      : `✅ 评论提交成功！\n\n📊 评分: ${score}${taskStatusMessage}`;
+      ? `鉁?鑷瘎鎻愪氦鎴愬姛锛乗n\n鉁嶏笍 鑷瘎涓嶈鍏ヨ瘎鍒嗙粺璁?{taskStatusMessage}`
+      : `鉁?璇勮鎻愪氦鎴愬姛锛乗n\n馃搳 璇勫垎: ${score}${taskStatusMessage}`;
     
     sendSubmitResult(true, successMessage);
 
-    // 立即刷新评论列表（重要：确保新评论立即显示）
+    // 绔嬪嵆鍒锋柊璇勮鍒楄〃锛堥噸瑕侊細纭繚鏂拌瘎璁虹珛鍗虫樉绀猴級
     resetCommentDataCache();
     setTimeout(() => {
       sendCommentsData({
@@ -2150,16 +2149,16 @@ async function handleCommentSubmit(data) {
         filterMode: 'default',
         currentPage: 1
       });
-    }, 500); // 500ms延迟确保数据库已完成写入
+    }, 500); // 500ms寤惰繜纭繚鏁版嵁搴撳凡瀹屾垚鍐欏叆
 
-    console.log(`[评论系统] 评论提交成功`);
+    console.log(`[璇勮绯荤粺] 璇勮鎻愪氦鎴愬姛`);
   } catch (error) {
-    console.error("[评论系统] 评论提交失败:", error);
-    sendSubmitResult(false, "❌ 提交失败，请重试\n\n" + (error.message || '未知错误'));
+    console.error("[璇勮绯荤粺] 璇勮鎻愪氦澶辫触:", error);
+    sendSubmitResult(false, "鉂?鎻愪氦澶辫触锛岃閲嶈瘯\n\n" + (error.message || '鏈煡閿欒'));
   }
 }
 
-// 发送提交结果
+// 鍙戦€佹彁浜ょ粨鏋?
 function sendSubmitResult(success, message) {
   $w("#commentSystemPanel").postMessage({
     type: 'SUBMIT_RESULT',
@@ -2170,12 +2169,12 @@ function sendSubmitResult(success, message) {
   });
 }
 
-// 处理作品编号变化 - 显示详细的作品状态并发送完整的UI状态
+// 澶勭悊浣滃搧缂栧彿鍙樺寲 - 鏄剧ず璇︾粏鐨勪綔鍝佺姸鎬佸苟鍙戦€佸畬鏁寸殑UI鐘舵€?
 async function handleWorkNumberChange(workNumber) {
-  console.log(`[评论系统] 作品编号变化: ${workNumber}`);
+  console.log(`[璇勮绯荤粺] 浣滃搧缂栧彿鍙樺寲: ${workNumber}`);
   
   try {
-    // 获取作品信息
+    // 鑾峰彇浣滃搧淇℃伅
     const workResults = await wixData
       .query("enterContest034")
       .eq("sequenceId", workNumber)
@@ -2196,9 +2195,9 @@ async function handleWorkNumberChange(workNumber) {
     const isAuthor = currentUserId === workItem._owner;
     const isWorkDQ = workItem.isDq === true;
 
-    // 优先级1: 淘汰作品
+    // 浼樺厛绾?: 娣樻卑浣滃搧
     if (isWorkDQ) {
-      sendWorkStatusUpdate('⚠️ 该作品已淘汰，无法评论', 'dq');
+      sendWorkStatusUpdate('鈿狅笍 璇ヤ綔鍝佸凡娣樻卑锛屾棤娉曡瘎璁?, 'dq');
       sendWorkSelectionState({
         isWorkDQ: true,
         isAuthor: false,
@@ -2208,9 +2207,9 @@ async function handleWorkNumberChange(workNumber) {
       return;
     }
 
-    // 优先级2: 作者自评
+    // 浼樺厛绾?: 浣滆€呰嚜璇?
     if (isAuthor) {
-      sendWorkStatusUpdate('✍️ 这是您的作品，可以进行自评（Sc评论）\n💡 自评不计入评分统计，可多次提交', 'author');
+      sendWorkStatusUpdate('鉁嶏笍 杩欐槸鎮ㄧ殑浣滃搧锛屽彲浠ヨ繘琛岃嚜璇勶紙Sc璇勮锛塡n馃挕 鑷瘎涓嶈鍏ヨ瘎鍒嗙粺璁★紝鍙娆℃彁浜?, 'author');
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: true,
@@ -2220,7 +2219,7 @@ async function handleWorkNumberChange(workNumber) {
       return;
     }
 
-    // 优先级3: 检查是否已评论
+    // 浼樺厛绾?: 妫€鏌ユ槸鍚﹀凡璇勮
     const existingCommentResults = await wixData
       .query("BOFcomment")
       .eq("workNumber", workNumber)
@@ -2230,7 +2229,7 @@ async function handleWorkNumberChange(workNumber) {
 
     if (existingCommentResults.items.length > 0) {
       const existingComment = existingCommentResults.items[0];
-      sendWorkStatusUpdate('✅ 您已评论过此作品', 'completed');
+      sendWorkStatusUpdate('鉁?鎮ㄥ凡璇勮杩囨浣滃搧', 'completed');
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: false,
@@ -2243,7 +2242,7 @@ async function handleWorkNumberChange(workNumber) {
       return;
     }
 
-    // 优先级4: 未评论，检查任务状态
+    // 浼樺厛绾?: 鏈瘎璁猴紝妫€鏌ヤ换鍔＄姸鎬?
     if (currentUserId && isUserVerified) {
       try {
         const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
@@ -2251,24 +2250,24 @@ async function handleWorkNumberChange(workNumber) {
         
         if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
           if (hasCompletedTarget) {
-            // 已完成目标，显示为冷门作品
-            sendWorkStatusUpdate('🔶 这是一个冷门作品\n💡 您已完成任务目标，评论此作品不计入任务进度', 'coldWork');
+            // 宸插畬鎴愮洰鏍囷紝鏄剧ず涓哄喎闂ㄤ綔鍝?
+            sendWorkStatusUpdate('馃敹 杩欐槸涓€涓喎闂ㄤ綔鍝乗n馃挕 鎮ㄥ凡瀹屾垚浠诲姟鐩爣锛岃瘎璁烘浣滃搧涓嶈鍏ヤ换鍔¤繘搴?, 'coldWork');
           } else {
-            // 未完成目标，显示为任务作品
-            sendWorkStatusUpdate('🎯 这是您的任务作品！\n💡 完成此评论将计入任务进度', 'task');
+            // 鏈畬鎴愮洰鏍囷紝鏄剧ず涓轰换鍔′綔鍝?
+            sendWorkStatusUpdate('馃幆 杩欐槸鎮ㄧ殑浠诲姟浣滃搧锛乗n馃挕 瀹屾垚姝よ瘎璁哄皢璁″叆浠诲姟杩涘害', 'task');
           }
         } else if (taskCheck.alreadyCompleted) {
-          sendWorkStatusUpdate('✅ 此任务已完成', 'completedTask');
+          sendWorkStatusUpdate('鉁?姝や换鍔″凡瀹屾垚', 'completedTask');
         } else {
           sendWorkStatusUpdate('', '');
         }
       } catch (error) {
-        console.error("检查任务状态失败:", error);
+        console.error("妫€鏌ヤ换鍔＄姸鎬佸け璐?", error);
         sendWorkStatusUpdate('', '');
       }
     }
 
-    // 正常未评论状态
+    // 姝ｅ父鏈瘎璁虹姸鎬?
     sendWorkSelectionState({
       isWorkDQ: false,
       isAuthor: false,
@@ -2277,7 +2276,7 @@ async function handleWorkNumberChange(workNumber) {
     });
 
   } catch (error) {
-    console.error("[评论系统] 获取作品状态失败:", error);
+    console.error("[璇勮绯荤粺] 鑾峰彇浣滃搧鐘舵€佸け璐?", error);
     sendWorkStatusUpdate('', '');
     sendWorkSelectionState({
       isWorkDQ: false,
@@ -2288,7 +2287,7 @@ async function handleWorkNumberChange(workNumber) {
   }
 }
 
-// 发送作品状态更新到HTML元件
+// 鍙戦€佷綔鍝佺姸鎬佹洿鏂板埌HTML鍏冧欢
 function sendWorkStatusUpdate(message, statusType) {
   $w("#commentSystemPanel").postMessage({
     type: 'WORK_STATUS_UPDATE',
@@ -2299,7 +2298,7 @@ function sendWorkStatusUpdate(message, statusType) {
   });
 }
 
-// 发送提交进度到HTML元件
+// 鍙戦€佹彁浜よ繘搴﹀埌HTML鍏冧欢
 function sendSubmitProgress(message, stage) {
   $w("#commentSystemPanel").postMessage({
     type: 'SUBMIT_PROGRESS',
@@ -2310,7 +2309,7 @@ function sendSubmitProgress(message, stage) {
   });
 }
 
-// 发送作品选择状态到HTML元件（控制输入框状态）
+// 鍙戦€佷綔鍝侀€夋嫨鐘舵€佸埌HTML鍏冧欢锛堟帶鍒惰緭鍏ユ鐘舵€侊級
 function sendWorkSelectionState(state) {
   try {
     $w("#commentSystemPanel").postMessage({
@@ -2318,18 +2317,18 @@ function sendWorkSelectionState(state) {
       data: state
     });
   } catch (error) {
-    console.error("[评论系统] 发送作品选择状态失败:", error);
+    console.error("[璇勮绯荤粺] 鍙戦€佷綔鍝侀€夋嫨鐘舵€佸け璐?", error);
   }
 }
 
-// 处理查看回复请求 - 支持主评论和楼中楼回复
+// 澶勭悊鏌ョ湅鍥炲璇锋眰 - 鏀寔涓昏瘎璁哄拰妤间腑妤煎洖澶?
 async function handleViewReplies(data) {
   try {
     const { commentId, workNumber, originalComment, isReply, replyTo } = data;
     
-    // 如果是楼中楼回复，需要先查询父评论数据
+    // 濡傛灉鏄ゼ涓ゼ鍥炲锛岄渶瑕佸厛鏌ヨ鐖惰瘎璁烘暟鎹?
     if (isReply && replyTo) {
-      console.log(`[评论系统] 楼中楼回复，查询父评论: ${replyTo}`);
+      console.log(`[璇勮绯荤粺] 妤间腑妤煎洖澶嶏紝鏌ヨ鐖惰瘎璁? ${replyTo}`);
       
       const parentCommentResult = await wixData
         .query("BOFcomment")
@@ -2344,23 +2343,23 @@ async function handleViewReplies(data) {
           parentComment.comment
         );
       } else {
-        console.error("[评论系统] 未找到父评论");
+        console.error("[璇勮绯荤粺] 鏈壘鍒扮埗璇勮");
       }
     } else {
-      // 主评论：直接显示回复
+      // 涓昏瘎璁猴細鐩存帴鏄剧ず鍥炲
       await showCommentReplies(commentId, workNumber, originalComment);
     }
   } catch (error) {
-    console.error("[评论系统] 查看回复失败:", error);
+    console.error("[璇勮绯荤粺] 鏌ョ湅鍥炲澶辫触:", error);
   }
 }
 
-// 处理跳转到作品 - 设置作品搜索框、刷新作品列表并滚动到anchor2位置
+// 澶勭悊璺宠浆鍒颁綔鍝?- 璁剧疆浣滃搧鎼滅储妗嗐€佸埛鏂颁綔鍝佸垪琛ㄥ苟婊氬姩鍒癮nchor2浣嶇疆
 async function handleGotoWork(workNumber) {
   try {
-    console.log(`[评论系统] 跳转到作品 #${workNumber}`);
+    console.log(`[璇勮绯荤粺] 璺宠浆鍒颁綔鍝?#${workNumber}`);
     
-    // 获取作品标题
+    // 鑾峰彇浣滃搧鏍囬
     const workResults = await wixData
       .query("enterContest034")
       .eq("sequenceId", workNumber)
@@ -2369,28 +2368,29 @@ async function handleGotoWork(workNumber) {
     if (workResults.items.length > 0) {
       const workTitle = workResults.items[0].firstName;
       
-      // 更新作品搜索框（input1）的值为作品名称
-      // 这会触发作品列表的搜索和刷新
+      // 鏇存柊浣滃搧鎼滅储妗嗭紙input1锛夌殑鍊间负浣滃搧鍚嶇О
+      // 杩欎細瑙﹀彂浣滃搧鍒楄〃鐨勬悳绱㈠拰鍒锋柊
       if ($w("#input1")) {
         $w("#input1").value = workTitle;
         
-        // 刷新作品列表（repeater2）
+        // 鍒锋柊浣滃搧鍒楄〃锛坮epeater2锛?
         await refreshRepeaters();
         
-        // 滚动到 anchor2 位置
+        // 婊氬姩鍒?anchor2 浣嶇疆
         try {
           if ($w("#anchor2")) {
             await $w("#anchor2").scrollTo();
-            console.log(`[评论系统] 已滚动到 #anchor2`);
+            console.log(`[璇勮绯荤粺] 宸叉粴鍔ㄥ埌 #anchor2`);
           }
         } catch (scrollError) {
-          console.error("[评论系统] 滚动到anchor2失败:", scrollError);
+          console.error("[璇勮绯荤粺] 婊氬姩鍒癮nchor2澶辫触:", scrollError);
         }
         
-        console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
+        console.log(`[璇勮绯荤粺] 宸茶烦杞埌浣滃搧: #${workNumber} - ${workTitle}`);
       }
     }
   } catch (error) {
-    console.error("[评论系统] 跳转到作品失败:", error);
+    console.error("[璇勮绯荤粺] 璺宠浆鍒颁綔鍝佸け璐?", error);
   }
 }
+

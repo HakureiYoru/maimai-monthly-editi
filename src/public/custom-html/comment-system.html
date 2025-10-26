@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -723,7 +723,6 @@
     let allCommentsData = [];
     let currentPage = 1;
     let totalPages = 1;
-    const commentsPerPage = 20;
     let currentFilter = 'default';
     let currentWorkFilter = '';
     let isSubmitting = false;
@@ -740,6 +739,9 @@
           break;
         case 'UPDATE_COMMENTS':
           await handleCommentsUpdate(data);
+          break;
+        case 'UPDATE_COMMENTS_ERROR':
+          handleCommentsError(data);
           break;
         case 'SUBMIT_RESULT':
           handleSubmitResult(data);
@@ -788,9 +790,28 @@
       allCommentsData = data.comments || [];
       currentWorkFilter = data.workFilter || '';
       currentFilter = data.filterMode || 'default';
-      currentPage = data.currentPage || 1;
+      currentPage = data.currentPage ? Number(data.currentPage) : 1;
+      totalPages = Math.max(1, Number(data.totalPages) || 1);
       
-      applyFilters();
+      renderCurrentPage();
+    }
+
+    function handleCommentsError(data) {
+      const message = data?.message || '加载评论失败，请稍后重试';
+      const loadingState = document.getElementById('loadingState');
+      const loadingText = loadingState.querySelector('.loading-text');
+      
+      if (loadingText) {
+        loadingText.textContent = message;
+      }
+      
+      loadingState.style.display = 'block';
+      document.getElementById('commentList').innerHTML = '';
+      document.getElementById('noComments').style.display = 'none';
+      
+      setTimeout(() => {
+        loadingState.style.display = 'none';
+      }, 2000);
     }
 
     function handleWorkStatusUpdate(data) {
@@ -1145,31 +1166,27 @@
       document.getElementById(`prevBtn${suffix}`).addEventListener('click', () => {
         if (currentPage > 1) {
           currentPage--;
-          applyFilters();
+          showLoading('正在加载上一页评论...');
+          requestCommentsData();
         }
       });
 
       document.getElementById(`nextBtn${suffix}`).addEventListener('click', () => {
         if (currentPage < totalPages) {
           currentPage++;
-          applyFilters();
+          showLoading('正在加载更多评论...');
+          requestCommentsData();
         }
       });
     });
 
     // ==================== 评论显示 ====================
-    function applyFilters() {
+    function renderCurrentPage() {
       const commentList = document.getElementById('commentList');
       const loadingState = document.getElementById('loadingState');
       const noComments = document.getElementById('noComments');
 
-      // 计算分页
-      totalPages = Math.max(1, Math.ceil(allCommentsData.length / commentsPerPage));
       currentPage = Math.min(currentPage, totalPages);
-
-      const startIndex = (currentPage - 1) * commentsPerPage;
-      const endIndex = startIndex + commentsPerPage;
-      const pagedComments = allCommentsData.slice(startIndex, endIndex);
 
       // 更新分页信息
       updatePagination();
@@ -1177,12 +1194,12 @@
       // 立即渲染（加载状态已在requestCommentsData中显示）
       loadingState.style.display = 'none';
 
-      if (pagedComments.length === 0) {
+      if (!allCommentsData || allCommentsData.length === 0) {
         noComments.style.display = 'block';
         commentList.innerHTML = '';
       } else {
         noComments.style.display = 'none';
-        renderComments(pagedComments);
+        renderComments(allCommentsData);
       }
     }
 
