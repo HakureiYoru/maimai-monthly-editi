@@ -8,6 +8,7 @@ import wixWindow from "wix-window";
 import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import { getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import { RATING_CONFIG } from "public/constants.js";
 
 let allWorksData = [];
 let filteredWorksData = [];
@@ -255,7 +256,7 @@ function calculateRatingData(formalRatings, workOwnerId) {
  */
 function calculateTiers(worksData) {
   // 只对有足够评分且未淘汰的作品排名
-  const validWorks = worksData.filter((w) => w.numRatings >= 5 && !w.isDq);
+  const validWorks = worksData.filter((w) => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING && !w.isDq);
 
   // 按加权平均分降序排序
   validWorks.sort((a, b) => b.weightedAverage - a.weightedAverage);
@@ -272,7 +273,7 @@ function calculateTiers(worksData) {
     if (!work.tier) {
       if (work.isDq) {
         work.tier = "已淘汰";
-      } else if (work.numRatings < 5) {
+      } else if (work.numRatings < RATING_CONFIG.MIN_RATINGS_FOR_RANKING) {
         work.tier = "评分不足";
       } else {
         work.tier = "未排名";
@@ -303,6 +304,7 @@ function sendDataToHTML(data) {
   $w("#htmlScore").postMessage({
     type: "data",
     works: data,
+    config: { minRatingsForRanking: RATING_CONFIG.MIN_RATINGS_FOR_RANKING }
   });
 }
 

@@ -13,7 +13,7 @@ import {
 } from "backend/auditorManagement.jsw";
 import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData, getAllWorksWeightedRatingData } from "backend/ratingTaskManager.jsw";
 import { sendReplyNotification } from "backend/emailNotifications.jsw";
-import { QUERY_LIMITS } from "public/constants.js";
+import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
 
 // 全局状态管理
 let commentsCountByWorkNumber = {};
@@ -305,7 +305,7 @@ $w.onReady(async function () {
         if (userHasFormalRating) {
           const ratingData = await getRatingData(itemData.workNumber);
 
-          if (ratingData.numRatings >= 5) {
+          if (ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING) {
             // 获取排名信息并显示等级
             const rankingData = await calculateAllWorksRanking();
             const workRanking = rankingData.rankingMap[itemData.workNumber];
@@ -1002,8 +1002,8 @@ async function calculateAllWorksRanking() {
       });
     }
 
-    // 只考虑有足够评分的作品（>=5人评分）
-    const validWorks = worksWithScores.filter(w => w.numRatings >= 5);
+    // 只考虑有足够评分的作品（>=阈值人评分）
+    const validWorks = worksWithScores.filter(w => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING);
     
     // 按平均分降序排序
     validWorks.sort((a, b) => b.averageScore - a.averageScore);
@@ -1673,7 +1673,7 @@ async function updateItemEvaluationDisplay($item, itemData) {
     const averageScore = ratingData.averageScore;
 
     if (evaluationCount > 0) {
-      if (evaluationCount >= 5) {
+      if (evaluationCount >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING) {
         // 获取排名信息
         const rankingData = await calculateAllWorksRanking();
         const workRanking = rankingData.rankingMap[workNumber];
@@ -1768,7 +1768,7 @@ async function sortByRating(items) {
         const userHasFormalRating = await checkUserHasFormalRating(item.sequenceId);
         
         // 只有用户对该作品有正式评分时，才能看到并参与排序
-        const canSeeRating = userHasFormalRating && ratingData.numRatings >= 5;
+        const canSeeRating = userHasFormalRating && ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING;
         const averageScore = canSeeRating ? ratingData.averageScore : 0;
 
         return {

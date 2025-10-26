@@ -32,3 +32,8 @@ export const FILE_TYPES = {
     BG: 3,      // 背景文件
     VIDEO: 4    // 视频文件
 }; 
+
+// 评分与排名相关常量 - 前端需要
+export const RATING_CONFIG = {
+    MIN_RATINGS_FOR_RANKING: 5 // 达到该人数后显示等级并参与正式排名
+};

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,10 +13,10 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
             padding: 20px;
-            color: #333;
+            color: #fff;
         }
 
         .container {
@@ -24,15 +25,14 @@
         }
 
         .header {
-            background: white;
-            border-radius: 12px;
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #555;
             padding: 25px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .header h1 {
-            color: #667eea;
+            color: #fff;
             font-size: 28px;
             margin-bottom: 15px;
             display: flex;
@@ -56,16 +56,16 @@
         .search-box input {
             width: 100%;
             padding: 12px 40px 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 1px solid #555;
+            background: #333;
+            color: #fff;
             font-size: 14px;
-            transition: all 0.3s;
         }
 
         .search-box input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #777;
+            background: #3a3a3a;
         }
 
         .search-icon {
@@ -76,55 +76,50 @@
             color: #999;
         }
 
-        select, button {
+        select,
+        button {
             padding: 12px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 1px solid #555;
             font-size: 14px;
             cursor: pointer;
-            transition: all 0.3s;
-            background: white;
+            background: #333;
+            color: #fff;
         }
 
-        select:hover, button:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+        select:hover,
+        button:hover {
+            border-color: #777;
+            background: #3a3a3a;
         }
 
         button {
-            background: #667eea;
-            color: white;
-            border: none;
-            font-weight: 600;
+            background: #555;
+            color: #fff;
+            border-color: #666;
         }
 
         button:hover {
-            background: #5568d3;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+            background: #666;
         }
 
         .btn-refresh-user {
             background: #28a745;
-            color: white;
-            border: none;
+            color: #fff;
+            border: 1px solid #28a745;
             padding: 6px 12px;
-            border-radius: 6px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
         }
 
         .btn-refresh-user:hover {
             background: #218838;
-            transform: translateY(-1px);
         }
 
         .btn-refresh-user:disabled {
-            background: #cbd5e0;
+            background: #555;
+            border-color: #666;
             cursor: not-allowed;
-            transform: none;
         }
 
         /* 统计卡片 */
@@ -136,23 +131,22 @@
         }
 
         .stat-card {
-            background: white;
+            background: rgba(42, 42, 42, 0.92);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #555;
             text-align: center;
         }
 
         .stat-card h3 {
             font-size: 14px;
-            color: #666;
+            color: #ccc;
             margin-bottom: 8px;
         }
 
         .stat-card .number {
             font-size: 32px;
             font-weight: bold;
-            color: #667eea;
+            color: #fff;
         }
 
         /* 用户卡片 */
@@ -162,16 +156,13 @@
         }
 
         .user-card {
-            background: white;
-            border-radius: 12px;
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #555;
             padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s;
         }
 
         .user-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+            background: #3a3a3a;
         }
 
         .user-header {
@@ -179,20 +170,18 @@
             gap: 15px;
             align-items: center;
             padding-bottom: 15px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 1px solid #444;
             margin-bottom: 15px;
         }
 
         .user-avatar {
             width: 60px;
             height: 60px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #555;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #fff;
             font-size: 24px;
             font-weight: bold;
             flex-shrink: 0;
@@ -201,7 +190,6 @@
         .user-avatar img {
             width: 100%;
             height: 100%;
-            border-radius: 50%;
             object-fit: cover;
         }
 
@@ -212,7 +200,7 @@
         .user-name {
             font-size: 18px;
             font-weight: bold;
-            color: #333;
+            color: #fff;
             margin-bottom: 5px;
             display: flex;
             align-items: center;
@@ -221,26 +209,25 @@
 
         .quality-badge {
             padding: 4px 12px;
-            border-radius: 12px;
             font-size: 12px;
             font-weight: bold;
         }
 
         .quality-high {
-            background: linear-gradient(135deg, #FFD700, #FFA500);
-            color: white;
+            background: #FFD700;
+            color: #000;
         }
 
         .quality-low {
-            background: #e0e0e0;
-            color: #666;
+            background: #666;
+            color: #fff;
         }
 
         .user-stats {
             display: flex;
             gap: 20px;
             font-size: 14px;
-            color: #666;
+            color: #ccc;
         }
 
         .stat-item {
@@ -252,24 +239,23 @@
         .progress-mini {
             display: inline-block;
             padding: 2px 8px;
-            border-radius: 10px;
             font-size: 12px;
             font-weight: bold;
         }
 
         .progress-complete {
-            background: #d4edda;
-            color: #28a745;
+            background: #28a745;
+            color: #fff;
         }
 
         .progress-active {
-            background: #fff3cd;
-            color: #ffc107;
+            background: #ffc107;
+            color: #000;
         }
 
         .progress-low {
-            background: #f8d7da;
-            color: #dc3545;
+            background: #dc3545;
+            color: #fff;
         }
 
         /* 任务列表 */
@@ -280,7 +266,7 @@
         .tasks-header {
             font-size: 15px;
             font-weight: bold;
-            color: #666;
+            color: #ccc;
             margin-bottom: 12px;
             display: flex;
             align-items: center;
@@ -290,7 +276,7 @@
         }
 
         .tasks-header:hover {
-            color: #667eea;
+            color: #fff;
         }
 
         .toggle-icon {
@@ -314,10 +300,9 @@
         }
 
         .task-item {
-            background: #f8f9ff;
+            background: #333;
             padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
+            border-left: 3px solid #666;
         }
 
         .task-work-header {
@@ -330,20 +315,19 @@
         .task-work-id {
             font-size: 18px;
             font-weight: bold;
-            color: #667eea;
+            color: #fff;
         }
 
         .task-work-title {
             font-size: 13px;
-            color: #666;
+            color: #ccc;
             margin-left: 8px;
         }
 
         .weight-badge {
             background: #d63031;
-            color: white;
+            color: #fff;
             padding: 4px 12px;
-            border-radius: 12px;
             font-size: 12px;
             font-weight: bold;
         }
@@ -354,8 +338,7 @@
             gap: 10px;
             margin-bottom: 10px;
             padding: 10px;
-            background: white;
-            border-radius: 6px;
+            background: #2a2a2a;
         }
 
         .weight-detail-item {
@@ -363,37 +346,36 @@
         }
 
         .weight-label {
-            color: #999;
+            color: #888;
             margin-right: 5px;
         }
 
         .weight-value {
             font-weight: bold;
-            color: #333;
+            color: #fff;
         }
 
         .balance-factor {
             display: inline-block;
             padding: 2px 8px;
-            border-radius: 10px;
             font-size: 11px;
             font-weight: bold;
             margin-left: 5px;
         }
 
         .balance-increase {
-            background: #d4edda;
-            color: #28a745;
+            background: #28a745;
+            color: #fff;
         }
 
         .balance-decrease {
-            background: #f8d7da;
-            color: #dc3545;
+            background: #dc3545;
+            color: #fff;
         }
 
         .balance-neutral {
-            background: #e0e0e0;
-            color: #666;
+            background: #666;
+            color: #fff;
         }
 
         .ratio-info {
@@ -401,77 +383,74 @@
             align-items: center;
             gap: 10px;
             padding: 8px;
-            background: #fff9e6;
-            border-radius: 6px;
+            background: #2a2a2a;
             font-size: 12px;
+            color: #ddd;
         }
 
         .ratio-bar {
             flex: 1;
             height: 18px;
-            border-radius: 9px;
             overflow: hidden;
-            background: #e0e0e0;
+            background: #444;
             display: flex;
         }
 
         .ratio-high {
-            background: linear-gradient(90deg, #FFD700, #FFA500);
+            background: #FFD700;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #000;
             font-size: 10px;
             font-weight: bold;
         }
 
         .ratio-low {
-            background: linear-gradient(90deg, #90EE90, #32CD32);
+            background: #90EE90;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #000;
             font-size: 10px;
             font-weight: bold;
         }
 
         .ratio-status {
             padding: 2px 8px;
-            border-radius: 10px;
             font-size: 11px;
             font-weight: bold;
         }
 
         .ratio-balanced {
-            background: #d4edda;
-            color: #28a745;
+            background: #28a745;
+            color: #fff;
         }
 
         .ratio-unbalanced {
-            background: #fff3cd;
-            color: #ffc107;
+            background: #ffc107;
+            color: #000;
         }
 
         .no-tasks {
             text-align: center;
             padding: 20px;
-            color: #999;
+            color: #888;
             font-size: 14px;
-            background: #f8f9ff;
-            border-radius: 8px;
+            background: #2a2a2a;
         }
 
         /* 已完成列表样式 */
         .completed-section {
             margin-top: 15px;
             padding-top: 15px;
-            border-top: 2px solid #f0f0f0;
+            border-top: 1px solid #444;
         }
 
         .completed-title {
             font-size: 14px;
-            font-weight: 600;
-            color: #666;
+            font-weight: bold;
+            color: #ccc;
             margin-bottom: 10px;
             display: flex;
             align-items: center;
@@ -487,60 +466,43 @@
             padding: 5px;
         }
 
-        .works-grid::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .works-grid::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        .works-grid::-webkit-scrollbar-thumb {
-            background: #cbd5e0;
-            border-radius: 3px;
-        }
 
         .work-item {
-            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+            background: #555;
             padding: 10px 6px;
-            border-radius: 8px;
             text-align: center;
             font-size: 13px;
-            font-weight: 700;
-            color: #4a5568;
-            transition: all 0.2s ease;
+            font-weight: bold;
+            color: #fff;
             cursor: default;
         }
 
         .work-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background: #666;
         }
 
         .work-item-free {
-            background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);
+            background: #444;
         }
 
         .empty-list {
             text-align: center;
-            color: #a0aec0;
+            color: #888;
             padding: 10px;
             font-size: 12px;
-            background: #f8f9ff;
-            border-radius: 6px;
+            background: #2a2a2a;
         }
 
-        .loading, .error {
+        .loading,
+        .error {
             text-align: center;
             padding: 60px 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #555;
         }
 
         .loading {
-            color: #667eea;
+            color: #ccc;
             font-size: 18px;
         }
 
@@ -552,32 +514,36 @@
         .spinner {
             width: 50px;
             height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid #444;
+            border-top: 4px solid #ccc;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .no-data {
             text-align: center;
             padding: 40px;
-            color: #999;
+            color: #888;
             font-size: 16px;
         }
 
         /* 作品权重对比表格 */
         .works-comparison-section {
-            background: white;
-            border-radius: 12px;
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #555;
             padding: 25px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .comparison-header {
@@ -590,29 +556,28 @@
         }
 
         .comparison-header:hover h2 {
-            color: #5568d3;
+            color: #ccc;
         }
 
         .comparison-header h2 {
-            color: #667eea;
+            color: #fff;
             font-size: 22px;
             margin: 0;
-            transition: color 0.3s;
         }
 
         .formula-box {
-            background: #f8f9ff;
-            border-left: 4px solid #667eea;
+            background: #333;
+            border-left: 3px solid #666;
             padding: 15px;
             margin-bottom: 15px;
-            border-radius: 6px;
             font-size: 13px;
             line-height: 1.8;
+            color: #ddd;
         }
 
         .formula-title {
             font-weight: bold;
-            color: #667eea;
+            color: #fff;
             margin-bottom: 8px;
         }
 
@@ -622,11 +587,11 @@
         }
 
         .formula-highlight {
-            background: #fff3cd;
+            background: #555;
             padding: 2px 6px;
-            border-radius: 4px;
             font-family: 'Courier New', monospace;
             font-weight: bold;
+            color: #fff;
         }
 
         .comparison-table-container {
@@ -646,8 +611,8 @@
         }
 
         .works-table thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #555;
+            color: #fff;
             position: sticky;
             top: 0;
             z-index: 10;
@@ -656,30 +621,30 @@
         .works-table th {
             padding: 12px 10px;
             text-align: left;
-            font-weight: 600;
+            font-weight: bold;
             font-size: 12px;
         }
 
         .works-table tbody tr {
-            border-bottom: 1px solid #e0e0e0;
-            transition: background 0.2s;
+            border-bottom: 1px solid #444;
         }
 
         .works-table tbody tr:hover {
-            background: #f8f9ff;
+            background: #3a3a3a;
         }
 
         .works-table td {
             padding: 10px;
+            color: #ddd;
         }
 
         .works-table .work-id {
             font-weight: bold;
-            color: #667eea;
+            color: #fff;
         }
 
         .works-table .work-title {
-            color: #666;
+            color: #ccc;
             max-width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -711,6 +676,18 @@
             color: #999;
         }
 
+        .works-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .works-grid::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        .works-grid::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
         @media (max-width: 768px) {
             .user-header {
                 flex-direction: column;
@@ -725,12 +702,14 @@
                 font-size: 11px;
             }
 
-            .works-table th, .works-table td {
+            .works-table th,
+            .works-table td {
                 padding: 8px 5px;
             }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -768,17 +747,30 @@
         <!-- 作品权重对比表格 -->
         <div class="works-comparison-section" id="worksComparisonSection" style="display: none;">
             <div class="comparison-header" onclick="toggleComparison()">
-                <h2>📊 作品权重对比表 (所有作品)</h2>
+                <h2>📊 作品权重对比表 (理论权重)</h2>
                 <span class="toggle-icon" id="comparisonToggleIcon">▼</span>
             </div>
-            
+            <div style="background: #2a2a2a; padding: 10px 15px; margin-bottom: 10px; border-left: 3px solid #FFA500; font-size: 12px; color: #FFA500;">
+                ⚠️ <strong>说明</strong>：此表显示所有作品的理论权重（不考虑用户个人情况）。<br>
+                实际分配时会排除：用户已评论的作品、已完成的任务、用户自己的作品。<br>
+                因此，权重高的作品可能不会被分配给某些用户。
+            </div>
+
             <div class="formula-box">
                 <div class="formula-title">🔬 权重计算方法</div>
                 <div class="formula-item">
+                    <strong>期望评分模型</strong> (三段式增长曲线)
+                    <br>• 早期快速期 (0-5天): 每天1个评分，达到5个
+                    <br>• 中期稳定期 (6-14天): 每天0.78个，从5个增至12个
+                    <br>• 后期缓慢期 (15-30天): 每天0.5个，从12个增至20个
+                    <br>• 超期作品 (>30天): 期望达标20个评分
+                </div>
+                <div class="formula-item">
                     <strong>基础冷门权重</strong> = 评分缺口比例 × 60 + 时间紧迫度加成
                     <br>• 评分缺口比例 = (期望评分 - 当前评分) / 期望评分
-                    <br>• 时间加成: 3天&lt;2评 +15，5天&lt;5评 +20，7天&lt;10评 +30
-                    <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;14天&lt;15评 +45，21天&lt;18评 +65，30天&lt;20评 +80
+                    <br>• 时间加成 (取满足条件的最大值):
+                    <br>&nbsp;&nbsp;3天&lt;2评 +15，5天&lt;5评 +20，7天&lt;10评 +30
+                    <br>&nbsp;&nbsp;14天&lt;15评 +45，21天&lt;18评 +65，30天&lt;20评 +80
                 </div>
                 <div class="formula-item">
                     <strong>均衡因子</strong> = 根据作品当前高低权重比例动态调整
@@ -787,13 +779,16 @@
                     <br>• 高权重过多 (>45%) → Qualified用户 ×0.7，普通用户 ×1.3
                     <br>• 高权重不足 (&lt;28%) → Qualified用户 ×1.3，普通用户 ×0.7
                     <br>• 比例均衡 (28%-45%) → 所有用户 ×1.0
+                    <br>• 应用时机: 作品有≥1个评分即开始应用均衡因子
                 </div>
                 <div class="formula-item">
                     <strong>最终任务权重</strong> = <span class="formula-highlight">基础冷门权重 × 均衡因子</span>
                     <br>• 最终权重决定作品在用户任务列表中的排序位置
                     <br>• 权重越高，越容易被分配为任务
-                    <br>• 理论最大权重: ~140 (100%缺口×60+80加成)
+                    <br>• 理论最大权重: ~182 (100%缺口×60+80加成×1.3均衡)
                     <br>• 评分≥20的作品权重为0，不再出现在任务列表
+                    <br>• <span style="color: #FFD700;">⭐ 同一作品对不同用户权重不同！</span>
+                    <br>• 权重无上限，真实反映作品冷门程度
                 </div>
             </div>
 
@@ -872,7 +867,7 @@
         // 渲染用户列表
         function renderUsers(users) {
             const content = document.getElementById('content');
-            
+
             if (users.length === 0) {
                 content.innerHTML = '<div class="no-data">没有找到符合条件的用户</div>';
                 return;
@@ -918,7 +913,7 @@
             // 用户链接
             const userLink = user.userSlug ? `/profile/${user.userSlug}` : '#';
             const userNameHtml = user.userSlug
-                ? `<a href="${userLink}" target="_blank" style="color: #667eea; text-decoration: none;">${user.userName}</a>`
+                ? `<a href="${userLink}" target="_blank" style="color: #FFD700; text-decoration: none;">${user.userName}</a>`
                 : user.userName;
 
             // 任务列表HTML
@@ -928,16 +923,16 @@
 
             // 已完成任务作品列表
             const completedTasksHtml = user.completedTasks && user.completedTasks.length > 0
-                ? user.completedTasks.map(workNum => 
+                ? user.completedTasks.map(workNum =>
                     `<div class="work-item" title="任务完成作品 #${workNum}">#${workNum}</div>`
-                  ).join('')
+                ).join('')
                 : '<div class="empty-list">暂无完成记录</div>';
 
             // 自主评论作品列表
             const freeRatingsHtml = user.freeRatings && user.freeRatings.length > 0
-                ? user.freeRatings.map(workNum => 
+                ? user.freeRatings.map(workNum =>
                     `<div class="work-item work-item-free" title="自主评论作品 #${workNum}">#${workNum}</div>`
-                  ).join('')
+                ).join('')
                 : '<div class="empty-list">暂无自主评论</div>';
 
             card.innerHTML = `
@@ -949,7 +944,7 @@
                         <div class="user-name">
                             ${userNameHtml}
                             <span class="quality-badge ${qualityBadgeClass}">${qualityText}</span>
-                            ${hasCompletedTarget ? '<span class="quality-badge" style="background: linear-gradient(135deg, #00CC00, #00AA00); color: white;">✓ 已完成目标</span>' : ''}
+                            ${hasCompletedTarget ? '<span class="quality-badge" style="background: #28a745; color: #fff;">✓ 已完成目标</span>' : ''}
                             <button class="btn-refresh-user" data-user-id="${user.userId}" onclick="refreshUserTask(this)">🔄 刷新任务</button>
                         </div>
                         <div class="user-stats">
@@ -997,19 +992,19 @@
         // 创建任务项HTML
         function createTaskItemHtml(task, isUserHighQuality, hasCompletedTarget) {
             // 高低权重比例
-            const highPercent = task.currentRatings > 0 
+            const highPercent = task.currentRatings > 0
                 ? (task.highWeightCount / task.currentRatings * 100).toFixed(0)
                 : 0;
             const lowPercent = task.currentRatings > 0
                 ? (task.lowWeightCount / task.currentRatings * 100).toFixed(0)
                 : 0;
-            
-            const ratioText = task.lowWeightCount > 0 
+
+            const ratioText = task.lowWeightCount > 0
                 ? `${task.ratio.toFixed(2)}:1`
                 : (task.highWeightCount > 0 ? '仅高权重' : '无评分');
-            
+
             const ratioStatusClass = task.ratioStatus === '均衡' ? 'ratio-balanced' : 'ratio-unbalanced';
-            
+
             // 均衡因子样式
             let balanceClass = 'balance-neutral';
             let balanceText = '×1.0 (无调整)';
@@ -1020,7 +1015,7 @@
                 balanceClass = 'balance-decrease';
                 balanceText = `×${task.balanceFactor.toFixed(2)} (降低)`;
             }
-            
+
             // 权重变化说明
             let weightExplanation = '';
             const taskTypeText = hasCompletedTarget ? '冷门作品权重' : '任务权重';
@@ -1079,7 +1074,7 @@
                         <span class="ratio-status ${ratioStatusClass}">${task.ratioStatus}</span>
                     </div>
                     
-                    ${weightExplanation ? `<div style="margin-top: 8px; padding: 8px; background: #e8f4fd; border-radius: 6px; font-size: 11px; color: #0066cc;">${weightExplanation}</div>` : ''}
+                    ${weightExplanation ? `<div style="margin-top: 8px; padding: 8px; background: #2a2a2a; font-size: 11px; color: #87CEEB;">${weightExplanation}</div>` : ''}
                 </div>
             `;
         }
@@ -1088,7 +1083,7 @@
         function toggleTasks(header) {
             const icon = header.querySelector('.toggle-icon');
             const list = header.nextElementSibling;
-            
+
             icon.classList.toggle('expanded');
             list.classList.toggle('expanded');
         }
@@ -1097,7 +1092,7 @@
         function toggleComparison() {
             const container = document.getElementById('comparisonTableContainer');
             const icon = document.getElementById('comparisonToggleIcon');
-            
+
             container.classList.toggle('expanded');
             icon.textContent = container.classList.contains('expanded') ? '▼' : '▶';
         }
@@ -1110,16 +1105,16 @@
             }
 
             document.getElementById('worksComparisonSection').style.display = 'block';
-            
+
             const tbody = document.getElementById('worksComparisonTableBody');
             tbody.innerHTML = '';
 
             worksComparison.works.forEach(work => {
                 const row = document.createElement('tr');
-                
+
                 // 比例状态样式
                 const ratioStatusClass = work.ratioStatus === '均衡' ? 'ratio-balanced' : 'ratio-unbalanced';
-                
+
                 // 权重差异样式
                 let diffClass = 'weight-diff-neutral';
                 let diffSymbol = '';
@@ -1129,14 +1124,14 @@
                 } else if (work.weightDifference < 0) {
                     diffClass = 'weight-diff-negative';
                 }
-                
+
                 // 均衡因子显示
-                const factorHighText = work.balanceFactorHigh === 1.0 
-                    ? '×1.0' 
+                const factorHighText = work.balanceFactorHigh === 1.0
+                    ? '×1.0'
                     : (work.balanceFactorHigh > 1.0 ? `×${work.balanceFactorHigh.toFixed(1)}↑` : `×${work.balanceFactorHigh.toFixed(1)}↓`);
-                
-                const factorLowText = work.balanceFactorLow === 1.0 
-                    ? '×1.0' 
+
+                const factorLowText = work.balanceFactorLow === 1.0
+                    ? '×1.0'
                     : (work.balanceFactorLow > 1.0 ? `×${work.balanceFactorLow.toFixed(1)}↑` : `×${work.balanceFactorLow.toFixed(1)}↓`);
 
                 row.innerHTML = `
@@ -1159,7 +1154,7 @@
                         ${diffSymbol}${work.weightDifference}
                     </td>
                 `;
-                
+
                 tbody.appendChild(row);
             });
         }
@@ -1167,11 +1162,11 @@
         // 刷新单个用户的任务
         function refreshUserTask(button) {
             const userId = button.getAttribute('data-user-id');
-            
+
             // 禁用按钮，显示刷新中
             button.disabled = true;
             button.textContent = '⏳ 刷新中...';
-            
+
             // 发送刷新请求
             window.parent.postMessage({
                 action: 'refreshUserTask',
@@ -1186,7 +1181,7 @@
                 return;
             }
 
-            const targetRatioText = `1:${(1/stats.targetRatio).toFixed(1)}`;
+            const targetRatioText = `1:${(1 / stats.targetRatio).toFixed(1)}`;
 
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">
@@ -1289,7 +1284,7 @@
                 box-shadow: 0 4px 12px rgba(0,0,0,0.2);
                 animation: slideIn 0.3s ease;
             `;
-            
+
             if (type === 'success') {
                 notification.style.background = '#d4edda';
                 notification.style.color = '#28a745';
@@ -1299,10 +1294,10 @@
                 notification.style.color = '#dc3545';
                 notification.style.border = '2px solid #dc3545';
             }
-            
+
             notification.textContent = message;
             document.body.appendChild(notification);
-            
+
             // 3秒后自动消失
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease';
@@ -1318,17 +1313,19 @@
                 transform: translateX(400px);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
             }
         }
-        
+
         @keyframes slideOut {
             from {
                 transform: translateX(0);
                 opacity: 1;
             }
+
             to {
                 transform: translateX(400px);
                 opacity: 0;
@@ -1336,5 +1333,5 @@
         }
     </style>
 </body>
-</html>
 
+</html>
