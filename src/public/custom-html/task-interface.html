@@ -13,8 +13,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       padding: 20px;
       min-height: 100vh;
     }
@@ -24,50 +23,66 @@
       margin: 0 auto;
     }
 
-    /* 进度区域 */
-    .progress-section {
-      background: white;
-      border-radius: 16px;
+    /* 毛玻璃卡片 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
       padding: 30px;
-      margin-bottom: 24px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      margin-bottom: 20px;
       transition: transform 0.3s ease;
     }
 
-    .progress-section:hover {
-      transform: translateY(-2px);
+    .glass-card:hover {
+      transform: translateY(-4px);
     }
 
+    /* 进度区域 */
     .progress-title {
       font-size: 24px;
       font-weight: 700;
-      color: #2d3748;
+      color: #fff;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
       gap: 10px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .user-badge {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: normal;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 12px;
+      margin-left: 10px;
     }
 
     .progress-bar-container {
-      background: #e2e8f0;
+      background: rgba(255, 255, 255, 0.3);
       height: 36px;
       border-radius: 18px;
       overflow: hidden;
       position: relative;
       margin-bottom: 12px;
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .progress-bar {
-      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%);
       height: 100%;
       transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #fff;
       font-weight: 700;
       font-size: 14px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       position: relative;
     }
 
@@ -86,57 +101,80 @@
       0% {
         transform: translateX(-100%);
       }
-
       100% {
         transform: translateX(100%);
       }
     }
 
     .progress-text {
-      color: #718096;
+      color: #fff;
       font-size: 15px;
       text-align: right;
       font-weight: 500;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 用户作品信息 */
+    .own-works-info {
+      margin-top: 15px;
+      padding: 15px;
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 165, 0, 0.3) 100%);
+      border-radius: 16px;
+      border-left: 4px solid #FFA500;
+    }
+
+    .own-works-label {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .own-works-list {
+      font-size: 14px;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .own-works-note {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 5px;
     }
 
     /* 任务区域 */
-    .task-section {
-      background: white;
-      border-radius: 16px;
-      padding: 30px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-    }
-
     .task-title {
       font-size: 20px;
       font-weight: 700;
-      color: #2d3748;
+      color: #fff;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
       gap: 8px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     /* 检查按钮 */
     .refresh-button {
-      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-      color: white;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+      color: #667eea;
       border: none;
       padding: 12px 24px;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       width: 200px;
       margin: 0 auto 20px auto;
       display: block;
-      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
       transition: all 0.3s ease;
     }
 
     .refresh-button:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.9) 100%);
     }
 
     .refresh-button:active {
@@ -144,21 +182,31 @@
     }
 
     .refresh-button:disabled {
-      background: #cbd5e0;
+      background: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.5);
       cursor: not-allowed;
       transform: none;
       box-shadow: none;
     }
 
+    /* 刷新信息 */
+    .refresh-info {
+      text-align: center;
+      margin-bottom: 16px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 14px;
+    }
+
     /* 当前任务卡片 */
     .current-task {
-      background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-      border-radius: 16px;
-      padding: 28px;
-      margin-bottom: 20px;
-      box-shadow: 0 6px 20px rgba(253, 203, 110, 0.4);
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.4) 0%, rgba(255, 165, 0, 0.4) 100%);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
       position: relative;
       overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.3);
     }
 
     .current-task::before {
@@ -168,18 +216,15 @@
       right: -50%;
       width: 200%;
       height: 200%;
-      background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
       animation: pulse 3s ease-in-out infinite;
     }
 
     @keyframes pulse {
-
-      0%,
-      100% {
+      0%, 100% {
         opacity: 0.5;
         transform: scale(1);
       }
-
       50% {
         opacity: 0.8;
         transform: scale(1.1);
@@ -188,13 +233,14 @@
 
     .task-label {
       font-size: 13px;
-      color: #d63031;
+      color: #fff;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1.2px;
       margin-bottom: 12px;
       position: relative;
       z-index: 1;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
     .task-work-info {
@@ -206,31 +252,28 @@
       z-index: 1;
     }
 
-    .work-number-container {
-      flex: 1;
-    }
-
     .work-number-label {
       font-size: 14px;
-      color: #636e72;
+      color: rgba(255, 255, 255, 0.9);
       margin-bottom: 4px;
     }
 
     .work-number {
       font-size: 32px;
       font-weight: 800;
-      color: #2d3748;
+      color: #fff;
       font-family: 'Courier New', monospace;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
     .coldness-badge {
-      background: #d63031;
-      color: white;
+      background: rgba(255, 255, 255, 0.9);
+      color: #667eea;
       padding: 8px 16px;
-      border-radius: 24px;
+      border-radius: 20px;
       font-size: 13px;
       font-weight: 700;
-      box-shadow: 0 4px 12px rgba(214, 48, 49, 0.3);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
       white-space: nowrap;
     }
 
@@ -239,7 +282,7 @@
       gap: 20px;
       margin-bottom: 20px;
       font-size: 14px;
-      color: #636e72;
+      color: rgba(255, 255, 255, 0.9);
       flex-wrap: wrap;
       position: relative;
       z-index: 1;
@@ -249,40 +292,73 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.3);
       padding: 6px 12px;
-      border-radius: 8px;
+      border-radius: 12px;
     }
 
     .action-button {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+      color: #667eea;
       border: none;
       padding: 16px 32px;
-      border-radius: 12px;
+      border-radius: 16px;
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
       width: 100%;
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
       position: relative;
       z-index: 1;
+      transition: all 0.3s ease;
+    }
+
+    .action-button:hover {
+      background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.9) 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
     }
 
     .action-button:active {
-      transform: translateY(-1px);
+      transform: translateY(0);
     }
 
     .action-button:disabled {
-      background: #cbd5e0;
+      background: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.5);
       cursor: not-allowed;
       transform: none;
       box-shadow: none;
     }
 
-    .action-button span {
-      position: relative;
-      z-index: 1;
+    /* 统计卡片 */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.3);
+      padding: 16px;
+      border-radius: 16px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     /* 已完成列表 */
@@ -293,37 +369,12 @@
     .completed-title {
       font-size: 17px;
       font-weight: 600;
-      color: #2d3748;
+      color: #fff;
       margin-bottom: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .stats-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .stat-card {
-      background: #f7fafc;
-      padding: 12px;
-      border-radius: 8px;
-      text-align: center;
-    }
-
-    .stat-label {
-      font-size: 12px;
-      color: #718096;
-      margin-bottom: 4px;
-    }
-
-    .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: #2d3748;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .completed-grid {
@@ -340,65 +391,69 @@
     }
 
     .completed-grid::-webkit-scrollbar-track {
-      background: #f1f1f1;
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 4px;
     }
 
     .completed-grid::-webkit-scrollbar-thumb {
-      background: #cbd5e0;
+      background: rgba(255, 255, 255, 0.4);
       border-radius: 4px;
     }
 
     .completed-grid::-webkit-scrollbar-thumb:hover {
-      background: #a0aec0;
+      background: rgba(255, 255, 255, 0.6);
     }
 
     .completed-item {
-      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.3) 100%);
       padding: 14px 10px;
-      border-radius: 10px;
+      border-radius: 12px;
       text-align: center;
       font-size: 15px;
       font-weight: 700;
-      color: #4a5568;
+      color: #fff;
       transition: all 0.2s ease;
       cursor: default;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .completed-item:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.4) 100%);
     }
 
     /* 无任务状态 */
     .no-task {
       text-align: center;
       padding: 50px 20px;
-      color: #718096;
+      color: #fff;
     }
 
     .no-task-title {
       font-size: 22px;
       font-weight: 700;
       margin-bottom: 10px;
-      color: #2d3748;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .no-task-desc {
       font-size: 15px;
-      color: #718096;
+      color: rgba(255, 255, 255, 0.9);
     }
 
     /* 加载状态 */
     .loading {
       text-align: center;
       padding: 60px 20px;
-      color: #718096;
+      color: #fff;
     }
 
     .spinner {
-      border: 4px solid #e2e8f0;
-      border-top: 4px solid #667eea;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #fff;
       border-radius: 50%;
       width: 50px;
       height: 50px;
@@ -410,7 +465,6 @@
       0% {
         transform: rotate(0deg);
       }
-
       100% {
         transform: rotate(360deg);
       }
@@ -419,6 +473,8 @@
     .loading-text {
       font-size: 16px;
       font-weight: 500;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     /* 响应式设计 */
@@ -427,8 +483,7 @@
         padding: 12px;
       }
 
-      .progress-section,
-      .task-section {
+      .glass-card {
         padding: 20px;
       }
 
@@ -446,10 +501,10 @@
 <body>
   <div class="container">
     <!-- 进度区域 -->
-    <div class="progress-section">
+    <div class="glass-card">
       <div class="progress-title">
         <span>评分进度</span>
-        <span id="userQualityBadge" style="font-size: 12px; color: #666; margin-left: 10px; font-weight: normal;"></span>
+        <span id="userQualityBadge" class="user-badge"></span>
       </div>
       <div class="progress-bar-container">
         <div class="progress-bar" id="progressBar" style="width: 0%;">
@@ -459,22 +514,21 @@
       <div class="progress-text" id="progressText">已完成 0 / 10</div>
       
       <!-- 显示用户自己的作品 -->
-      <div id="ownWorksInfo" style="margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #fff9e6 0%, #ffe8cc 100%); border-radius: 8px; border-left: 4px solid #FFA500; display: none;">
-        <div style="font-size: 13px; color: #666; margin-bottom: 5px; font-weight: 600;">您的作品</div>
-        <div id="ownWorksList" style="font-size: 14px; color: #333; font-weight: bold;"></div>
-        <div style="font-size: 11px; color: #999; margin-top: 5px;">* 您自己的作品不会出现在任务列表中</div>
+      <div id="ownWorksInfo" class="own-works-info" style="display: none;">
+        <div class="own-works-label">您的作品</div>
+        <div id="ownWorksList" class="own-works-list"></div>
+        <div class="own-works-note">* 您自己的作品不会出现在任务列表中</div>
       </div>
     </div>
 
     <!-- 任务区域 -->
-    <div class="task-section">
+    <div class="glass-card">
       <div class="task-title">
         <span>当前任务</span>
       </div>
 
       <!-- 任务刷新信息 -->
-      <div id="refreshInfo"
-        style="text-align: center; margin-bottom: 16px; color: #718096; font-size: 14px; display: none;">
+      <div id="refreshInfo" class="refresh-info" style="display: none;">
         <span id="refreshTimeText">下次刷新: --</span>
       </div>
 
@@ -530,7 +584,7 @@
 
       <!-- 未验证状态 -->
       <div id="notVerifiedState" style="display: none;" class="no-task">
-        <div class="no-task-title" style="color: #FF0000;">未验证</div>
+        <div class="no-task-title" style="color: #FFD700;">未验证</div>
         <div class="no-task-desc" id="notVerifiedMessage">您尚未报名比赛，无法接受和完成任务</div>
       </div>
     </div>
@@ -542,50 +596,41 @@
 
     // 监听来自Wix页面的消息
     window.addEventListener('message', (event) => {
-      // 安全检查
       if (!event.data || typeof event.data !== 'object') return;
-
-      // console.log('[HTML] 收到消息:', event.data);
 
       const { type, data } = event.data;
 
       switch (type) {
         case 'TASK_DATA_RESPONSE':
-          // console.log('[HTML] 收到任务数据:', data);
           taskData = data;
           renderTaskPage();
           break;
-
         case 'TASK_COMPLETED':
-          // console.log('[HTML] 任务完成通知');
           break;
-
         case 'REFRESH_TASK':
-          // console.log('[HTML] 刷新请求');
           break;
-
         default:
-        // console.log('[HTML] 未知消息类型:', type);
       }
     });
-
 
     /**
      * 渲染任务页面
      */
     function renderTaskPage() {
-      // console.log('[HTML] 开始渲染, taskData:', taskData);
       hideLoading();
+      
+      // 【优化】重置按钮状态
+      if (isRefreshing) {
+        isRefreshing = false;
+        refreshButton.disabled = false;
+        refreshButton.textContent = originalButtonText;
+      }
 
       if (!taskData) {
-        // console.error('[HTML] 任务数据为空');
         return;
       }
 
       if (taskData.error) {
-        // console.error('[HTML] 数据错误:', taskData.message);
-
-        // 检查是否是未验证状态
         if (taskData.notVerified) {
           showNotVerified(taskData.message);
         } else {
@@ -595,27 +640,22 @@
       }
 
       const { currentTasks, completedTasks, freeRatings, totalCompleted, targetCompletion, lastRefreshTime, nextRefreshTime, isHighQuality, ownWorks, hasCompletedTarget } = taskData;
-      // console.log('[HTML] 解析数据: 任务数', currentTasks?.length, '已完成', totalCompleted, '自主评论', freeRatings?.length, '自己的作品', ownWorks?.length, '已完成目标', hasCompletedTarget);
       
       // 显示用户身份标识
       const userQualityBadge = document.getElementById('userQualityBadge');
       if (userQualityBadge) {
         let badgeText = '';
         if (isHighQuality) {
-          badgeText = '（您属于：Qualified 参赛选手';
-          userQualityBadge.style.color = '#FFA500';
+          badgeText = 'Qualified 参赛选手';
         } else {
-          badgeText = '（您属于：普通参赛选手';
-          userQualityBadge.style.color = '#666';
+          badgeText = '普通参赛选手';
         }
         
-        // 如果已完成目标，添加标记
         if (hasCompletedTarget) {
-          badgeText += ' - 已完成任务目标！）';
-          userQualityBadge.style.color = '#00CC00'; // 绿色
+          badgeText += ' - 已完成任务目标！';
+          userQualityBadge.style.background = 'linear-gradient(135deg, rgba(76, 175, 80, 0.4), rgba(56, 142, 60, 0.4))';
+          userQualityBadge.style.color = '#fff';
           userQualityBadge.style.fontWeight = 'bold';
-        } else {
-          badgeText += '）';
         }
         
         userQualityBadge.textContent = badgeText;
@@ -624,7 +664,7 @@
       // 显示用户自己的作品
       displayOwnWorks(ownWorks);
 
-      // 更新进度条（只计算任务完成数）
+      // 更新进度条
       const progress = Math.min((totalCompleted / (targetCompletion || 10)) * 100, 100);
       const progressBar = document.getElementById('progressBar');
       const progressPercentage = document.getElementById('progressPercentage');
@@ -637,7 +677,7 @@
       // 显示刷新时间信息
       updateRefreshTimeDisplay(nextRefreshTime);
 
-      // 渲染任务列表（最多3条）
+      // 渲染任务列表
       if (currentTasks && currentTasks.length > 0) {
         showTaskContent();
         renderTaskCards(currentTasks, hasCompletedTarget);
@@ -656,7 +696,6 @@
       renderFreeRatingsList(freeRatings);
     }
 
-
     /**
      * 渲染任务卡片
      */
@@ -670,7 +709,6 @@
         const card = document.createElement('div');
         card.className = 'current-task';
 
-        // 权重高低标签
         let weightLabel = '';
         if (task.weight >= 80) {
           weightLabel = ' (非常紧急)';
@@ -680,7 +718,6 @@
           weightLabel = ' (优先)';
         }
 
-        // 根据是否完成目标，显示"任务"或"冷门"
         const taskTypeLabel = hasCompletedTarget ? '冷门作品' : '需要关注的作品';
 
         card.innerHTML = `
@@ -727,7 +764,7 @@
       completedGrid.innerHTML = '';
 
       if (!completedTasks || completedTasks.length === 0) {
-        completedGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 12px;">暂无完成记录</div>';
+        completedGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: rgba(255,255,255,0.7); padding: 12px;">暂无完成记录</div>';
         return;
       }
 
@@ -752,20 +789,19 @@
       freeGrid.innerHTML = '';
 
       if (!freeRatings || freeRatings.length === 0) {
-        freeGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #a0aec0; padding: 12px;">暂无自主评论</div>';
+        freeGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: rgba(255,255,255,0.7); padding: 12px;">暂无自主评论</div>';
         return;
       }
 
       freeRatings.forEach(workNum => {
         const item = document.createElement('div');
         item.className = 'completed-item';
-        item.style.background = 'linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%)';
+        item.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.2) 100%)';
         item.textContent = `#${workNum}`;
         item.title = `自主评论作品 #${workNum}（不计入任务进度）`;
         freeGrid.appendChild(item);
       });
     }
-
 
     /**
      * 显示/隐藏状态控制
@@ -814,7 +850,6 @@
         return;
       }
       
-      // 显示作品编号
       const worksText = ownWorks.map(num => `#${num}`).join(', ');
       ownWorksList.textContent = worksText;
       
@@ -839,7 +874,6 @@
 
       if (diffMs <= 0) {
         refreshTimeText.textContent = '任务即将刷新，点击Check更新';
-        refreshTimeText.style.color = '#0066FF';
         refreshTimeText.style.fontWeight = 'bold';
       } else {
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -854,7 +888,6 @@
         }
 
         refreshTimeText.textContent = timeText;
-        refreshTimeText.style.color = '#718096';
         refreshTimeText.style.fontWeight = 'normal';
       }
 
@@ -864,22 +897,41 @@
     /**
      * 检查按钮点击事件
      */
-    document.getElementById('refreshTaskButton').addEventListener('click', () => {
-      // console.log('[HTML] 用户点击检查按钮');
-
-      // 显示加载状态
+    let isRefreshing = false;
+    const refreshButton = document.getElementById('refreshTaskButton');
+    const originalButtonText = 'Check';
+    
+    refreshButton.addEventListener('click', () => {
+      // 【优化】防止重复点击
+      if (isRefreshing) {
+        console.log('[任务界面] 正在刷新中，请稍候...');
+        return;
+      }
+      
+      isRefreshing = true;
+      refreshButton.disabled = true;
+      refreshButton.textContent = '加载中...';
+      
       showLoading();
 
-      // 通知父页面刷新任务数据
       window.parent.postMessage({
         type: 'REFRESH_TASK_REQUEST'
       }, '*');
+      
+      // 【优化】超时保护 - 10秒后自动重置按钮状态
+      setTimeout(() => {
+        if (isRefreshing) {
+          isRefreshing = false;
+          refreshButton.disabled = false;
+          refreshButton.textContent = originalButtonText;
+          console.log('[任务界面] 加载超时，已自动重置');
+        }
+      }, 10000);
     });
 
     /**
-     * 页面加载完成，通知父页面并显示加载状态
+     * 页面加载完成
      */
-    // console.log('[HTML] 页面加载完成，发送TASK_PAGE_READY消息');
     showLoading();
 
     window.parent.postMessage({

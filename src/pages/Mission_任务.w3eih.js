@@ -15,6 +15,7 @@ import {
 let currentUserId = null;
 let isHtmlReady = false;
 let isUserVerified = false;
+let isLoadingTaskData = false; // 防止重复加载任务数据
 
 /**
  * 检查用户验证状态（是否报名比赛）
@@ -122,6 +123,13 @@ async function initTaskPage() {
  */
 async function sendTaskData() {
   try {
+    // 【优化】防止重复加载 - 防抖处理
+    if (isLoadingTaskData) {
+      console.log('[任务加载] 正在加载中，请稍候...');
+      return;
+    }
+    
+    isLoadingTaskData = true;
     // console.log('正在获取任务数据...');
     
     // 检查用户验证状态
@@ -140,6 +148,7 @@ async function sendTaskData() {
           targetCompletion: 10
         }
       });
+      isLoadingTaskData = false;
       return;
     }
     
@@ -160,6 +169,9 @@ async function sendTaskData() {
     
     // console.log('消息已发送');
     
+    // 【优化】释放加载锁
+    isLoadingTaskData = false;
+    
   } catch (error) {
     console.error('获取任务数据失败:', error);
     
@@ -176,6 +188,9 @@ async function sendTaskData() {
         targetCompletion: 10
       }
     });
+    
+    // 【优化】释放加载锁（错误情况）
+    isLoadingTaskData = false;
   }
 }
 

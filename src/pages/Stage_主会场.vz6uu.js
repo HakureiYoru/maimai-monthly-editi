@@ -33,6 +33,9 @@ let allWorksRankingCache = null; // 缓存所有作品的排名信息
 // 【新增】批量数据缓存 - 一次性加载所有作品评分数据
 let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
 
+// 【新增】任务数据缓存 - 避免重复调用
+let userTaskDataCache = null; // 缓存用户任务数据
+
 // 用户验证功能
 async function checkUserVerification() {
   if (!currentUserId) {
@@ -135,13 +138,14 @@ $w.onReady(async function () {
   // 【优化】首先批量加载所有数据（一次API调用替代数百次）
   await loadBatchData();
 
-  // 检查并刷新任务（如果超过刷新时间间隔）
+  // 【优化】检查并刷新任务（仅调用一次并缓存）
   if (currentUserId && isUserVerified) {
     try {
-      await getUserTaskData(currentUserId);
-      // console.log("[主会场] 任务同步检查完成");
+      userTaskDataCache = await getUserTaskData(currentUserId);
+      console.log("[主会场] 任务同步检查完成，已缓存");
     } catch (error) {
       console.error("[主会场] 任务同步检查失败:", error);
+      userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
     }
   }
 
@@ -516,10 +520,9 @@ async function updateCommentStatus($item, itemData) {
       .isEmpty("replyTo")
       .find();
 
-    // 检查是否为任务作品或冷门作品
+    // 【优化】检查是否为任务作品或冷门作品 - 使用缓存避免重复调用
     const taskCheck = await checkIfWorkInTaskList(currentUserId, itemData.sequenceId);
-    const userData = await getUserTaskData(currentUserId);
-    const hasCompletedTarget = userData.hasCompletedTarget || false;
+    const hasCompletedTarget = userTaskDataCache ? (userTaskDataCache.hasCompletedTarget || false) : false;
     
     const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted && !hasCompletedTarget;
     const isColdWork = taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
@@ -568,13 +571,12 @@ function setupWorkSelectionEvent() {
           isWorkDQ = workResults.items[0].isDq === true;
         }
 
-        // 检查是否为任务作品或冷门作品（在其他检查之前）
+        // 【优化】检查是否为任务作品或冷门作品（在其他检查之前）- 使用缓存
         let taskStatusText = "";
         if (currentUserId && isUserVerified) {
           try {
             const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
-            const userData = await getUserTaskData(currentUserId);
-            const hasCompletedTarget = userData.hasCompletedTarget || false;
+            const hasCompletedTarget = userTaskDataCache ? (userTaskDataCache.hasCompletedTarget || false) : false;
             
             if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
               if (hasCompletedTarget) {
@@ -1109,6 +1111,7 @@ function clearCaches() {
   workOwnersCache = {};
   allWorksRankingCache = null;
   batchDataCache = null; // 清理批量数据缓存
+  userTaskDataCache = null; // 清理任务数据缓存
   console.log("[性能优化] 缓存数据已清理");
 }
 
@@ -1224,6 +1227,17 @@ async function refreshRepeaters() {
     
     // 重新批量加载所有数据
     await loadBatchData();
+    
+    // 【优化】重新加载任务数据缓存
+    if (currentUserId && isUserVerified) {
+      try {
+        userTaskDataCache = await getUserTaskData(currentUserId);
+        console.log("[性能优化] 任务数据缓存已重新加载");
+      } catch (error) {
+        console.error("[性能优化] 任务数据重新加载失败:", error);
+        userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
+      }
+    }
     
     const currentPage = $w("#paginator").currentPage || 1;
     const searchValue = $w("#input1").value;
@@ -1973,6 +1987,12 @@ function setupSubmitButtonEvent() {
               // 这是任务列表中的作品，且首次完成
               // console.log(`✓ 任务已完成: 作品 #${workNumber} (进度: ${result.completedCount}/10)`);
               taskStatusMessage = ` | ✓ 任务完成！进度: ${result.completedCount}/10`;
+              
+              // 【优化】更新任务数据缓存
+              if (userTaskDataCache) {
+                userTaskDataCache.hasCompletedTarget = result.hasCompletedTarget || false;
+                console.log("[任务缓存] 已更新缓存状态");
+              }
             } else if (result.alreadyCompleted) {
               // 这是任务列表中的作品，但之前已完成过
               // console.log(`作品 #${workNumber} 在任务列表中但已完成过`);
