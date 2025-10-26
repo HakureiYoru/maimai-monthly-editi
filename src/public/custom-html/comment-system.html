@@ -644,6 +644,27 @@
     .badge-demo.re { background: #1E3A8A; }
     .badge-demo.hidden { background: #A9A9A9; }
 
+    /* Markdown预览区域 */
+    .markdown-preview {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 200px;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+
+    .preview-placeholder {
+      color: rgba(255, 255, 255, 0.7);
+      font-style: italic;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
     .comment-actions {
       display: flex;
       gap: 10px;
@@ -794,7 +815,7 @@
         <!-- Markdown格式说明 -->
         <div class="info-toggle" id="formatToggle">
           <span class="info-toggle-icon">▶</span>
-          <span>Markdown 格式支持</span>
+          <span>Markdown格式支持</span>
         </div>
         <div class="info-content" id="formatContent">
           <h4>文本格式</h4>
@@ -840,7 +861,7 @@
         <!-- 评论机制说明 -->
         <div class="info-toggle" id="mechanismToggle">
           <span class="info-toggle-icon">▶</span>
-          <span>显示机制说明</span>
+          <span>评论机制说明</span>
         </div>
         <div class="info-content" id="mechanismContent">
           <h4>评分显示规则</h4>
@@ -871,6 +892,25 @@
             <li><strong>普通评论：</strong>作者本人或审核员可删除</li>
             <li><strong>删除影响：</strong>删除评论会撤销相关任务完成状态和积分</li>
           </ul>
+
+          <h4>分页和筛选</h4>
+          <ul>
+            <li><strong>每页显示：</strong>10 条评论</li>
+            <li><strong>筛选选项：</strong>按作品筛选、仅评分、仅你的评论</li>
+            <li><strong>实时更新：</strong>提交评论后立即刷新列表</li>
+          </ul>
+        </div>
+
+        <!-- Markdown预览区域 -->
+        <div class="info-toggle" id="previewToggle">
+          <span class="info-toggle-icon">▶</span>
+          <span>显示Markdown预览</span>
+        </div>
+        <div class="info-content" id="previewContent">
+          <h4>Markdown预览效果</h4>
+          <div class="markdown-preview" id="markdownPreview">
+            <div class="preview-placeholder">在上方输入框中输入Markdown内容，这里将实时显示渲染效果</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1270,6 +1310,9 @@
     }
 
     // ==================== 事件监听 ====================
+    // 实时Markdown预览
+    document.getElementById('Comment').addEventListener('input', updateMarkdownPreview);
+
     // 提交按钮
     document.getElementById('submitBtn').addEventListener('click', () => {
       if (isSubmitting) return;
@@ -1688,6 +1731,24 @@
       }, '*');
     }
 
+    // ==================== 实时Markdown预览 ====================
+    function updateMarkdownPreview() {
+      const commentField = document.getElementById('Comment');
+      const markdownPreview = document.getElementById('markdownPreview');
+      const previewContent = markdownPreview.querySelector('.preview-placeholder');
+
+      if (previewContent) {
+        previewContent.textContent = '正在加载Markdown预览...';
+      }
+
+      const markdownText = commentField.value;
+      const renderedHtml = renderMarkdown(markdownText);
+
+      if (markdownPreview) {
+        markdownPreview.innerHTML = renderedHtml;
+      }
+    }
+
     // ==================== 信息区域展开/收起 ====================
     function initInfoToggles() {
       // Markdown格式说明
@@ -1708,6 +1769,16 @@
       mechanismToggle.addEventListener('click', () => {
         mechanismContent.classList.toggle('show');
         mechanismIcon.classList.toggle('expanded');
+      });
+
+      // Markdown预览
+      const previewToggle = document.getElementById('previewToggle');
+      const previewContent = document.getElementById('previewContent');
+      const previewIcon = previewToggle.querySelector('.info-toggle-icon');
+
+      previewToggle.addEventListener('click', () => {
+        previewContent.classList.toggle('show');
+        previewIcon.classList.toggle('expanded');
       });
     }
 

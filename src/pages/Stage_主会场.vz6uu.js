@@ -1684,7 +1684,7 @@ async function loadSelfScCommentIdSet() {
 
         if (result.hasNext()) {
           result = await result.next();
-        } else {
+    } else {
           break;
         }
       }
@@ -2022,20 +2022,20 @@ async function handleCommentSubmit(data) {
     // console.log(`[评论系统] 提交评论: 作品#${workNumber}, 评分${score}`);
 
     // 步骤1: 验证用户登录和报名状态
-    sendSubmitProgress("🔍 验证用户身份...", "validating");
-    
-    if (!currentUserId) {
+    sendSubmitProgress("验证用户身份...", "validating");
+      
+      if (!currentUserId) {
       sendSubmitResult(false, "❌ 用户未登录");
-      return;
-    }
+        return;
+      }
 
-    if (!isUserVerified) {
+      if (!isUserVerified) {
       sendSubmitResult(false, "❌ 用户未报名");
-      return;
-    }
+        return;
+      }
 
     // 步骤2: 验证输入
-    sendSubmitProgress("🔍 验证输入数据...", "validating");
+    sendSubmitProgress("验证输入数据...", "validating");
     
     if (!workNumber || !score || !comment) {
       sendSubmitResult(false, "❌ 请填写完整信息");
@@ -2048,12 +2048,12 @@ async function handleCommentSubmit(data) {
     }
 
     // 步骤3: 检查作品状态
-    sendSubmitProgress("🔍 检查作品状态...", "validating");
-    
-    const workResults = await wixData
-      .query("enterContest034")
-      .eq("sequenceId", workNumber)
-      .find();
+    sendSubmitProgress("检查作品状态...", "validating");
+        
+        const workResults = await wixData
+          .query("enterContest034")
+          .eq("sequenceId", workNumber)
+          .find();
 
     if (workResults.items.length === 0) {
       sendSubmitResult(false, "❌ 作品不存在");
@@ -2064,81 +2064,81 @@ async function handleCommentSubmit(data) {
     const isAuthor = currentUserId === workItem._owner;
     const isWorkDQ = workItem.isDq === true;
 
-    if (isWorkDQ) {
+        if (isWorkDQ) {
       sendSubmitResult(false, "❌ 作品已淘汰，无法评论");
-      return;
-    }
+          return;
+        }
 
     // 步骤4: 非作者检查是否已评论
-    if (!isAuthor) {
-      sendSubmitProgress("🔍 检查评论记录...", "validating");
-      
-      const existingComment = await wixData
-        .query("BOFcomment")
-        .eq("workNumber", workNumber)
-        .eq("_owner", currentUserId)
-        .isEmpty("replyTo")
-        .find();
+        if (!isAuthor) {
+      sendSubmitProgress("检查评论记录...", "validating");
+          
+          const existingComment = await wixData
+            .query("BOFcomment")
+            .eq("workNumber", workNumber)
+            .eq("_owner", currentUserId)
+            .isEmpty("replyTo")
+            .find();
 
-      if (existingComment.items.length > 0) {
+          if (existingComment.items.length > 0) {
         sendSubmitResult(false, "❌ 已评论过此作品");
-        return;
+            return;
       }
     }
 
     // 步骤5: 插入评论
-    sendSubmitProgress("💾 正在保存评论...", "saving");
-    
-    let toInsert = {
-      workNumber: workNumber,
-      score: score,
-      comment: comment,
-    };
+    sendSubmitProgress("正在保存评论...", "saving");
+        
+        let toInsert = {
+          workNumber: workNumber,
+          score: score,
+          comment: comment,
+        };
 
-    const insertedComment = await wixData.insert("BOFcomment", toInsert);
+        const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
     // 步骤6: 更新积分
-    sendSubmitProgress("⚙️ 更新积分...", "updating");
+    sendSubmitProgress("更新积分...", "updating");
     
     try {
-      await updateUserPoints(currentUserId, 1, false, false);
-    } catch (error) {
+            await updateUserPoints(currentUserId, 1, false, false);
+          } catch (error) {
       console.error("更新积分失败:", error);
-    }
-
+          }
+          
     // 步骤7: 检查并标记任务完成
-    sendSubmitProgress("⚙️ 检查任务状态...", "updating");
+    sendSubmitProgress("检查任务状态...", "updating");
     
     let taskStatusMessage = "";
-    try {
-      const result = await markTaskCompleted(currentUserId, workNumber);
-      
-      if (result.taskCompleted) {
-        taskStatusMessage = `\n\n🎯 任务完成！进度: ${result.completedCount}/10`;
-        
+          try {
+            const result = await markTaskCompleted(currentUserId, workNumber);
+            
+            if (result.taskCompleted) {
+        taskStatusMessage = `\n\n任务完成！进度: ${result.completedCount}/10`;
+              
         // 更新任务数据缓存
-        if (userTaskDataCache) {
-          userTaskDataCache.hasCompletedTarget = result.hasCompletedTarget || false;
-        }
-      } else if (result.alreadyCompleted) {
-        taskStatusMessage = "\n\n✅ 此任务已完成过";
-      } else if (result.isColdWork) {
-        taskStatusMessage = "\n\n🔶 冷门作品已评分（已完成任务目标）";
-      } else if (!result.isInTaskList) {
-        taskStatusMessage = "\n\n💡 非任务作品（不计入进度）";
-      }
-    } catch (error) {
+              if (userTaskDataCache) {
+                userTaskDataCache.hasCompletedTarget = result.hasCompletedTarget || false;
+              }
+            } else if (result.alreadyCompleted) {
+        taskStatusMessage = "\n\n此任务已完成过";
+            } else if (result.isColdWork) {
+        taskStatusMessage = "\n\n冷门作品已评分（已完成任务目标）";
+            } else if (!result.isInTaskList) {
+        taskStatusMessage = "\n\n非任务作品（不计入进度）";
+            }
+          } catch (error) {
       console.error("标记任务完成失败:", error);
     }
 
     // 步骤8: 增量热更新
-    sendSubmitProgress("🔄 更新页面数据...", "updating");
+    sendSubmitProgress("更新页面数据...", "updating");
     await incrementalUpdateAfterComment(workNumber, score, comment, isAuthor);
 
     // 步骤9: 发送成功结果并立即刷新评论列表
     const successMessage = isAuthor 
-      ? `✅ 自评提交成功！\n\n✍️ 自评不计入评分统计${taskStatusMessage}`
-      : `✅ 评论提交成功！\n\n📊 评分: ${score}${taskStatusMessage}`;
+      ? `✅ 自评提交成功！\n\n自评不计入评分统计${taskStatusMessage}`
+      : `✅ 评论提交成功！\n\n评分: ${score}${taskStatusMessage}`;
     
     sendSubmitResult(true, successMessage);
 
@@ -2198,7 +2198,7 @@ async function handleWorkNumberChange(workNumber) {
 
     // 优先级1: 淘汰作品
     if (isWorkDQ) {
-      sendWorkStatusUpdate('⚠️ 该作品已淘汰，无法评论', 'dq');
+      sendWorkStatusUpdate('该作品已淘汰，无法评论', 'dq');
       sendWorkSelectionState({
         isWorkDQ: true,
         isAuthor: false,
@@ -2210,7 +2210,7 @@ async function handleWorkNumberChange(workNumber) {
 
     // 优先级2: 作者自评
     if (isAuthor) {
-      sendWorkStatusUpdate('✍️ 这是您的作品，可以进行自评（Sc评论）\n💡 自评不计入评分统计，可多次提交', 'author');
+      sendWorkStatusUpdate('这是您的作品，可以进行自评（Sc评论）\n自评不计入评分统计，可多次提交', 'author');
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: true,
@@ -2230,7 +2230,7 @@ async function handleWorkNumberChange(workNumber) {
 
     if (existingCommentResults.items.length > 0) {
       const existingComment = existingCommentResults.items[0];
-      sendWorkStatusUpdate('✅ 您已评论过此作品', 'completed');
+      sendWorkStatusUpdate('您已评论过此作品', 'completed');
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: false,
@@ -2252,14 +2252,14 @@ async function handleWorkNumberChange(workNumber) {
         if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
           if (hasCompletedTarget) {
             // 已完成目标，显示为冷门作品
-            sendWorkStatusUpdate('🔶 这是一个冷门作品\n💡 您已完成任务目标，评论此作品不计入任务进度', 'coldWork');
-          } else {
+            sendWorkStatusUpdate('这是一个冷门作品\n您已完成任务目标，评论此作品不计入任务进度', 'coldWork');
+      } else {
             // 未完成目标，显示为任务作品
-            sendWorkStatusUpdate('🎯 这是您的任务作品！\n💡 完成此评论将计入任务进度', 'task');
+            sendWorkStatusUpdate('这是您的任务作品！\n完成此评论将计入任务进度', 'task');
           }
         } else if (taskCheck.alreadyCompleted) {
-          sendWorkStatusUpdate('✅ 此任务已完成', 'completedTask');
-        } else {
+          sendWorkStatusUpdate('此任务已完成', 'completedTask');
+    } else {
           sendWorkStatusUpdate('', '');
         }
       } catch (error) {
