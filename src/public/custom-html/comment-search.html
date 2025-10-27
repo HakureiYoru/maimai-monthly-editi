@@ -372,6 +372,88 @@
             display: none;
         }
 
+        /* 分页控件样式 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+            background: #333;
+            border-top: 2px solid #555;
+            flex-shrink: 0;
+        }
+
+        .pagination-info {
+            color: #ccc;
+            font-size: 14px;
+            margin-right: 20px;
+        }
+
+        .pagination-button {
+            padding: 8px 16px;
+            background: #444;
+            border: 1px solid #666;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            border-radius: 4px;
+        }
+
+        .pagination-button:hover:not(:disabled) {
+            background: #555;
+            border-color: #777;
+        }
+
+        .pagination-button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination-button.active {
+            background: #FFD700;
+            color: #000;
+            border-color: #FFD700;
+            font-weight: bold;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 5px;
+        }
+
+        .page-number {
+            padding: 8px 12px;
+            background: #444;
+            border: 1px solid #666;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            border-radius: 4px;
+            min-width: 36px;
+            text-align: center;
+        }
+
+        .page-number:hover {
+            background: #555;
+            border-color: #777;
+        }
+
+        .page-number.active {
+            background: #FFD700;
+            color: #000;
+            border-color: #FFD700;
+            font-weight: bold;
+        }
+
+        .page-ellipsis {
+            padding: 8px 4px;
+            color: #888;
+            font-size: 14px;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -392,6 +474,17 @@
             .weight-stats {
                 flex-direction: column;
                 gap: 10px;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+            }
+
+            .pagination-info {
+                width: 100%;
+                text-align: center;
+                margin-right: 0;
+                margin-bottom: 10px;
             }
         }
     </style>
@@ -428,6 +521,18 @@
         <div class="content" id="content">
             <div class="loading">加载中...</div>
         </div>
+
+        <!-- 分页控件 -->
+        <div class="pagination" id="pagination" style="display: none;">
+            <div class="pagination-info" id="paginationInfo">
+                第 1 页 / 共 1 页 (共 0 个作品)
+            </div>
+            <button class="pagination-button" id="firstPage">首页</button>
+            <button class="pagination-button" id="prevPage">上一页</button>
+            <div class="page-numbers" id="pageNumbers"></div>
+            <button class="pagination-button" id="nextPage">下一页</button>
+            <button class="pagination-button" id="lastPage">末页</button>
+        </div>
     </div>
 
     <script>
@@ -435,15 +540,44 @@
         let userIdToNumberMap = {}; // 用户ID到编号的映射
         let nextUserNumber = 1; // 下一个分配的用户编号
         let isUserView = false; // 当前是否为用户视图
+        
+        // 【新增】分页状态
+        let currentPage = 1;
+        let totalPages = 1;
+        let totalWorks = 0;
+        let worksPerPage = 10;
+
+        // 【新增】通知后端已准备就绪
+        window.addEventListener('load', () => {
+            window.parent.postMessage({
+                action: 'ready'
+            }, '*');
+        });
 
         // 监听来自 Wix 页面的消息
         window.addEventListener('message', async (event) => {
             const data = event.data;
             
             if (data.action === 'init') {
-                // 初始化：接收作品评论数据
+                // 【废弃】旧的初始化方式
                 allWorks = data.works || [];
                 await displayCurrentView();
+            } else if (data.action === 'updateData') {
+                // 【新增】分页数据更新
+                allWorks = data.works || [];
+                
+                if (data.pagination) {
+                    currentPage = data.pagination.currentPage;
+                    totalPages = data.pagination.totalPages;
+                    totalWorks = data.pagination.totalWorks;
+                    worksPerPage = data.pagination.worksPerPage;
+                }
+                
+                await displayCurrentView();
+                updatePagination();
+            } else if (data.action === 'error') {
+                // 【新增】错误处理
+                showError(data.message);
             }
         });
 
@@ -729,52 +863,181 @@
             displayCurrentView();
         });
 
-        // 搜索功能
+        // 【优化】搜索功能 - 改为向后端请求
+        let searchTimeout;
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchValue = e.target.value.trim().toLowerCase();
+            const searchValue = e.target.value.trim();
+            
             // 搜索功能在用户视图下暂不支持
             if (isUserView) {
                 return;
             }
-            filterWorks(searchValue);
+            
+            // 防抖：延迟500ms后执行搜索
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                window.parent.postMessage({
+                    action: 'search',
+                    searchValue: searchValue
+                }, '*');
+            }, 500);
         });
 
-        function filterWorks(searchValue) {
-            if (!searchValue) {
-                displayWorks(allWorks);
-                return;
-            }
-
-            const filtered = allWorks.filter(work => {
-                const id = String(work.sequenceId).toLowerCase();
-                const title = String(work.title || '').toLowerCase();
-                return id.includes(searchValue) || title.includes(searchValue);
-            });
-
-            displayWorks(filtered);
-        }
-
-        // 排序功能
+        // 【优化】排序功能 - 改为向后端请求
         document.getElementById('sortBy').addEventListener('change', (e) => {
             const sortBy = e.target.value;
+            
             // 排序功能在用户视图下暂不支持
             if (isUserView) {
                 return;
             }
-            sortWorks(sortBy);
+            
+            window.parent.postMessage({
+                action: 'sort',
+                sortBy: sortBy
+            }, '*');
         });
 
-        function sortWorks(sortBy) {
-            let sorted = [...allWorks];
-            
-            if (sortBy === 'id') {
-                sorted.sort((a, b) => a.sequenceId - b.sequenceId);
-            } else if (sortBy === 'comments') {
-                sorted.sort((a, b) => b.numRatings - a.numRatings);
+        // 【新增】分页控件事件监听
+        document.getElementById('firstPage').addEventListener('click', () => {
+            if (currentPage > 1) {
+                changePage(1);
+            }
+        });
+
+        document.getElementById('prevPage').addEventListener('click', () => {
+            if (currentPage > 1) {
+                changePage(currentPage - 1);
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                changePage(currentPage + 1);
+            }
+        });
+
+        document.getElementById('lastPage').addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                changePage(totalPages);
+            }
+        });
+
+        // 【新增】切换页码
+        function changePage(page) {
+            if (page < 1 || page > totalPages || page === currentPage) {
+                return;
             }
             
-            allWorks = sorted;
-            displayWorks(sorted);
+            // 显示加载状态
+            document.getElementById('content').innerHTML = '<div class="loading">加载中...</div>';
+            
+            // 向后端请求数据
+            window.parent.postMessage({
+                action: 'changePage',
+                page: page
+            }, '*');
+            
+            // 滚动到顶部
+            document.querySelector('.content').scrollTop = 0;
+        }
+
+        // 【新增】更新分页控件
+        function updatePagination() {
+            const paginationElement = document.getElementById('pagination');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const pageNumbersContainer = document.getElementById('pageNumbers');
+            
+            // 显示分页控件
+            if (totalWorks > 0) {
+                paginationElement.style.display = 'flex';
+            } else {
+                paginationElement.style.display = 'none';
+                return;
+            }
+            
+            // 更新分页信息
+            paginationInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页 (共 ${totalWorks} 个作品)`;
+            
+            // 更新按钮状态
+            document.getElementById('firstPage').disabled = currentPage === 1;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.getElementById('lastPage').disabled = currentPage === totalPages;
+            
+            // 生成页码按钮
+            pageNumbersContainer.innerHTML = '';
+            const pageNumbers = generatePageNumbers(currentPage, totalPages);
+            
+            pageNumbers.forEach(item => {
+                if (item === '...') {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'page-ellipsis';
+                    ellipsis.textContent = '...';
+                    pageNumbersContainer.appendChild(ellipsis);
+                } else {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = 'page-number';
+                    pageBtn.textContent = item;
+                    
+                    if (item === currentPage) {
+                        pageBtn.classList.add('active');
+                    }
+                    
+                    pageBtn.addEventListener('click', () => {
+                        changePage(item);
+                    });
+                    
+                    pageNumbersContainer.appendChild(pageBtn);
+                }
+            });
+        }
+
+        // 【新增】生成页码数组（智能显示）
+        function generatePageNumbers(current, total) {
+            const pages = [];
+            
+            if (total <= 7) {
+                // 总页数<=7，全部显示
+                for (let i = 1; i <= total; i++) {
+                    pages.push(i);
+                }
+            } else {
+                // 总页数>7，智能显示
+                pages.push(1); // 始终显示第一页
+                
+                if (current <= 3) {
+                    // 当前页靠前
+                    for (let i = 2; i <= 5; i++) {
+                        pages.push(i);
+                    }
+                    pages.push('...');
+                    pages.push(total);
+                } else if (current >= total - 2) {
+                    // 当前页靠后
+                    pages.push('...');
+                    for (let i = total - 4; i <= total; i++) {
+                        pages.push(i);
+                    }
+                } else {
+                    // 当前页在中间
+                    pages.push('...');
+                    for (let i = current - 1; i <= current + 1; i++) {
+                        pages.push(i);
+                    }
+                    pages.push('...');
+                    pages.push(total);
+                }
+            }
+            
+            return pages;
+        }
+
+        // 【新增】显示错误信息
+        function showError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `<div class="no-data" style="color: #ff6b6b;">${message}</div>`;
+            document.getElementById('pagination').style.display = 'none';
         }
 
         // HTML 转义
@@ -800,4 +1063,5 @@
     </script>
 </body>
 </html>
+
 
