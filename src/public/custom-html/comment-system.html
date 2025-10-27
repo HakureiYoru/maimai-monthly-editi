@@ -431,13 +431,13 @@
     }
 
     .comment-content a {
-      color: #FFD700;
+      color: #4A90E2; /* 蓝色 */
       text-decoration: underline;
       font-weight: 600;
     }
 
     .comment-content a:hover {
-      color: #FFA500;
+      color: #357ABD; /* 深蓝色悬停效果 */
     }
 
     .comment-content img {
@@ -534,7 +534,8 @@
 
     .comment-content strong {
       font-weight: 700;
-      color: #FFD700;
+      color: #ffffff; /* 浅蓝色 */
+      text-shadow: 0 0 3px #92e9ff, 0 0 6px #c0feff; /* 添加荧光效果 */
     }
 
     .comment-content em {
@@ -625,8 +626,18 @@
     }
 
     .info-content strong {
-      color: #FFA500;
+      color: #ffffff; /* 浅蓝色 */
       font-weight: 700;
+    }
+
+    .info-content a {
+      color: #4A90E2; /* 蓝色 */
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    .info-content a:hover {
+      color: #357ABD; /* 深蓝色悬停效果 */
     }
 
     .badge-demo {
@@ -890,24 +901,16 @@
           <ul>
             <li><strong>Sc 评论：</strong>仅作者本人可删除</li>
             <li><strong>普通评论：</strong>作者本人或审核员可删除</li>
-            <li><strong>删除影响：</strong>删除评论会撤销相关任务完成状态和积分</li>
-          </ul>
-
-          <h4>分页和筛选</h4>
-          <ul>
-            <li><strong>每页显示：</strong>10 条评论</li>
-            <li><strong>筛选选项：</strong>按作品筛选、仅评分、仅你的评论</li>
-            <li><strong>实时更新：</strong>提交评论后立即刷新列表</li>
+            <li>删除评论会撤销相关任务完成状态和积分</li>
           </ul>
         </div>
 
         <!-- Markdown预览区域 -->
         <div class="info-toggle" id="previewToggle">
           <span class="info-toggle-icon">▶</span>
-          <span>显示Markdown预览</span>
+          <span>Markdown预览</span>
         </div>
         <div class="info-content" id="previewContent">
-          <h4>Markdown预览效果</h4>
           <div class="markdown-preview" id="markdownPreview">
             <div class="preview-placeholder">在上方输入框中输入Markdown内容，这里将实时显示渲染效果</div>
           </div>
