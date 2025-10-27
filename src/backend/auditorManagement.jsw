@@ -481,10 +481,21 @@ export async function getCurrentUserRoles() {
  */
 export async function checkIsSeaSelectionMember() {
     return safeExecute(async () => {
+        // 使用与isUserAuditor相同的检查方式，确保一致性
         const roles = await currentMember.getRoles();
         
-        const isSeaSelection = roles.some(role => role.title === '海选组');
+        // 海选组的具体Velo ID
+        const seaSelectionGroupId = '573f8607-c036-4154-934a-b8c03526a639';
         
-        return isSeaSelection;
+        // 检查每个角色
+        let foundSeaSelectionGroup = false;
+        roles.forEach((role, index) => {
+            // 检查是否匹配海选组ID或标题
+            if (role._id === seaSelectionGroupId || role.id === seaSelectionGroupId || role.title === '海选组') {
+                foundSeaSelectionGroup = true;
+            }
+        });
+        
+        return foundSeaSelectionGroup;
     }, 'checkIsSeaSelectionMember', false);
 } 

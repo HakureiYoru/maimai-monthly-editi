@@ -342,7 +342,7 @@ function showTextPopup(content) {
 }
 
 // 显示删除确认面板（替代原来的 lightbox）
-async function handleDeleteComment(itemData, isSelfScComment = false) {
+async function handleDeleteComment(data, isSelfScComment = false) {
   try {
     // 显示删除确认面板
     $w("#deleteConfirmation").show();
@@ -351,12 +351,12 @@ async function handleDeleteComment(itemData, isSelfScComment = false) {
     $w("#deleteConfirmation").postMessage({
       action: 'init',
       commentData: {
-        commentId: itemData._id,
-        workNumber: itemData.workNumber,
-        score: itemData.score,
-        comment: itemData.comment,
-        isSelfScComment: isSelfScComment,
-        _owner: itemData._owner
+        commentId: data.commentId,
+        workNumber: data.workNumber,
+        score: data.score,
+        comment: data.comment,
+        isSelfScComment: data.isSelfScComment || isSelfScComment,
+        _owner: data._owner
       }
     });
     
@@ -1992,8 +1992,13 @@ async function formatCommentForHTML(comment) {
         formattedComment.canDelete = currentUserId === comment._owner;
       } else {
         // 普通评论：海选组成员可以删除
-        const isSeaSelectionMember = await checkIsSeaSelectionMember();
-        formattedComment.canDelete = isSeaSelectionMember;
+        try {
+          const isSeaSelectionMember = await checkIsSeaSelectionMember();
+          formattedComment.canDelete = isSeaSelectionMember;
+        } catch (error) {
+          console.error("检查海选组成员身份失败:", error);
+          formattedComment.canDelete = false;
+        }
       }
     }
 
