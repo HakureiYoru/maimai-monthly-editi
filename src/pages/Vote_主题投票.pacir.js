@@ -2,77 +2,79 @@ import wixUsers from 'wix-users';
 import { getUserInfo, submitVote, getVotingOptions, getVotingResults } from 'backend/votingSystem.jsw';
 
 let currentUserId = null;
+let isHtmlReady = false;
 
 $w.onReady(function () {
     // 获取当前用户ID
     if (wixUsers.currentUser.loggedIn) {
         currentUserId = wixUsers.currentUser.id;
-        console.log('[投票页面] 页面已加载，当前用户ID:', currentUserId);
+        //console.log('[投票页面] 页面已加载，当前用户ID:', currentUserId);
     } else {
         console.log('[投票页面] 用户未登录');
         currentUserId = null;
     }
     
-    // 等待HTML元件加载完成后设置消息监听
-    setTimeout(() => {
-        try {
-            // 在浏览器环境中设置消息监听
-            if (typeof window !== 'undefined') {
-                window.addEventListener('message', (event) => {
-                    // 检查消息是否来自HTML元件
-                    if (event.data && event.data.source === 'votingSystemHtml') {
-                        console.log('[投票页面] 收到来自HTML元件的消息:', event.data);
-                        handleMessage(event.data);
-                    }
-                });
-            }
-            
-            // 初始化投票系统
-            console.log('[投票页面] 开始初始化投票系统');
-            initVotingSystem();
-        } catch (error) {
-            console.error('[投票页面] 设置消息监听失败:', error);
-        }
-    }, 1500);
+    // 初始化HTML元件通信
+    initHtmlComponent();
 });
 
-// 处理消息的统一函数
-function handleMessage(messageData) {
-    if (!messageData || typeof messageData !== 'object') return;
-    
-    const { type, data } = messageData;
-    
-    switch (type) {
-        case 'REQUEST_USER_INFO':
-            // 请求用户信息
-            handleUserInfoRequest();
-            break;
-        case 'REQUEST_VOTING_OPTIONS':
-            // 请求投票选项
-            handleVotingOptionsRequest();
-            break;
-        case 'REQUEST_VOTING_RESULTS':
-            // 请求投票结果
-            handleVotingResultsRequest();
-            break;
-        case 'SUBMIT_VOTE':
-            // 提交投票
-            handleVoteSubmission(data);
-            break;
-        default:
-            console.log('[投票页面] 未知消息类型:', type);
+// 初始化HTML元件
+function initHtmlComponent() {
+    try {
+        // 确保HTML元件存在
+        if (!$w("#votingSystemHtml")) {
+            console.error("[投票页面] HTML元件未找到");
+            return;
+        }
+
+       // console.log("[投票页面] 开始初始化HTML元件...");
+
+        // 监听来自HTML元件的消息
+        $w("#votingSystemHtml").onMessage(async (event) => {
+            const { type, data } = event.data;
+           // console.log(`[投票页面] 收到消息: ${type}`, data);
+
+            switch (type) {
+                case 'VOTING_SYSTEM_READY':
+                    await handleVotingSystemReady();
+                    break;
+                case 'REQUEST_USER_INFO':
+                    await handleUserInfoRequest();
+                    break;
+                case 'REQUEST_VOTING_OPTIONS':
+                    await handleVotingOptionsRequest();
+                    break;
+                case 'REQUEST_VOTING_RESULTS':
+                    await handleVotingResultsRequest();
+                    break;
+                case 'SUBMIT_VOTE':
+                    await handleVoteSubmission(data);
+                    break;
+                default:
+                   // console.log('[投票页面] 未知消息类型:', type);
+            }
+        });
+
+        //console.log("[投票页面] HTML元件初始化完成");
+    } catch (error) {
+        console.error("[投票页面] 初始化失败:", error);
     }
+}
+
+// 处理HTML元件准备就绪
+async function handleVotingSystemReady() {
+    //console.log("[投票页面] HTML元件已准备就绪");
+    isHtmlReady = true;
+    
+    // 发送初始化数据
+    postMessageToHtml('INIT_VOTING_SYSTEM', {
+        currentUserId: currentUserId
+    });
 }
 
 // 发送消息到HTML元件的统一函数
 function postMessageToHtml(type, data) {
     try {
-        // 检查是否在浏览器环境
-        if (typeof $w === 'undefined') {
-            console.error('[投票页面] $w未定义，可能不在浏览器环境');
-            return;
-        }
-        
         // 获取HTML元件
         const htmlComponent = $w('#votingSystemHtml');
         if (!htmlComponent) {
@@ -80,34 +82,15 @@ function postMessageToHtml(type, data) {
             return;
         }
         
-        // 获取iframe元素
-        const htmlElement = htmlComponent.renderedElement;
-        if (htmlElement && htmlElement.contentWindow) {
-            htmlElement.contentWindow.postMessage({
-                type: type,
-                data: data
-            }, '*');
-            console.log('[投票页面] 已发送消息到HTML元件:', type);
-        } else {
-            console.error('[投票页面] 无法获取HTML元件的iframe，元件可能尚未渲染');
-        }
+        // 使用Wix的postMessage API发送消息
+        htmlComponent.postMessage({
+            type: type,
+            data: data
+        });
+        
+       // console.log('[投票页面] 已发送消息到HTML元件:', type);
     } catch (error) {
         console.error('[投票页面] 发送消息失败:', error);
-    }
-}
-
-// 初始化投票系统
-async function initVotingSystem() {
-    try {
-        // 发送初始化数据到HTML元件
-        postMessageToHtml('INIT_VOTING_SYSTEM', {
-            currentUserId: currentUserId
-        });
-    } catch (error) {
-        console.error('[投票页面] 初始化失败:', error);
-        postMessageToHtml('ERROR', {
-            message: '初始化投票系统失败，请刷新页面重试'
-        });
     }
 }
 

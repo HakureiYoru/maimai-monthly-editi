@@ -1,0 +1,1068 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>主题投票系统</title>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+      background: transparent;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* 毛玻璃卡片 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 20px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 投票表单区域 */
+    .voting-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+    }
+
+    .input-field {
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .input-field:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.4);
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .input-field::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .input-field:disabled {
+      background: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+    }
+
+    /* 单选按钮组 */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .radio-option:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .radio-option.selected {
+      background: rgba(255, 215, 0, 0.3);
+      border-color: rgba(255, 215, 0, 0.6);
+    }
+
+    .radio-option input[type="radio"] {
+      margin-right: 12px;
+      width: 18px;
+      height: 18px;
+      accent-color: #FFD700;
+    }
+
+    .radio-option label {
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    /* 用户信息显示 */
+    .user-info {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .user-info-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .user-info-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .user-info-label {
+      font-weight: 600;
+    }
+
+    .user-info-value {
+      color: #FFD700;
+      font-weight: 700;
+    }
+
+    /* 提交按钮 */
+    .submit-button {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.9) 0%, rgba(255, 165, 0, 0.9) 100%);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      box-shadow: 0 4px 20px rgba(255, 165, 0, 0.3);
+      transition: all 0.3s ease;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .submit-button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255, 165, 0, 0.4);
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    }
+
+    .submit-button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .submit-button:disabled {
+      background: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* 状态消息 */
+    .status-message {
+      margin-top: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      font-size: 14px;
+      color: #fff;
+      text-align: center;
+      display: none;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+
+    .status-message.success {
+      background: rgba(76, 175, 80, 0.4);
+    }
+
+    .status-message.error {
+      background: rgba(244, 67, 54, 0.4);
+    }
+
+    .status-message.info {
+      background: rgba(33, 150, 243, 0.4);
+    }
+
+    /* 标签页切换 */
+    .chart-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s ease;
+      position: relative;
+      top: 2px;
+    }
+
+    .tab-button:hover {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .tab-button.active {
+      color: #FFD700;
+      border-bottom-color: #FFD700;
+    }
+
+    /* 图表容器 */
+    .chart-container {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 400px;
+      display: none;
+      position: relative;
+    }
+
+    .chart-container.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chart-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      margin: 20px 0;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #fff;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 16px;
+      font-weight: 500;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      body {
+        padding: 12px;
+      }
+
+      .glass-card {
+        padding: 20px;
+      }
+
+      .chart-tabs {
+        gap: 6px;
+      }
+
+      .tab-button {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+
+      .chart-container {
+        min-height: 350px;
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 投票表单区域 -->
+    <div class="glass-card">
+      <div class="section-title">主题投票</div>
+      
+      <!-- 用户信息显示 -->
+      <div class="user-info" id="userInfo">
+        <div class="user-info-item">
+          <span class="user-info-label">积分排名:</span>
+          <span class="user-info-value" id="userRank">加载中...</span>
+        </div>
+        <div class="user-info-item">
+          <span class="user-info-label">投票权重:</span>
+          <span class="user-info-value" id="userVoteWeight">加载中...</span>
+        </div>
+      </div>
+
+      <!-- 投票表单 -->
+      <div class="voting-form" id="votingForm">
+        <div class="input-group">
+          <label class="input-label">您的名称</label>
+          <input type="text" class="input-field" id="userName" placeholder="请输入您的名称">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">请选择您支持的主题</label>
+          <div class="radio-group" id="themeOptions">
+            <!-- 主题选项将通过JavaScript动态加载 -->
+          </div>
+        </div>
+
+        <button class="submit-button" id="submitVote" disabled>提交投票</button>
+        
+        <!-- 状态消息 -->
+        <div class="status-message" id="statusMessage"></div>
+      </div>
+    </div>
+
+    <!-- 投票结果区域 -->
+    <div class="glass-card">
+      <div class="section-title">投票结果</div>
+      
+      <!-- 标签页切换 -->
+      <div class="chart-tabs" id="chartTabs">
+        <button class="tab-button active" data-chart="votes">
+          投票统计
+        </button>
+        <button class="tab-button" data-chart="weights">
+          权重分布
+        </button>
+      </div>
+      
+      <!-- 投票结果柱状图 -->
+      <div class="chart-container active" id="votingChartContainer">
+        <canvas id="votingChart"></canvas>
+      </div>
+      
+      <!-- 权重分布饼图 -->
+      <div class="chart-container" id="weightChartContainer">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 状态管理 ====================
+    let currentUserId = null;
+    let userRank = null;
+    let userVoteWeight = null;
+    let hasVoted = false;
+    let votingOptions = [];
+    let votingResults = null;
+    let votingChart = null;
+    let weightChart = null;
+    
+    // 加载状态追踪
+    let loadingStates = {
+      userInfo: false,
+      votingOptions: false,
+      votingResults: false
+    };
+    
+    // 加载超时保护
+    let loadingTimeout = null;
+
+    // ==================== 初始化 ====================
+    // 监听来自Wix页面的消息
+    window.addEventListener('message', async (event) => {
+      if (!event.data || typeof event.data !== 'object') return;
+
+      const { type, data } = event.data;
+
+      switch (type) {
+        case 'INIT_VOTING_SYSTEM':
+          await handleInit(data);
+          break;
+        case 'USER_INFO':
+          handleUserInfo(data);
+          break;
+        case 'VOTING_OPTIONS':
+          handleVotingOptions(data);
+          break;
+        case 'VOTING_RESULTS':
+          handleVotingResults(data);
+          break;
+        case 'VOTE_SUBMISSION_RESULT':
+          handleVoteSubmissionResult(data);
+          break;
+        case 'ERROR':
+          handleError(data);
+          break;
+        default:
+          // 忽略未知消息类型（可能来自其他源）
+      }
+    });
+
+    async function handleInit(data) {
+      ////console.log('[投票系统] 初始化...', data);
+      currentUserId = data.currentUserId;
+      
+      // 清除之前的超时
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+      }
+      
+      // 显示初始化加载状态
+      showLoading('正在初始化投票系统...');
+      
+      // 设置超时保护 - 10秒后强制隐藏loading
+      loadingTimeout = setTimeout(() => {
+        //console.warn('[投票系统] 加载超时，强制隐藏loading');
+        hideLoading();
+      }, 10000);
+      
+      // 请求用户信息
+      requestUserInfo();
+      
+      // 请求投票选项
+      requestVotingOptions();
+      
+      // 请求投票结果
+      requestVotingResults();
+    }
+
+    function handleUserInfo(data) {
+      ////console.log('[投票系统] 收到用户信息:', data);
+      userRank = data.rank;
+      userVoteWeight = data.voteWeight;
+      hasVoted = data.hasVoted;
+      
+      // 更新用户信息显示
+      document.getElementById('userRank').textContent = userRank || '未知';
+      document.getElementById('userVoteWeight').textContent = userVoteWeight || '未知';
+      
+      // 如果用户已投票，禁用表单
+      if (hasVoted) {
+        disableVotingForm();
+        showStatus('您已经投过票了', 'info');
+      }
+      
+      // 标记用户信息已加载
+      loadingStates.userInfo = true;
+      checkAllDataLoaded();
+    }
+
+    function handleVotingOptions(data) {
+      //console.log('[投票系统] 收到投票选项:', data);
+      votingOptions = data.options || [];
+      
+      // 渲染投票选项
+      renderVotingOptions();
+      
+      // 标记投票选项已加载
+      loadingStates.votingOptions = true;
+      checkAllDataLoaded();
+    }
+
+    function handleVotingResults(data) {
+      //console.log('[投票系统] 收到投票结果:', data);
+      votingResults = data;
+      
+      // 更新图表
+      updateCharts();
+      
+      // 标记投票结果已加载
+      loadingStates.votingResults = true;
+      checkAllDataLoaded();
+    }
+
+    function handleVoteSubmissionResult(data) {
+      //console.log('[投票系统] 投票提交结果:', data);
+      
+      if (data.success) {
+        showStatus('投票提交成功！', 'success');
+        hasVoted = true;
+        disableVotingForm();
+        
+        // 请求最新的投票结果
+        requestVotingResults();
+      } else {
+        showStatus(`投票提交失败: ${data.message || '未知错误'}`, 'error');
+        enableVotingForm();
+      }
+    }
+
+    function handleError(data) {
+      const message = data?.message || '发生错误，请稍后重试';
+      showStatus(message, 'error');
+      
+      // 清除超时保护
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+      
+      // 如果已经有部分数据加载，也隐藏loading
+      let hasAnyData = loadingStates.userInfo || loadingStates.votingOptions || loadingStates.votingResults;
+      if (hasAnyData) {
+        hideLoading();
+      }
+    }
+
+    // 检查所有数据是否都已加载完成
+    function checkAllDataLoaded() {
+      if (loadingStates.userInfo && loadingStates.votingOptions && loadingStates.votingResults) {
+        //console.log('[投票系统] 所有数据已加载完成');
+        
+        // 清除超时保护
+        if (loadingTimeout) {
+          clearTimeout(loadingTimeout);
+          loadingTimeout = null;
+        }
+        
+        hideLoading();
+      }
+    }
+
+    // ==================== 用户界面渲染 ====================
+    function renderVotingOptions() {
+      const optionsContainer = document.getElementById('themeOptions');
+      optionsContainer.innerHTML = '';
+      
+      votingOptions.forEach((option, index) => {
+        const optionElement = document.createElement('div');
+        optionElement.className = 'radio-option';
+        optionElement.innerHTML = `
+          <input type="radio" id="option${index}" name="theme" value="${option.value}">
+          <label for="option${index}">${option.label}</label>
+        `;
+        
+        optionElement.addEventListener('click', () => {
+          // 移除所有选中状态
+          document.querySelectorAll('.radio-option').forEach(el => {
+            el.classList.remove('selected');
+          });
+          
+          // 添加当前选中状态
+          optionElement.classList.add('selected');
+          
+          // 选中单选按钮
+          document.getElementById(`option${index}`).checked = true;
+          
+          // 验证表单
+          validateForm();
+        });
+        
+        optionsContainer.appendChild(optionElement);
+      });
+    }
+
+    function updateCharts() {
+      if (!votingResults) return;
+      
+      // 更新投票结果柱状图
+      updateVotingChart();
+      
+      // 更新权重分布饼图
+      updateWeightChart();
+    }
+
+    function updateVotingChart() {
+      const ctx = document.getElementById('votingChart').getContext('2d');
+      
+      // 如果图表已存在，先销毁
+      if (votingChart) {
+        votingChart.destroy();
+      }
+      
+      // 准备数据
+      const labels = votingResults.labels || [];
+      const data = votingResults.data || [];
+      const voters = votingResults.voters || [];
+      
+      // 创建渐变色数组
+      const chartColors = [
+        'rgba(255, 215, 0, 0.8)',   // 金色 - 第一名
+        'rgba(192, 192, 192, 0.8)',  // 银色 - 第二名
+        'rgba(205, 127, 50, 0.8)',   // 铜色 - 第三名
+        'rgba(135, 206, 235, 0.8)',  // 天蓝色
+        'rgba(255, 182, 193, 0.8)',  // 浅粉色
+      ];
+      
+      // 创建新图表
+      votingChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '投票数',
+            data: data,
+            backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
+            borderColor: 'rgba(255, 255, 255, 0.8)',
+            borderWidth: 2,
+            borderRadius: 12,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255, 215, 0, 0.6)',
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                afterLabel: function(context) {
+                  const voterList = voters[context.dataIndex];
+                  if (!voterList) {
+                    return '';
+                  }
+                  const voterNames = voterList.split(', ');
+                  const voterLines = [];
+                  for (let i = 0; i < voterNames.length; i += 3) {
+                    voterLines.push(voterNames.slice(i, i + 3).join(', '));
+                  }
+                  return voterLines.map(function(line) {
+                    return "投票者: " + line;
+                  });
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.8)',
+                font: {
+                  size: 11
+                }
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            },
+            x: {
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.8)',
+                font: {
+                  size: 11
+                }
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateWeightChart() {
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      
+      // 如果图表已存在，先销毁
+      if (weightChart) {
+        weightChart.destroy();
+      }
+      
+      // 准备数据
+      const weightData = votingResults.weightData || [];
+      
+      if (weightData.length === 0) {
+        // 如果没有数据，显示空状态
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无权重数据', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+      }
+      
+      // 处理权重数据
+      const processedData = processWeightData(weightData);
+      
+      // 颜色配置 - 使用更柔和的配色
+      const colorPalette = [
+        'rgba(255, 215, 0, 0.8)',    // 金色
+        'rgba(255, 182, 193, 0.8)',  // 浅粉色
+        'rgba(135, 206, 235, 0.8)',  // 天蓝色
+        'rgba(152, 251, 152, 0.8)',  // 浅绿色
+        'rgba(221, 160, 221, 0.8)',  // 梅红色
+        'rgba(255, 218, 185, 0.8)',  // 桃色
+        'rgba(176, 196, 222, 0.8)',  // 淡钢蓝
+        'rgba(255, 160, 122, 0.8)',  // 淡鲑鱼色
+      ];
+      
+      // 创建新图表
+      weightChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: processedData.labels,
+          datasets: [{
+            label: '投票人数',
+            data: processedData.data,
+            backgroundColor: processedData.labels.map((_, idx) => 
+              colorPalette[idx % colorPalette.length]
+            ),
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            borderWidth: 2,
+            hoverOffset: 12,
+            hoverBorderWidth: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: {
+                  size: 12,
+                  weight: '500'
+                },
+                color: '#fff',
+                padding: 18,
+                usePointStyle: true,
+                pointStyle: 'circle',
+                generateLabels: function(chart) {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    const dataset = data.datasets[0];
+                    const total = dataset.data.reduce((a, b) => a + b, 0);
+                    return data.labels.map((label, i) => {
+                      const value = dataset.data[i];
+                      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                      return {
+                        text: `${label} (${percentage}%)`,
+                        fillStyle: dataset.backgroundColor[i],
+                        strokeStyle: dataset.borderColor,
+                        lineWidth: dataset.borderWidth,
+                        hidden: isNaN(value) || chart.getDatasetMeta(0).data[i].hidden,
+                        index: i,
+                        fontColor: '#fff'
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: 'rgba(255, 215, 0, 0.6)',
+              borderWidth: 1,
+              padding: 12,
+              titleFont: {
+                size: 13,
+                weight: '600'
+              },
+              bodyFont: {
+                size: 12
+              },
+              callbacks: {
+                label: function(context) {
+                  return `${context.label}: ${context.parsed}人`;
+                }
+              }
+            }
+          },
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 800,
+            easing: 'easeInOutCubic'
+          }
+        }
+      });
+    }
+
+    function processWeightData(weightData) {
+      if (!weightData || weightData.length === 0) {
+        return { labels: [], data: [] };
+      }
+      
+      // 统计每个权重值的出现次数
+      const weightCounts = {};
+      weightData.forEach(item => {
+        const weights = item.data || [];
+        weights.forEach(weight => {
+          const key = `权重 ${weight}`;
+          weightCounts[key] = (weightCounts[key] || 0) + 1;
+        });
+      });
+      
+      // 按权重值排序
+      const sortedEntries = Object.entries(weightCounts).sort((a, b) => {
+        const weightA = parseInt(a[0].split(' ')[1]);
+        const weightB = parseInt(b[0].split(' ')[1]);
+        return weightA - weightB;
+      });
+      
+      return {
+        labels: sortedEntries.map(([label]) => label),
+        data: sortedEntries.map(([, count]) => count)
+      };
+    }
+
+    // ==================== 表单处理 ====================
+    function validateForm() {
+      const userName = document.getElementById('userName').value.trim();
+      const selectedOption = document.querySelector('input[name="theme"]:checked');
+      
+      const isValid = userName && selectedOption && !hasVoted;
+      
+      document.getElementById('submitVote').disabled = !isValid;
+    }
+
+    function disableVotingForm() {
+      document.getElementById('userName').disabled = true;
+      document.querySelectorAll('input[name="theme"]').forEach(input => {
+        input.disabled = true;
+      });
+      document.getElementById('submitVote').disabled = true;
+      document.getElementById('submitVote').textContent = '已投票';
+    }
+
+    function enableVotingForm() {
+      if (!hasVoted) {
+        document.getElementById('userName').disabled = false;
+        document.querySelectorAll('input[name="theme"]').forEach(input => {
+          input.disabled = false;
+        });
+        document.getElementById('submitVote').textContent = '提交投票';
+        validateForm();
+      }
+    }
+
+    // ==================== 事件监听 ====================
+    // 用户名输入
+    document.getElementById('userName').addEventListener('input', validateForm);
+
+    // 提交投票
+    document.getElementById('submitVote').addEventListener('click', () => {
+      const userName = document.getElementById('userName').value.trim();
+      const selectedOption = document.querySelector('input[name="theme"]:checked');
+      
+      if (!userName) {
+        showStatus('请输入您的名称', 'error');
+        return;
+      }
+      
+      if (!selectedOption) {
+        showStatus('请选择一个主题', 'error');
+        return;
+      }
+      
+      // 禁用表单
+      disableVotingForm();
+      showStatus('正在提交投票...', 'info');
+      
+      // 发送投票请求
+      try {
+        window.parent.postMessage({
+          type: 'SUBMIT_VOTE',
+          data: {
+            userName: userName,
+            themeValue: selectedOption.value,
+            userRank: userRank,
+            voteWeight: userVoteWeight
+          }
+        }, '*');
+      } catch (error) {
+        console.error('[投票系统] 发送投票请求失败:', error);
+        showStatus('发送投票请求失败，请刷新页面重试', 'error');
+        enableVotingForm();
+      }
+    });
+
+    // ==================== 工具函数 ====================
+    function showStatus(message, type = '') {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.textContent = message;
+      statusEl.className = 'status-message show';
+      
+      if (type) {
+        statusEl.classList.add(type);
+      }
+      
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        statusEl.classList.remove('show');
+      }, 3000);
+    }
+
+    function showLoading(message = '加载中...') {
+      const container = document.querySelector('.container');
+      const loadingEl = document.createElement('div');
+      loadingEl.className = 'loading';
+      loadingEl.id = 'loadingState';
+      loadingEl.innerHTML = `
+        <div class="spinner"></div>
+        <div class="loading-text">${message}</div>
+      `;
+      container.appendChild(loadingEl);
+    }
+
+    function hideLoading() {
+      const loadingEl = document.getElementById('loadingState');
+      if (loadingEl) {
+        loadingEl.remove();
+      }
+    }
+
+    function requestUserInfo() {
+      //console.log('[投票系统] 请求用户信息...');
+      try {
+        window.parent.postMessage({
+          type: 'REQUEST_USER_INFO'
+        }, '*');
+      } catch (error) {
+        console.error('[投票系统] 发送用户信息请求失败:', error);
+      }
+    }
+
+    function requestVotingOptions() {
+      //console.log('[投票系统] 请求投票选项...');
+      try {
+        window.parent.postMessage({
+          type: 'REQUEST_VOTING_OPTIONS'
+        }, '*');
+      } catch (error) {
+        console.error('[投票系统] 发送投票选项请求失败:', error);
+      }
+    }
+
+    function requestVotingResults() {
+      //console.log('[投票系统] 请求投票结果...');
+      try {
+        window.parent.postMessage({
+          type: 'REQUEST_VOTING_RESULTS'
+        }, '*');
+      } catch (error) {
+        console.error('[投票系统] 发送投票结果请求失败:', error);
+      }
+    }
+
+    // ==================== 标签页切换 ====================
+    function initChartTabs() {
+      const tabButtons = document.querySelectorAll('.tab-button');
+      
+      tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const chartType = this.getAttribute('data-chart');
+          
+          // 切换标签按钮状态
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+          
+          // 切换图表显示
+          document.getElementById('votingChartContainer').classList.remove('active');
+          document.getElementById('weightChartContainer').classList.remove('active');
+          
+          if (chartType === 'votes') {
+            document.getElementById('votingChartContainer').classList.add('active');
+          } else if (chartType === 'weights') {
+            document.getElementById('weightChartContainer').classList.add('active');
+          }
+        });
+      });
+    }
+
+    // ==================== 页面加载 ====================
+    // 页面加载完成后的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      //console.log('[投票系统] HTML已加载并准备就绪');
+      
+      // 初始化标签页切换
+      initChartTabs();
+      
+      // 显示初始加载状态
+      showLoading('正在等待初始化...');
+      
+      // 通知父页面HTML已准备就绪
+      try {
+        window.parent.postMessage({
+          type: 'VOTING_SYSTEM_READY'
+        }, '*');
+        
+        //console.log('[投票系统] 已发送准备就绪消息');
+      } catch (error) {
+        console.error('[投票系统] 发送准备就绪消息失败:', error);
+      }
+    });
+  </script>
+</body>
+</html>
