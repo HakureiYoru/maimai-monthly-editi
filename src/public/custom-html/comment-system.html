@@ -175,6 +175,25 @@
       border: 1px solid rgba(138, 43, 226, 0.6);
     }
 
+    .work-status-info.loading {
+      background: linear-gradient(135deg, rgba(33, 150, 243, 0.4) 0%, rgba(25, 118, 210, 0.4) 100%);
+      border: 1px solid rgba(33, 150, 243, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .inline-spinner {
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid #fff;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
     .submit-status {
       margin-top: 10px;
       padding: 12px;
@@ -987,6 +1006,7 @@
     let currentFilter = 'default';
     let currentWorkFilter = '';
     let isSubmitting = false;
+    let loadingTimeout = null; // 加载超时计时器
 
     // ==================== 初始化 ====================
     window.addEventListener('message', async (event) => {
@@ -1128,6 +1148,9 @@
       
       console.log('[评论系统] 处理作品选择状态:', data);
       
+      // 【新增】取消加载状态
+      setInputLoadingState(false);
+      
       // 根据状态更新UI
       if (data.isAlreadyCommented && data.existingComment) {
         // 已评论：回填数据并禁用输入
@@ -1174,6 +1197,13 @@
       const submitBtn = document.getElementById('submitBtn');
       const workStatusInfo = document.getElementById('workStatusInfo');
       
+      // 【修复】清除加载计时器，防止超时警告在重置后触发
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+        console.log('[评论系统] 已清除加载计时器');
+      }
+      
       // 清空输入
       commentField.value = '';
       inputScore.value = '';
@@ -1210,6 +1240,13 @@
       const inputScore = document.getElementById('inputScore');
       const commentField = document.getElementById('Comment');
       const workStatusInfo = document.getElementById('workStatusInfo');
+      
+      // 【修复】清除可能存在的加载计时器
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+        console.log('[评论系统] 提交完成，已清除加载计时器');
+      }
       
       if (data.success) {
         showStatus(data.message || '✅ 提交成功！', 'success');
@@ -1370,8 +1407,8 @@
       const workNumber = e.target.value;
       
       if (workNumber) {
-        // 显示加载状态
-        showLoading('正在检查作品状态...');
+        // 【新增】立即禁用输入组件并显示加载状态
+        setInputLoadingState(true, '正在检查作品状态...');
         
         // 通知Wix页面作品编号变化，获取完整的作品状态
         window.parent.postMessage({
@@ -1667,6 +1704,66 @@
     }
 
     // ==================== 工具函数 ====================
+    /**
+     * 设置输入区域的加载状态
+     * @param {boolean} isLoading - 是否正在加载
+     * @param {string} message - 加载提示信息
+     */
+    function setInputLoadingState(isLoading, message = '') {
+      const inputScore = document.getElementById('inputScore');
+      const commentField = document.getElementById('Comment');
+      const submitBtn = document.getElementById('submitBtn');
+      const workStatusInfo = document.getElementById('workStatusInfo');
+      
+      // 清除之前的超时计时器
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+      
+      if (isLoading) {
+        // 禁用所有输入组件
+        inputScore.disabled = true;
+        commentField.disabled = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '加载中...';
+        
+        // 清空输入框内容（避免显示旧数据）
+        inputScore.value = '';
+        commentField.value = '';
+        
+        // 显示加载状态提示（带spinner动画）
+        if (message) {
+          workStatusInfo.innerHTML = `<div class="inline-spinner"></div><span>${message}</span>`;
+          workStatusInfo.className = 'work-status-info loading';
+          workStatusInfo.style.display = 'block';
+        }
+        
+        // 设置超时保护（10秒后自动恢复，防止卡死）
+        loadingTimeout = setTimeout(() => {
+          console.warn('[评论系统] 加载超时，自动恢复输入状态');
+          workStatusInfo.innerHTML = '⚠️ 加载超时，请重新选择作品或刷新页面';
+          workStatusInfo.className = 'work-status-info';
+          workStatusInfo.style.background = 'rgba(255, 152, 0, 0.4)';
+          workStatusInfo.style.border = '1px solid rgba(255, 152, 0, 0.6)';
+          
+          // 恢复按钮状态（但保持输入框禁用，直到重新选择）
+          if (currentUserId && isUserVerified) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '提交评论';
+          }
+          
+          loadingTimeout = null;
+        }, 10000); // 10秒超时
+        
+        console.log('[评论系统] 已设置加载状态:', message);
+      } else {
+        // 取消加载状态（具体状态由handleWorkSelectionState控制）
+        // 这里只是移除加载提示，不改变输入框状态
+        console.log('[评论系统] 已取消加载状态');
+      }
+    }
+    
     function escapeHtml(text) {
       if (!text) return '';
       const div = document.createElement('div');
