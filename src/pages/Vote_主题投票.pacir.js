@@ -1,116 +1,185 @@
-import wixData from 'wix-data';
 import wixUsers from 'wix-users';
-import { getUserRankAndVoteWeight } from 'backend/getUserPublicInfo.jsw';
-import { checkIfUserVoted, getVotingResults } from 'backend/contestManagement.jsw';
-import Chart from 'chart.js/auto';
+import { getUserInfo, submitVote, getVotingOptions, getVotingResults } from 'backend/votingSystem.jsw';
 
+let currentUserId = null;
 
-let hasSubmitted = false; // Initialize the global variable to false
-
-$w.onReady(async function () { // Note the use of 'async' here
-    $w('#submitButton').disable(); // Default disabled state for the submit button
-    await checkUserSubmission(); // Wait for this to complete
-    await updateChartOnPageLoad(); // 页面加载时就更新图表
-    $w('#input1').onChange(input1_change);
-    $w('#radioGroup').onChange(radioGroup_change);
-    if (!hasSubmitted) {
-        updateUserVoteWeight();
+$w.onReady(function () {
+    // 获取当前用户ID
+    if (wixUsers.currentUser.loggedIn) {
+        currentUserId = wixUsers.currentUser.id;
+        console.log('[投票页面] 页面已加载，当前用户ID:', currentUserId);
     } else {
-        // 如果用户已经提交过，则隐藏提交按钮
-        $w('#submitButton').hide();
+        console.log('[投票页面] 用户未登录');
+        currentUserId = null;
     }
+    
+    // 等待HTML元件加载完成后设置消息监听
+    setTimeout(() => {
+        try {
+            // 在浏览器环境中设置消息监听
+            if (typeof window !== 'undefined') {
+                window.addEventListener('message', (event) => {
+                    // 检查消息是否来自HTML元件
+                    if (event.data && event.data.source === 'votingSystemHtml') {
+                        console.log('[投票页面] 收到来自HTML元件的消息:', event.data);
+                        handleMessage(event.data);
+                    }
+                });
+            }
+            
+            // 初始化投票系统
+            console.log('[投票页面] 开始初始化投票系统');
+            initVotingSystem();
+        } catch (error) {
+            console.error('[投票页面] 设置消息监听失败:', error);
+        }
+    }, 1500);
 });
 
-async function checkUserSubmission() {
-    let userId = wixUsers.currentUser.id;
+// 处理消息的统一函数
+function handleMessage(messageData) {
+    if (!messageData || typeof messageData !== 'object') return;
+    
+    const { type, data } = messageData;
+    
+    switch (type) {
+        case 'REQUEST_USER_INFO':
+            // 请求用户信息
+            handleUserInfoRequest();
+            break;
+        case 'REQUEST_VOTING_OPTIONS':
+            // 请求投票选项
+            handleVotingOptionsRequest();
+            break;
+        case 'REQUEST_VOTING_RESULTS':
+            // 请求投票结果
+            handleVotingResultsRequest();
+            break;
+        case 'SUBMIT_VOTE':
+            // 提交投票
+            handleVoteSubmission(data);
+            break;
+        default:
+            console.log('[投票页面] 未知消息类型:', type);
+    }
+}
 
+// 发送消息到HTML元件的统一函数
+function postMessageToHtml(type, data) {
     try {
-        // 调用后端函数来检查用户是否已经投票
-        hasSubmitted = await checkIfUserVoted(userId);
-
-        if (hasSubmitted) {
-            $w('#submitButton').disable(); // 如果用户已投票，禁用提交按钮
-            $w('#text12').text = "You've already voted.";
+        // 检查是否在浏览器环境
+        if (typeof $w === 'undefined') {
+            console.error('[投票页面] $w未定义，可能不在浏览器环境');
+            return;
+        }
+        
+        // 获取HTML元件
+        const htmlComponent = $w('#votingSystemHtml');
+        if (!htmlComponent) {
+            console.error('[投票页面] 未找到HTML元件 #votingSystemHtml');
+            return;
+        }
+        
+        // 获取iframe元素
+        const htmlElement = htmlComponent.renderedElement;
+        if (htmlElement && htmlElement.contentWindow) {
+            htmlElement.contentWindow.postMessage({
+                type: type,
+                data: data
+            }, '*');
+            console.log('[投票页面] 已发送消息到HTML元件:', type);
+        } else {
+            console.error('[投票页面] 无法获取HTML元件的iframe，元件可能尚未渲染');
         }
     } catch (error) {
-        console.error("Error checking user's vote submission on the client:", error);
-        $w('#text12').text = "An error occurred while checking if you've voted.";
+        console.error('[投票页面] 发送消息失败:', error);
     }
 }
 
-function input1_change() {
-    if (!hasSubmitted) {
-        validateForm();
-    } else {
-        $w('#text12').text = "交过了！";
-    }
-}
-
-function radioGroup_change() {
-    if (!hasSubmitted) {
-        validateForm();
-    } else {
-        $w('#text12').text = "交过了！";
-    }
-}
-
-function validateForm() {
-    let isNameFilled = $w('#input1').value.length > 0;
-    let isOptionSelected = $w('#radioGroup').value;
-    if (isNameFilled && isOptionSelected && !hasSubmitted) {
-        $w('#submitButton').enable();
-    } else {
-        $w('#submitButton').disable();
-    }
-}
-
-function updateUserVoteWeight() {
-    let userId = wixUsers.currentUser.id;
-    getUserRankAndVoteWeight(userId)
-        .then(({ rank, voteWeight }) => {
-            $w('#input2').value = String(voteWeight); // Set the read-only field to the weight
-            // Now also update text12 to show both rank and weight
-            $w('#text12').text = `Your rank: ${rank}, Your voting weight: ${voteWeight}`;
-            // 确保提交按钮是可见的
-            $w('#submitButton').show();
-            validateForm(); // 再次验证表单状态，以确定是否应该启用提交按钮
-        })
-        .catch((error) => {
-            console.error('An error occurred while fetching user vote weight:', error);
-            $w('#text12').text = "Could not retrieve your voting rank or weight. You cannot vote without this information.";
-            $w('#submitButton').hide(); // 隐藏提交按钮
+// 初始化投票系统
+async function initVotingSystem() {
+    try {
+        // 发送初始化数据到HTML元件
+        postMessageToHtml('INIT_VOTING_SYSTEM', {
+            currentUserId: currentUserId
         });
+    } catch (error) {
+        console.error('[投票页面] 初始化失败:', error);
+        postMessageToHtml('ERROR', {
+            message: '初始化投票系统失败，请刷新页面重试'
+        });
+    }
 }
 
-export function wixForms1_wixFormSubmitted(event) {
-    // Assuming here that the form submission logic is handled elsewhere (e.g., in a data hook)
-    $w('#submitButton').disable(); // Ensure the button is disabled after submission
-    resetForm();
-    $w('#text12').text = "Thanks for your vote! We're processing it.";
-    hasSubmitted = true;
-
-    // 更新图表
-    updateChartOnPageLoad();
-
+// 处理用户信息请求
+async function handleUserInfoRequest() {
+    try {
+        if (!currentUserId) {
+            throw new Error('用户未登录');
+        }
+        
+        const userInfo = await getUserInfo(currentUserId);
+        
+        postMessageToHtml('USER_INFO', userInfo);
+    } catch (error) {
+        console.error('[投票页面] 获取用户信息失败:', error);
+        postMessageToHtml('ERROR', {
+            message: '获取用户信息失败，请稍后重试'
+        });
+    }
 }
 
-function resetForm() {
-    $w('#input1').value = '';
-    $w('#radioGroup').selectedIndex = -1;
-    $w('#input2').value = ''; // Clear the read-only weight field
-
+// 处理投票选项请求
+async function handleVotingOptionsRequest() {
+    try {
+        const options = await getVotingOptions();
+        
+        postMessageToHtml('VOTING_OPTIONS', options);
+    } catch (error) {
+        console.error('[投票页面] 获取投票选项失败:', error);
+        postMessageToHtml('ERROR', {
+            message: '获取投票选项失败，请稍后重试'
+        });
+    }
 }
 
-
-export function submitButton_click(event) {
-    $w('#submitButton').disable(); // Ensure the button is disabled after submission
-    $w('#submitButton').hide(); // Ensure the button is disabled after submission
+// 处理投票结果请求
+async function handleVotingResultsRequest() {
+    try {
+        const results = await getVotingResults();
+        
+        postMessageToHtml('VOTING_RESULTS', results);
+    } catch (error) {
+        console.error('[投票页面] 获取投票结果失败:', error);
+        postMessageToHtml('ERROR', {
+            message: '获取投票结果失败，请稍后重试'
+        });
+    }
 }
 
-
-async function updateChartOnPageLoad() {
-    const votingResults = await getVotingResults();
-    //console.log(votingResults);
-    $w('#html1').postMessage(votingResults); // 发送包含weight分布数据的结果
-    $w('#html2').postMessage(votingResults.weightData);
+// 处理投票提交
+async function handleVoteSubmission(voteData) {
+    try {
+        if (!currentUserId) {
+            throw new Error('用户未登录');
+        }
+        
+        const { userName, themeValue, userRank, voteWeight } = voteData;
+        
+        const result = await submitVote(
+            currentUserId,
+            userName,
+            themeValue,
+            userRank,
+            voteWeight
+        );
+        
+        postMessageToHtml('VOTE_SUBMISSION_RESULT', result);
+    } catch (error) {
+        console.error('[投票页面] 提交投票失败:', error);
+        postMessageToHtml('VOTE_SUBMISSION_RESULT', {
+            success: false,
+            message: '提交投票失败，请稍后重试'
+        });
+    }
 }
