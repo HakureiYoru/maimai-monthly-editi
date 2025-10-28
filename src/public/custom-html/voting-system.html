@@ -389,7 +389,7 @@
 
     <!-- 投票结果区域 -->
     <div class="glass-card">
-      <div class="section-title">投票结果</div>
+      <div class="section-title">投票结果（加权统计）</div>
       
       <!-- 标签页切换 -->
       <div class="chart-tabs" id="chartTabs">
@@ -433,6 +433,50 @@
     
     // 加载超时保护
     let loadingTimeout = null;
+    
+    // 初始禁用表单和标签页
+    function disableInitialControls() {
+      // 禁用用户名输入
+      document.getElementById('userName').disabled = true;
+      
+      // 禁用投票选项（如果已加载）
+      document.querySelectorAll('input[name="theme"]').forEach(input => {
+        input.disabled = true;
+      });
+      
+      // 禁用提交按钮
+      document.getElementById('submitVote').disabled = true;
+      
+      // 禁用标签页切换
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.disabled = true;
+        button.style.opacity = '0.5';
+        button.style.cursor = 'not-allowed';
+      });
+    }
+    
+    // 启用表单控件
+    function enableFormControls() {
+      // 只有在用户未投票时才启用
+      if (!hasVoted) {
+        document.getElementById('userName').disabled = false;
+        
+        document.querySelectorAll('input[name="theme"]').forEach(input => {
+          input.disabled = false;
+        });
+        
+        validateForm();
+      }
+    }
+    
+    // 启用标签页切换
+    function enableChartTabs() {
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.disabled = false;
+        button.style.opacity = '';
+        button.style.cursor = '';
+      });
+    }
 
     // ==================== 初始化 ====================
     // 监听来自Wix页面的消息
@@ -468,6 +512,9 @@
     async function handleInit(data) {
       ////console.log('[投票系统] 初始化...', data);
       currentUserId = data.currentUserId;
+      
+      // 初始禁用所有控件
+      disableInitialControls();
       
       // 清除之前的超时
       if (loadingTimeout) {
@@ -507,6 +554,9 @@
       if (hasVoted) {
         disableVotingForm();
         showStatus('您已经投过票了', 'info');
+      } else {
+        // 用户信息加载完成，启用表单控件
+        enableFormControls();
       }
       
       // 标记用户信息已加载
@@ -532,6 +582,9 @@
       
       // 更新图表
       updateCharts();
+      
+      // 图表加载完成，启用标签页切换
+      enableChartTabs();
       
       // 标记投票结果已加载
       loadingStates.votingResults = true;
@@ -564,6 +617,9 @@
         loadingTimeout = null;
       }
       
+      // 强制隐藏所有可能的loading元素
+      forceHideAllLoading();
+      
       // 如果已经有部分数据加载，也隐藏loading
       let hasAnyData = loadingStates.userInfo || loadingStates.votingOptions || loadingStates.votingResults;
       if (hasAnyData) {
@@ -573,8 +629,9 @@
 
     // 检查所有数据是否都已加载完成
     function checkAllDataLoaded() {
+      console.log('[投票系统] 检查加载状态:', loadingStates);
       if (loadingStates.userInfo && loadingStates.votingOptions && loadingStates.votingResults) {
-        //console.log('[投票系统] 所有数据已加载完成');
+        console.log('[投票系统] 所有数据已加载完成，准备隐藏loading');
         
         // 清除超时保护
         if (loadingTimeout) {
@@ -582,8 +639,21 @@
           loadingTimeout = null;
         }
         
+        // 强制隐藏所有可能的loading元素
+        forceHideAllLoading();
+        
         hideLoading();
       }
+    }
+    
+    // 强制隐藏所有可能的loading元素
+    function forceHideAllLoading() {
+      console.log('[投票系统] 强制隐藏所有loading元素');
+      const loadingElements = document.querySelectorAll('.loading');
+      loadingElements.forEach(el => {
+        console.log('[投票系统] 移除loading元素:', el);
+        el.remove();
+      });
     }
 
     // ==================== 用户界面渲染 ====================
@@ -657,7 +727,7 @@
         data: {
           labels: labels,
           datasets: [{
-            label: '投票数',
+            label: '加权票数',
             data: data,
             backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
             borderColor: 'rgba(255, 255, 255, 0.8)',
@@ -965,6 +1035,13 @@
     }
 
     function showLoading(message = '加载中...') {
+      // 先检查是否已存在 loading 元素
+      const existingLoading = document.getElementById('loadingState');
+      if (existingLoading) {
+        console.log('[投票系统] loading元素已存在，先移除');
+        existingLoading.remove();
+      }
+      
       const container = document.querySelector('.container');
       const loadingEl = document.createElement('div');
       loadingEl.className = 'loading';
@@ -974,12 +1051,17 @@
         <div class="loading-text">${message}</div>
       `;
       container.appendChild(loadingEl);
+      console.log('[投票系统] 已创建loading元素');
     }
 
     function hideLoading() {
+      console.log('[投票系统] 尝试隐藏loading');
       const loadingEl = document.getElementById('loadingState');
       if (loadingEl) {
+        console.log('[投票系统] 找到loading元素，正在移除');
         loadingEl.remove();
+      } else {
+        console.log('[投票系统] 未找到loading元素');
       }
     }
 
@@ -1045,6 +1127,9 @@
     // 页面加载完成后的初始化
     document.addEventListener('DOMContentLoaded', function() {
       //console.log('[投票系统] HTML已加载并准备就绪');
+      
+      // 初始禁用所有控件
+      disableInitialControls();
       
       // 初始化标签页切换
       initChartTabs();

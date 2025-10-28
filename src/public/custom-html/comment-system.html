@@ -389,12 +389,15 @@
       bottom: 0;
       right: 0;
       left: 0;
-      background: linear-gradient(to top, rgba(255, 255, 255, 0.8), transparent);
-      padding: 8px;
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.9), transparent);
+      padding: 12px 8px 8px;
       text-align: center;
-      font-size: 12px;
-      color: rgba(0, 0, 0, 0.7);
-      font-weight: 600;
+      font-size: 13px;
+      color: rgba(0, 0, 0, 0.8);
+      font-weight: 700;
+      cursor: pointer;
+      z-index: 10;
+      border-radius: 0 0 12px 12px;
     }
 
     .comment-content.expanded::after {
@@ -475,6 +478,23 @@
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     }
 
+    /* 图片尺寸控制 */
+    .comment-content img.img-small {
+      max-width: 200px;
+    }
+
+    .comment-content img.img-medium {
+      max-width: 400px;
+    }
+
+    .comment-content img.img-large {
+      max-width: 600px;
+    }
+
+    .comment-content img.img-full {
+      max-width: 100%;
+    }
+
     /* 图片加载失败时的样式 */
     .comment-content img[alt]::before {
       content: '🖼️ 图片加载失败';
@@ -536,19 +556,54 @@
     .comment-content table {
       width: 100%;
       border-collapse: collapse;
-      margin: 10px 0;
+      margin: 15px 0;
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .comment-content th,
     .comment-content td {
       border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 8px;
+      padding: 12px 16px;
       text-align: left;
     }
 
     .comment-content th {
-      background: rgba(255, 255, 255, 0.2);
       font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      font-size: 15px;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid rgba(255, 215, 0, 0.5);
+    }
+
+    .comment-content tr:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(1.01);
+      transition: all 0.2s ease;
+    }
+
+    .comment-content td {
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .comment-content td:first-child {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* 表格内代码样式 */
+    .comment-content td code,
+    .comment-content th code {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #FFD700;
     }
 
     .comment-content strong {
@@ -645,8 +700,9 @@
     }
 
     .info-content strong {
-      color: #ffffff; /* 浅蓝色 */
       font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 0 3px #92e9ff, 0 0 6px #c0feff;
     }
 
     .info-content a {
@@ -686,6 +742,60 @@
       line-height: 1.6;
       overflow-y: auto;
       max-height: 400px;
+    }
+
+    /* 预览区域表格样式 - 与评论内容表格样式保持一致 */
+    .markdown-preview table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .markdown-preview th,
+    .markdown-preview td {
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    .markdown-preview th {
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      font-size: 15px;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid rgba(255, 215, 0, 0.5);
+    }
+
+    .markdown-preview tr:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(1.01);
+      transition: all 0.2s ease;
+    }
+
+    .markdown-preview td {
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .markdown-preview td:first-child {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* 预览区域表格内代码样式 */
+    .markdown-preview td code,
+    .markdown-preview th code {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #FFD700;
     }
 
     .preview-placeholder {
@@ -802,6 +912,137 @@
         align-items: flex-start;
       }
     }
+
+    /* 预览区域其他Markdown样式 - 与评论内容样式保持一致 */
+    .markdown-preview h1,
+    .markdown-preview h2,
+    .markdown-preview h3,
+    .markdown-preview h4,
+    .markdown-preview h5,
+    .markdown-preview h6 {
+      margin: 12px 0 8px 0;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .markdown-preview h1 { font-size: 20px; }
+    .markdown-preview h2 { font-size: 18px; }
+    .markdown-preview h3 { font-size: 16px; }
+    .markdown-preview h4 { font-size: 15px; }
+    .markdown-preview h5 { font-size: 14px; }
+    .markdown-preview h6 { font-size: 13px; }
+
+    .markdown-preview p {
+      margin: 8px 0;
+    }
+
+    .markdown-preview a {
+      color: #4A90E2;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    .markdown-preview a:hover {
+      color: #357ABD;
+    }
+
+    .markdown-preview img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin: 10px 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      display: block;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .markdown-preview img:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 预览区域图片尺寸控制 */
+    .markdown-preview img.img-small {
+      max-width: 100px;
+    }
+
+    .markdown-preview img.img-medium {
+      max-width: 250px;
+    }
+
+    .markdown-preview img.img-large {
+      max-width: 400px;
+    }
+
+    .markdown-preview img.img-full {
+      max-width: 100%;
+    }
+
+    .markdown-preview blockquote {
+      border-left: 3px solid rgba(255, 215, 0, 0.6);
+      padding-left: 12px;
+      margin: 10px 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-style: italic;
+    }
+
+    .markdown-preview code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #FFD700;
+    }
+
+    .markdown-preview pre {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+
+    .markdown-preview pre code {
+      background: none;
+      padding: 0;
+      color: #fff;
+    }
+
+    .markdown-preview ul,
+    .markdown-preview ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+
+    .markdown-preview li {
+      margin: 4px 0;
+    }
+
+    .markdown-preview hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+      margin: 12px 0;
+    }
+
+    .markdown-preview strong {
+      font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 0 3px #92e9ff, 0 0 6px #c0feff;
+    }
+
+    .markdown-preview em {
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .markdown-preview del,
+    .markdown-preview s,
+    .markdown-preview strike {
+      text-decoration: line-through;
+      color: rgba(255, 255, 255, 0.7);
+    }
   </style>
 </head>
 <body>
@@ -864,6 +1105,10 @@
           <h4>图片和链接</h4>
           <ul>
             <li><code>![描述](图片URL)</code> → 显示图片（点击新窗口打开）</li>
+            <li><code>![描述|small](图片URL)</code> → 小尺寸图片（200px宽）</li>
+            <li><code>![描述|medium](图片URL)</code> → 中等尺寸图片（400px宽）</li>
+            <li><code>![描述|large](图片URL)</code> → 大尺寸图片（600px宽）</li>
+            <li><code>![描述|full](图片URL)</code> → 全尺寸图片（100%宽）</li>
             <li><code>[链接文字](URL)</code> → 可点击链接（自动新窗口打开）</li>
           </ul>
 
@@ -1556,17 +1801,53 @@
       bindCommentActions(div, comment);
       
       // 检查评论内容是否需要展开功能
-      setTimeout(() => {
-        const commentContent = div.querySelector('.comment-content');
-        if (commentContent) {
-          // 检查内容是否溢出（超过120px高度）
-          if (commentContent.scrollHeight > commentContent.clientHeight) {
-            commentContent.classList.add('has-overflow');
-          } else {
-            commentContent.classList.add('short');
-          }
+      const commentContent = div.querySelector('.comment-content');
+      if (commentContent) {
+        // 检查是否有图片，如果有则等待图片加载完成后再检查高度
+        const images = commentContent.querySelectorAll('img');
+        if (images.length > 0) {
+          let loadedImages = 0;
+          const totalImages = images.length;
+          
+          // 为每个图片添加加载事件监听
+          images.forEach(img => {
+            // 如果图片已经加载完成
+            if (img.complete) {
+              loadedImages++;
+              if (loadedImages === totalImages) {
+                checkContentOverflow(commentContent);
+              }
+            } else {
+              // 监听图片加载完成事件
+              img.addEventListener('load', () => {
+                loadedImages++;
+                if (loadedImages === totalImages) {
+                  checkContentOverflow(commentContent);
+                }
+              });
+              
+              // 监听图片加载失败事件
+              img.addEventListener('error', () => {
+                loadedImages++;
+                if (loadedImages === totalImages) {
+                  checkContentOverflow(commentContent);
+                }
+              });
+              
+              // 设置超时保护，防止图片加载卡住
+              setTimeout(() => {
+                if (loadedImages < totalImages) {
+                  console.warn('[评论系统] 图片加载超时，强制检查内容高度');
+                  checkContentOverflow(commentContent);
+                }
+              }, 3000);
+            }
+          });
+        } else {
+          // 没有图片，直接检查高度
+          checkContentOverflow(commentContent);
         }
-      }, 0);
+      }
 
       return div;
     }
@@ -1638,6 +1919,13 @@
             return;
           }
           
+          // 点击"点击展开/收起"提示区域时触发展开/收起
+          if (e.target === commentContent && commentContent.classList.contains('has-overflow')) {
+            commentContent.classList.toggle('expanded');
+            console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
+            return;
+          }
+          
           // 只有溢出的评论才能展开
           if (commentContent.classList.contains('has-overflow') || commentContent.classList.contains('expanded')) {
             commentContent.classList.toggle('expanded');
@@ -1704,6 +1992,21 @@
     }
 
     // ==================== 工具函数 ====================
+    /**
+     * 检查评论内容是否溢出并添加相应的样式类
+     * @param {HTMLElement} commentContent - 评论内容元素
+     */
+    function checkContentOverflow(commentContent) {
+      // 检查内容是否溢出（超过120px高度）
+      if (commentContent.scrollHeight > commentContent.clientHeight) {
+        commentContent.classList.add('has-overflow');
+        console.log('[评论系统] 检测到内容溢出，添加展开功能');
+      } else {
+        commentContent.classList.add('short');
+        console.log('[评论系统] 内容较短，无需展开');
+      }
+    }
+
     /**
      * 设置输入区域的加载状态
      * @param {boolean} isLoading - 是否正在加载
@@ -1782,6 +2085,15 @@
           
           // 安全处理：确保外部链接在新标签打开，添加安全属性
           html = html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+          
+          // 图片尺寸控制：支持 ![alt|size](url) 语法
+          // 例如：![图片|small](url)、![图片|medium](url)、![图片|large](url)
+          html = html.replace(/<img([^>]*?)alt="([^"]*?)\|?(small|medium|large|full)?"([^>]*?)>/gi, function(match, before, alt, size, after) {
+            const sizeClass = size ? ` class="img-${size}"` : '';
+            // 清理alt文本，移除尺寸标记
+            const cleanAlt = alt.replace(/\|(small|medium|large|full)$/i, '').trim();
+            return `<img${before}alt="${cleanAlt}"${sizeClass}${after}>`;
+          });
           
           return html;
         } catch (error) {

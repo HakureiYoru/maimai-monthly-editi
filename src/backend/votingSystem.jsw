@@ -112,8 +112,9 @@ export async function getVotingResults() {
             };
         }
         
-        // 统计每个主题的投票数
+        // 统计每个主题的投票数和权重
         const themeVotes = {};
+        const themeWeightedVotes = {};
         const themeVoters = {};
         const themeWeights = {};
         
@@ -122,8 +123,11 @@ export async function getVotingResults() {
             const userName = item.userName;
             const weight = item.voteWeight || 1;
             
-            // 统计投票数
+            // 统计投票数（人数）
             themeVotes[theme] = (themeVotes[theme] || 0) + 1;
+            
+            // 统计加权票数（权重计入票数）
+            themeWeightedVotes[theme] = (themeWeightedVotes[theme] || 0) + weight;
             
             // 记录投票者
             if (!themeVoters[theme]) {
@@ -154,7 +158,8 @@ export async function getVotingResults() {
         options.options.forEach(option => {
             const themeValue = option.value;
             labels.push(option.label);
-            data.push(themeVotes[themeValue] || 0);
+            // 使用加权票数而不是简单人数
+            data.push(themeWeightedVotes[themeValue] || 0);
             voters.push((themeVoters[themeValue] || []).join(', '));
             
             if (themeWeights[themeValue] && themeWeights[themeValue].length > 0) {
