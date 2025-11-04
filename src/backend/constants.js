@@ -59,15 +59,7 @@ export const FILE_TYPES = {
     VIDEO: 4    // 视频文件
 };
 
-// 审核相关常量
-export const APPROVAL_CONFIG = {
-    MIN_VOTES_FOR_APPROVAL: 5,  // 最少需要的审核票数
-    VIEWED_VOTES_THRESHOLD_1: 10, // 查看数第一档阈值
-    VIEWED_VOTES_THRESHOLD_2: 20, // 查看数第二档阈值
-    VIEWED_VOTES_VALUE_1: 1,      // 第一档对应票数
-    VIEWED_VOTES_VALUE_2: 2,      // 第二档对应票数
-    MAX_APPROVAL_COUNT: 5         // 最大审核数量
-};
+
 
 // 数据库集合名称
 export const COLLECTIONS = {

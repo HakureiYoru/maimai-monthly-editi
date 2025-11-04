@@ -7,7 +7,7 @@
 import wixData from 'wix-data';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 import { updateUserPoints } from 'backend/forumPoints.jsw';
-import { COLLECTIONS, QUERY_LIMITS, PROGRESS_CONFIG, POINTS_CONFIG, APPROVAL_CONFIG } from 'backend/constants';
+import { COLLECTIONS, QUERY_LIMITS, PROGRESS_CONFIG, POINTS_CONFIG } from 'backend/constants';
 import { safeJsonParse, hasRole, isWorkApproved } from 'backend/utils';
 import { logError, safeExecute } from 'backend/errorHandler';
 
@@ -180,28 +180,7 @@ export async function getUserComments(userId, workNumber = null) {
     }, 'getUserComments', []);
 }
 
-/**
- * 更新用户查看状态
- * @param {string} sheetId - 作品ID
- * @param {string} userId - 用户ID
- * @returns {Promise<boolean>} 更新是否成功
- */
-export async function markSheetAsViewed(sheetId, userId) {
-    return safeExecute(async () => {
-        const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
-        const viewedBy = safeJsonParse(sheet.viewedBy, []);
-        
-        if (!viewedBy.includes(userId)) {
-            viewedBy.push(userId);
-            await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
-                _id: sheetId,
-                viewedBy: JSON.stringify(viewedBy)
-            });
-        }
-        
-        return true;
-    }, 'markSheetAsViewed', false);
-}
+
 
 /**
  * 获取团队数据并处理分页

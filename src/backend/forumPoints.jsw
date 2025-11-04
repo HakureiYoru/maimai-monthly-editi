@@ -13,9 +13,10 @@ let oldBadgeLevel;
  * @param {number} pointsToAdd - 要添加的积分数量（可以是负数）
  * @param {boolean} updateLastSignedIn - 是否更新最后登录时间
  * @param {boolean} excludeFromDailyLimit - 是否排除在每日限制之外
+ * @param {string} eventType - 事件类型（可选，默认为'OTHER'）
  * @returns {Promise<void>}
  */
-export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, excludeFromDailyLimit) {
+export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, excludeFromDailyLimit, eventType = 'OTHER') {
   try {
     const results = await wixData.query(COLLECTIONS.USER_POINTS).eq('userId', userId).find();
     let userPoints;
@@ -27,6 +28,8 @@ export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, 
         dailyPoints: Number(pointsToAdd)
       };
       await wixData.insert(COLLECTIONS.USER_POINTS, userPoints);
+        // 记录积分变化事件
+        await logEvent(userId, eventType, pointsToAdd);
   } else {
     userPoints = results.items[0];
     
@@ -64,6 +67,20 @@ export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, 
 
 
         await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
+      // 记录积分变化事件
+      await logEvent(userId, eventType, pointsToAdd);
+      // 记录积分变化事件
+      await logEvent(userId, eventType, pointsToAdd);
+      // 记录积分变化事件
+      await logEvent(userId, eventType, pointsToAdd);
+    // 记录积分变化事件
+    await logEvent(userId, eventType, pointsToAdd);
+      // 记录积分变化事件
+      await logEvent(userId, eventType, pointsToAdd);
+      // 记录积分变化事件
+      await logEvent(userId, eventType, pointsToAdd);
+        // 记录积分变化事件
+        await logEvent(userId, eventType, pointsToAdd);
       }
       else if(userPoints.dailyPoints === pointsLimit){
         if (excludeFromDailyLimit==false) {
@@ -184,6 +201,293 @@ export function getPointsForBadgeLevel(level) {
       return 2000;
     default:
       return 0;
+  }
+}
+
+/**
+ * 用户每日签到
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Object>} - 签到结果，包含获得的积分和连续签到天数
+ */
+export async function checkInTask(userId) {
+  try {
+    const results = await wixData.query(COLLECTIONS.USER_POINTS).eq('userId', userId).find();
+    let userPoints;
+    let checkInReward = 1;
+    let consecutiveDays = 1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (results.items.length === 0) {
+      // 新用户首次签到
+      userPoints = {
+        userId: userId,
+        points: checkInReward,
+        lastSignedIn: new Date(),
+        dailyPoints: checkInReward,
+        lastCheckIn: today,
+        consecutiveCheckIns: 1
+      };
+      await wixData.insert(COLLECTIONS.USER_POINTS, userPoints);
+    } else {
+      userPoints = results.items[0];
+      const lastCheckIn = userPoints.lastCheckIn ? new Date(userPoints.lastCheckIn) : null;
+      lastCheckIn?.setHours(0, 0, 0, 0);
+
+      // 检查是否已经签到过
+      if (lastCheckIn && isSameDay(today, lastCheckIn)) {
+        return {
+          success: false,
+          message: '今日已签到',
+          pointsEarned: 0,
+          consecutiveDays: userPoints.consecutiveCheckIns || 0
+        };
+      }
+
+      // 计算连续签到天数和奖励积分
+      if (lastCheckIn) {
+        const timeDiff = today.getTime() - lastCheckIn.getTime();
+        const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+
+        if (daysDiff === 1) {
+          // 连续签到
+          consecutiveDays = (userPoints.consecutiveCheckIns || 0) + 1;
+          // 连续签到奖励：第7天额外奖励5积分
+          if (consecutiveDays % 7 === 0) {
+            checkInReward = 5;
+          } else {
+            checkInReward = 1;
+          }
+        } else if (daysDiff > 1) {
+          // 中断后重新开始连续签到
+          consecutiveDays = 1;
+          checkInReward = 1;
+        }
+      }
+
+      // 更新用户积分和签到信息
+      userPoints.points += checkInReward;
+      userPoints.lastCheckIn = today;
+      userPoints.consecutiveCheckIns = consecutiveDays;
+
+      // 更新每日积分统计（签到积分不计入每日上限）
+      const currentLastSignedIn = new Date(userPoints.lastSignedIn);
+      if (!isSameDay(today, currentLastSignedIn)) {
+        userPoints.dailyPoints = 0;
+        userPoints.lastSignedIn = today;
+      }
+
+      // 检查徽章等级变化
+      const oldBadgeLevel = getBadgeLevelByPoints(userPoints.points - checkInReward);
+      const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+      if (oldBadgeLevel !== newBadgeLevel) {
+        await assignBadge(userId, newBadgeLevel);
+      }
+
+      await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
+    }
+
+
+
+    return {
+      success: true,
+      message: '签到成功',
+      pointsEarned: checkInReward,
+      consecutiveDays: consecutiveDays,
+      totalPoints: userPoints.points
+    };
+  } catch (error) {
+    logError('checkInTask', error, { userId });
+    throw error;
+  }
+}
+
+/**
+ * 获取用户可用任务
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Array>} - 可用任务列表
+ */
+export async function getTasks(userId) {
+  try {
+    const userPoints = await getUserPoints(userId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 基础任务列表
+    const tasks = [
+      {
+        id: 'check_in',
+        name: '每日签到',
+        description: '每天签到获得1积分，连续7天额外奖励5积分',
+        points: 1,
+        completed: false,
+        type: 'daily',
+        icon: 'calendar'
+      },
+      {
+        id: 'create_post',
+        name: '发布主题',
+        description: '发布新主题获得10积分',
+        points: 10,
+        completed: false,
+        type: 'daily',
+        icon: 'write'
+      },
+      {
+        id: 'create_comment',
+        name: '发表评论',
+        description: '发表评论获得5积分',
+        points: 5,
+        completed: false,
+        type: 'daily',
+        icon: 'chat'
+      },
+      {
+        id: 'like_post',
+        name: '点赞主题',
+        description: '点赞主题获得2积分',
+        points: 2,
+        completed: false,
+        type: 'daily',
+        icon: 'like'
+      }
+    ];
+
+    // 检查签到任务完成状态
+    if (userPoints?.lastCheckIn) {
+      const lastCheckIn = new Date(userPoints.lastCheckIn);
+      lastCheckIn.setHours(0, 0, 0, 0);
+      if (isSameDay(today, lastCheckIn)) {
+        tasks.find(task => task.id === 'check_in').completed = true;
+      }
+    }
+
+    // 检查其他任务完成状态
+    const todayStart = new Date(today);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // 获取今日事件统计
+    const eventStats = await getDailyEventStats(userId, todayStart, todayEnd);
+
+    // 更新任务完成状态
+    tasks.find(task => task.id === 'create_post').completed = eventStats.create_post >= 1;
+    tasks.find(task => task.id === 'create_comment').completed = eventStats.create_comment >= 1;
+    tasks.find(task => task.id === 'like_post').completed = eventStats.like_post >= 1;
+
+    return tasks;
+  } catch (error) {
+    logError('getTasks', error, { userId });
+    return [];
+  }
+}
+
+/**
+ * 完成任务
+ * @param {string} userId - 用户ID
+ * @param {string} taskId - 任务ID
+ * @returns {Promise<Object>} - 任务完成结果
+ */
+export async function completeTask(userId, taskId) {
+  try {
+    const tasks = await getTasks(userId);
+    const task = tasks.find(t => t.id === taskId);
+
+    if (!task) {
+      return {
+        success: false,
+        message: '任务不存在'
+      };
+    }
+
+    if (task.completed) {
+      return {
+        success: false,
+        message: '任务已完成'
+      };
+    }
+
+    // 奖励积分
+    await updateUserPoints(userId, task.points, false, false);
+
+    // 记录任务完成事件
+    await logEvent(userId, 'TASK_COMPLETED', task.points, { taskId: task.id, taskName: task.name });
+
+    return {
+      success: true,
+      message: '任务完成',
+      pointsEarned: task.points
+    };
+  } catch (error) {
+    logError('completeTask', error, { userId, taskId });
+    throw error;
+  }
+}
+
+/**
+ * 获取用户每日事件统计
+ * @param {string} userId - 用户ID
+ * @param {Date} startDate - 开始日期
+ * @param {Date} endDate - 结束日期
+ * @returns {Promise<Object>} - 事件统计
+ */
+async function getDailyEventStats(userId, startDate, endDate) {
+  try {
+    const results = await wixData.query(COLLECTIONS.EVENT_LOGS)
+      .eq('userId', userId)
+      .ge('timestamp', startDate)
+      .le('timestamp', endDate)
+      .find();
+
+    const stats = {
+      create_post: 0,
+      create_comment: 0,
+      like_post: 0,
+      like_comment: 0,
+      check_in: 0
+    };
+
+    results.items.forEach(event => {
+      if (stats.hasOwnProperty(event.eventType.toLowerCase())) {
+        stats[event.eventType.toLowerCase()]++;
+      }
+    });
+
+    return stats;
+  } catch (error) {
+    logError('getDailyEventStats', error, { userId, startDate, endDate });
+    return {
+      create_post: 0,
+      create_comment: 0,
+      like_post: 0,
+      like_comment: 0,
+      check_in: 0
+    };
+  }
+}
+
+/**
+ * 记录事件
+ * @param {string} userId - 用户ID
+ * @param {string} eventType - 事件类型
+ * @param {number} points - 积分变化
+ * @param {Object} metadata - 元数据
+ * @returns {Promise<void>} - 无返回值
+ */
+async function logEvent(userId, eventType, points, metadata = {}) {
+  try {
+    const event = {
+      userId: userId,
+      eventType: eventType,
+      points: points,
+      timestamp: new Date(),
+      metadata: metadata
+    };
+
+    await wixData.insert(COLLECTIONS.EVENT_LOGS, event);
+  } catch (error) {
+    logError('logEvent', error, { userId, eventType, points, metadata });
+    // 记录事件失败不影响主流程
   }
 }
 
