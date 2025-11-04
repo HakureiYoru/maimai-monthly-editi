@@ -14,14 +14,11 @@ import {
 } from 'backend/errorHandler';
 import { 
     loadAllData, 
-    calculateViewedVotes, 
-    isWorkApproved, 
     safeJsonParse, 
     groupByField 
 } from 'backend/utils';
 import { 
     FILE_TYPES, 
-    APPROVAL_CONFIG, 
     COLLECTIONS, 
     CRYPTO_CONFIG 
 } from 'backend/constants';
@@ -53,17 +50,12 @@ export async function getEnterContest034DataBySequenceId(sequenceId) {
 
         if (results.items.length > 0) {
             const item = results.items[0];
-            const approvedList = safeJsonParse(item.approvedByString, []);
-            const viewedList = safeJsonParse(item.viewedBy, []);
-            
             const files = {
-                txtFileUrl: item.inVideo的複本,
-                mp3FileUrl: item.maidata的複本,
-                bgFileUrl: item.track的複本,
-                bgVideoUrl: item.上傳檔案欄,
-                approvedBy: approvedList.length,
-                viewedBy: viewedList.length
-            };
+            txtFileUrl: item.inVideo的複本,
+            mp3FileUrl: item.maidata的複本,
+            bgFileUrl: item.track的複本,
+            bgVideoUrl: item.上傳檔案欄
+        };
             return { ...item, ...files };
         }
 
@@ -88,27 +80,11 @@ export const get_contestList = asyncErrorHandler(async (request) => {
     }
 
     const filteredData = data.map(item => {
-        // 安全解析 JSON 数据
-        const approvedList = safeJsonParse(item.approvedByString, []);
-        const viewedList = safeJsonParse(item.viewedBy, []);
-        
-        const approvedCount = approvedList.length;
-        const viewedCount = viewedList.length;
-        
-        // 计算查看数对应的投票数
-        const viewedVotes = calculateViewedVotes(viewedCount);
-        
-        // 判断是否过审
-        const isApproved = isWorkApproved(approvedCount, viewedCount);
-
         return {
             Title: item.firstName,
             sequenceId: item.sequenceId,
             Description: item.較長答案欄,
-            AllowDownload: true,
-            approvedBy: approvedCount,
-            viewedBy: viewedCount,
-            IsApproved: isApproved
+            AllowDownload: true
         };
     });
     

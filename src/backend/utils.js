@@ -4,7 +4,7 @@
  */
 
 import wixData from 'wix-data';
-import { POINTS_CONFIG, APPROVAL_CONFIG, COLLECTIONS } from 'backend/constants.js';
+import { POINTS_CONFIG, COLLECTIONS } from 'backend/constants.js';
 
 /**
  * 从URL中提取用户slug
@@ -58,33 +58,7 @@ export async function loadAllData(query, accumulatedData = []) {
     return accumulatedData;
 }
 
-/**
- * 计算查看数对应的投票数
- * @param {number} viewedCount - 查看次数
- * @returns {number} 对应的投票数
- */
-export function calculateViewedVotes(viewedCount) {
-    let viewedVotes = 0;
-    if (viewedCount >= APPROVAL_CONFIG.VIEWED_VOTES_THRESHOLD_1) {
-        viewedVotes = APPROVAL_CONFIG.VIEWED_VOTES_VALUE_1;
-    }
-    if (viewedCount >= APPROVAL_CONFIG.VIEWED_VOTES_THRESHOLD_2) {
-        viewedVotes = APPROVAL_CONFIG.VIEWED_VOTES_VALUE_2;
-    }
-    return viewedVotes;
-}
 
-/**
- * 判断作品是否通过审核
- * @param {number} approvedCount - 审核通过数
- * @param {number} viewedCount - 查看次数
- * @returns {boolean} 是否通过审核
- */
-export function isWorkApproved(approvedCount, viewedCount) {
-    const viewedVotes = calculateViewedVotes(viewedCount);
-    const totalVotes = approvedCount + viewedVotes;
-    return totalVotes >= APPROVAL_CONFIG.MIN_VOTES_FOR_APPROVAL;
-}
 
 /**
  * 安全解析JSON字符串

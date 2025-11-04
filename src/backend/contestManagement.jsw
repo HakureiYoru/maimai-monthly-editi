@@ -213,66 +213,7 @@ export async function getEnterContest034Data(limit = QUERY_LIMITS.CONTEST_QUERY_
     }, 'getEnterContest034Data', []);
 }
 
-/**
- * 获取已过审的比赛作品
- * @param {number} minApprovals - 最少审核通过数
- * @returns {Promise<Array>} 已过审作品列表
- */
-export async function getApprovedContestEntries(minApprovals = 3) {
-    return safeExecute(async () => {
-        const allEntries = await getEnterContest034Data();
-        
-        const approvedEntries = allEntries.filter(entry => {
-            const approvedBy = safeJsonParse(entry.approvedByString, []);
-            return approvedBy.length >= minApprovals;
-        });
-        
-        return approvedEntries.map(entry => ({
-            id: entry._id,
-            title: entry.firstName || '',
-            sequenceId: entry.sequenceId || '',
-            submittedDate: entry._createdDate,
-            approvedBy: safeJsonParse(entry.approvedByString, []),
-            approvalCount: safeJsonParse(entry.approvedByString, []).length,
-            author: entry._owner,
-            ...entry
-        }));
-    }, 'getApprovedContestEntries', []);
-}
 
-/**
- * 获取待审核的比赛作品
- * @param {number} maxApprovals - 最大审核数（少于此数的视为待审核）
- * @returns {Promise<Array>} 待审核作品列表
- */
-export async function getPendingContestEntries(maxApprovals = 3) {
-    return safeExecute(async () => {
-        const allEntries = await getEnterContest034Data();
-        
-        const pendingEntries = allEntries.filter(entry => {
-            const approvedBy = safeJsonParse(entry.approvedByString, []);
-            const disBy = safeJsonParse(entry.disByString, []);
-            
-            // 如果拒绝数过多，则不算待审核
-            if (disBy.length >= 2) return false;
-            
-            return approvedBy.length < maxApprovals;
-        });
-        
-        return pendingEntries.map(entry => ({
-            id: entry._id,
-            title: entry.firstName || '',
-            sequenceId: entry.sequenceId || '',
-            submittedDate: entry._createdDate,
-            approvedBy: safeJsonParse(entry.approvedByString, []),
-            disBy: safeJsonParse(entry.disByString, []),
-            approvalCount: safeJsonParse(entry.approvedByString, []).length,
-            rejectionCount: safeJsonParse(entry.disByString, []).length,
-            author: entry._owner,
-            ...entry
-        }));
-    }, 'getPendingContestEntries', []);
-}
 
 /**
  * 根据条件查询比赛作品
