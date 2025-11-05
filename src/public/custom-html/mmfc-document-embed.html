@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMFC资料集 - 腾讯文档</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+        }
+        
+        /* 顶部工具栏 */
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: #000000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+        }
+        
+        .toolbar h1 {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .toolbar-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .toolbar button {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .toolbar button:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .toolbar button:active {
+            transform: scale(0.95);
+        }
+        
+        /* iframe容器 */
+        .iframe-container {
+            position: relative;
+            width: calc(100% - 20px);
+            height: calc(100vh - 70px);
+            margin: 60px 10px 10px 10px;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        
+        .iframe-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 8px;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 100;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 16px;
+            color: #666;
+        }
+        
+        /* 错误提示 */
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            max-width: 400px;
+            display: none;
+        }
+        
+        .error-message h2 {
+            color: #e74c3c;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        .error-message p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .error-message button {
+            background-color: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .error-message button:hover {
+            background-color: #5568d3;
+        }
+        
+        /* 响应式设计 */
+        @media screen and (max-width: 768px) {
+            .toolbar {
+                height: 60px;
+                padding: 0 15px;
+            }
+            
+            .toolbar h1 {
+                font-size: 16px;
+            }
+            
+            .toolbar-buttons {
+                gap: 5px;
+            }
+            
+            .toolbar button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            .iframe-container {
+                width: calc(100% - 20px);
+                height: calc(100vh - 80px);
+                margin: 70px 10px 10px 10px;
+            }
+        }
+        
+        @media screen and (max-width: 480px) {
+            .toolbar {
+                height: 50px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .toolbar h1 {
+                font-size: 14px;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            .toolbar-buttons {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .iframe-container {
+                width: calc(100% - 20px);
+                height: calc(100vh - 70px);
+                margin: 60px 10px 10px 10px;
+            }
+        }
+        
+        /* 隐藏类 */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+        <h1>MMFC比赛资料集</h1>
+        <div class="toolbar-buttons">
+            <button onclick="refreshDocument()" title="刷新文档">
+                刷新
+            </button>
+            <button onclick="openInNewWindow()" title="在新窗口打开">
+                新窗口
+            </button>
+        </div>
+    </div>
+    
+    <!-- iframe容器 -->
+    <div class="iframe-container">
+        <!-- 加载动画 -->
+        <div class="loading" id="loadingIndicator">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">正在加载腾讯文档...</div>
+        </div>
+        
+        <!-- 错误提示 -->
+        <div class="error-message" id="errorMessage">
+            <h2>加载失败</h2>
+            <p id="errorText">文档加载失败，请检查网络连接或文档访问权限。</p>
+            <button onclick="refreshDocument()">重试</button>
+        </div>
+        
+        <!-- 腾讯文档iframe -->
+        <iframe 
+            id="documentFrame"
+            src="https://docs.qq.com/sheet/DVG92WXZPTURNa25N"
+            frameborder="0"
+            allowfullscreen="true"
+            webkitallowfullscreen="true"
+            mozallowfullscreen="true"
+        >
+            您的浏览器不支持iframe，请
+            <a href="https://docs.qq.com/sheet/DVG92WXZPTURNa25N" target="_blank">点击这里</a>
+            查看文档
+        </iframe>
+    </div>
+    
+    <script>
+        // 腾讯文档URL
+        const DOCUMENT_URL = 'https://docs.qq.com/sheet/DVG92WXZPTURNa25N';
+        
+        // DOM元素
+        const iframe = document.getElementById('documentFrame');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        
+        // 加载超时时间（毫秒）
+        const LOAD_TIMEOUT = 15000;
+        let loadTimeout;
+        
+        /**
+         * 初始化页面
+         */
+        function initializePage() {
+            // 监听iframe加载事件
+            iframe.addEventListener('load', onIframeLoad);
+            iframe.addEventListener('error', onIframeError);
+            
+            // 设置加载超时
+            loadTimeout = setTimeout(onLoadTimeout, LOAD_TIMEOUT);
+            
+            // 监听窗口消息（用于与iframe通信）
+            window.addEventListener('message', onMessage);
+            
+            // 监听页面可见性变化
+            document.addEventListener('visibilitychange', onVisibilityChange);
+            
+            console.log('MMFC资料集页面已初始化');
+        }
+        
+        /**
+         * iframe加载成功
+         */
+        function onIframeLoad() {
+            clearTimeout(loadTimeout);
+            loadingIndicator.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            console.log('腾讯文档加载成功');
+        }
+        
+        /**
+         * iframe加载失败
+         */
+        function onIframeError(error) {
+            clearTimeout(loadTimeout);
+            loadingIndicator.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            errorText.textContent = '文档加载失败，可能是网络问题或文档权限设置问题。';
+            console.error('iframe加载失败:', error);
+        }
+        
+        /**
+         * 加载超时
+         */
+        function onLoadTimeout() {
+            loadingIndicator.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            errorText.textContent = '文档加载超时，请检查网络连接后重试。';
+            console.warn('文档加载超时');
+        }
+        
+        /**
+         * 接收iframe消息
+         */
+        function onMessage(event) {
+            // 可以在这里处理来自腾讯文档的消息
+            // 注意：需要验证消息来源
+            if (event.origin === 'https://docs.qq.com') {
+                console.log('收到腾讯文档消息:', event.data);
+            }
+        }
+        
+        /**
+         * 页面可见性变化
+         */
+        function onVisibilityChange() {
+            if (document.hidden) {
+                console.log('页面已隐藏');
+            } else {
+                console.log('页面已显示');
+                // 页面重新显示时，可以选择刷新文档
+                // refreshDocument();
+            }
+        }
+        
+        /**
+         * 刷新文档
+         */
+        function refreshDocument() {
+            console.log('刷新文档');
+            
+            // 显示加载动画
+            loadingIndicator.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            
+            // 重新加载iframe
+            iframe.src = iframe.src;
+            
+            // 重置超时计时器
+            clearTimeout(loadTimeout);
+            loadTimeout = setTimeout(onLoadTimeout, LOAD_TIMEOUT);
+        }
+        
+        /**
+         * 在新窗口打开文档
+         */
+        function openInNewWindow() {
+            window.open(DOCUMENT_URL, '_blank', 'noopener,noreferrer');
+            console.log('在新窗口打开文档');
+        }
+        
+        /**
+         * 获取设备类型
+         */
+        function getDeviceType() {
+            const width = window.innerWidth;
+            if (width <= 480) return 'mobile';
+            if (width <= 768) return 'tablet';
+            return 'desktop';
+        }
+        
+        /**
+         * 监听窗口大小变化
+         */
+        window.addEventListener('resize', function() {
+            const deviceType = getDeviceType();
+            console.log('设备类型:', deviceType, '视口宽度:', window.innerWidth);
+        });
+        
+        /**
+         * 页面加载完成后初始化
+         */
+        window.addEventListener('load', function() {
+            initializePage();
+            console.log('页面加载完成');
+        });
+        
+        /**
+         * 处理未捕获的错误
+         */
+        window.addEventListener('error', function(event) {
+            console.error('页面错误:', event.error);
+        });
+        
+        /**
+         * 处理未处理的Promise拒绝
+         */
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('未处理的Promise拒绝:', event.reason);
+        });
+    </script>
+</body>
+</html>
+
