@@ -1,5 +1,6 @@
 import wixData from 'wix-data';
 import { getUserRankAndVoteWeight } from 'backend/getUserPublicInfo.jsw';
+import { QUERY_LIMITS } from 'backend/constants';
 
 // 获取用户信息
 export async function getUserInfo(userId) {
@@ -30,6 +31,7 @@ export async function checkIfUserVoted(userId) {
     try {
         const results = await wixData.query('ThemeVote')
             .eq('_owner', userId)
+            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
             .find();
         
         return results.items.length > 0;
@@ -101,6 +103,7 @@ export async function getVotingResults() {
         // 获取所有投票记录
         const results = await wixData.query('ThemeVote')
             .ascending('voteDate')
+            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
             .find();
         
         if (results.items.length === 0) {
