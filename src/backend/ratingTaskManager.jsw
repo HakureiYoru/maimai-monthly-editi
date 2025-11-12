@@ -40,10 +40,29 @@ let userQualityCache = {};
  */
 export async function getUserTaskData(userId) {
   try {
-    // 1. 获取或创建用户任务记录
+    // 1. 【新增】检查用户是否已提交作品
+    const hasSubmittedWork = await checkUserHasSubmittedWork(userId);
+    if (!hasSubmittedWork) {
+      // 用户未提交作品，返回特定错误状态
+      return {
+        error: true,
+        notSubmitted: true,
+        message: '您还未提交作品，请先提交作品后才能接收评分任务',
+        currentTasks: [],
+        completedTasks: [],
+        freeRatings: [],
+        totalCompleted: 0,
+        targetCompletion: TARGET_USER_COMPLETION,
+        isHighQuality: false,
+        ownWorks: [],
+        hasCompletedTarget: false
+      };
+    }
+    
+    // 2. 获取或创建用户任务记录
     let taskRecord = await getUserTaskRecord(userId);
     
-    // 2. 检查是否需要刷新任务（基于时间）
+    // 3. 检查是否需要刷新任务（基于时间）
     const needsRefresh = shouldRefreshTasks(taskRecord);
     if (needsRefresh) {
       // console.log(`用户 ${userId} 任务已超时，将刷新任务列表`);
@@ -52,7 +71,7 @@ export async function getUserTaskData(userId) {
       taskRecord.lastRefreshTime = new Date();
     }
     
-    // 3. 生成当前任务列表（最多3条）
+    // 4. 生成当前任务列表（最多3条）
     const currentTasks = await generateUserTasks(userId, taskRecord, 3);
     
     // 4. 更新任务列表和刷新时间到数据库
@@ -471,6 +490,26 @@ export async function unmarkTaskCompleted(userId, workNumber) {
 async function assignNextTask(userId, taskRecord) {
   const tasks = await generateUserTasks(userId, taskRecord, 1);
   return tasks && tasks.length > 0 ? tasks[0] : null;
+}
+
+/**
+ * 【新增】检查用户是否已提交作品到 enterContest034
+ * @param {string} userId - 用户ID
+ * @returns {Promise<boolean>} 是否已提交作品
+ */
+async function checkUserHasSubmittedWork(userId) {
+  try {
+    const result = await wixData
+      .query(COLLECTIONS.WORKS)
+      .eq('_owner', userId)
+      .find();
+    
+    // 只要有任何一个作品（无论是否被淘汰），就算已提交
+    return result.items.length > 0;
+  } catch (error) {
+    console.error('检查用户作品提交状态失败:', error);
+    return false; // 出错时默认返回 false，安全起见
+  }
 }
 
 /**

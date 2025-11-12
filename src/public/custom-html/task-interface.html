@@ -587,6 +587,17 @@
         <div class="no-task-title" style="color: #FFD700;">未验证</div>
         <div class="no-task-desc" id="notVerifiedMessage">您尚未报名比赛，无法接受和完成任务</div>
       </div>
+      
+      <!-- 未提交作品状态 -->
+      <div id="notSubmittedState" style="display: none;" class="no-task">
+        <div class="no-task-title" style="color: #FF6B6B;">未提交作品</div>
+        <div class="no-task-desc" id="notSubmittedMessage">您还未提交作品，请先提交作品后才能接收评分任务</div>
+        <div style="margin-top: 20px;">
+          <button class="refresh-button" onclick="window.open('https://www.maimaimfc.ink/apply/submit', '_blank')" style="background: linear-gradient(135deg, #FF6B6B 0%, #FF4757 100%); color: white; width: auto; padding: 12px 30px;">
+            前往提交作品 →
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -633,6 +644,8 @@
       if (taskData.error) {
         if (taskData.notVerified) {
           showNotVerified(taskData.message);
+        } else if (taskData.notSubmitted) {
+          showNotSubmitted(taskData.message);
         } else {
           showNoTask();
         }
@@ -811,6 +824,7 @@
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'none';
       document.getElementById('notVerifiedState').style.display = 'none';
+      document.getElementById('notSubmittedState').style.display = 'none';
     }
 
     function hideLoading() {
@@ -821,20 +835,33 @@
       document.getElementById('taskContent').style.display = 'block';
       document.getElementById('noTaskState').style.display = 'none';
       document.getElementById('notVerifiedState').style.display = 'none';
+      document.getElementById('notSubmittedState').style.display = 'none';
     }
 
     function showNoTask() {
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'block';
       document.getElementById('notVerifiedState').style.display = 'none';
+      document.getElementById('notSubmittedState').style.display = 'none';
     }
 
     function showNotVerified(message) {
       document.getElementById('taskContent').style.display = 'none';
       document.getElementById('noTaskState').style.display = 'none';
       document.getElementById('notVerifiedState').style.display = 'block';
+      document.getElementById('notSubmittedState').style.display = 'none';
       if (message) {
         document.getElementById('notVerifiedMessage').textContent = message;
+      }
+    }
+    
+    function showNotSubmitted(message) {
+      document.getElementById('taskContent').style.display = 'none';
+      document.getElementById('noTaskState').style.display = 'none';
+      document.getElementById('notVerifiedState').style.display = 'none';
+      document.getElementById('notSubmittedState').style.display = 'block';
+      if (message) {
+        document.getElementById('notSubmittedMessage').textContent = message;
       }
     }
 

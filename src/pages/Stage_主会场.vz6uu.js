@@ -171,9 +171,13 @@ $w.onReady(async function () {
     try {
       userTaskDataCache = await getUserTaskData(currentUserId);
       // console.log("[主会场] 任务同步检查完成，已缓存");
+      // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
+      if (userTaskDataCache && userTaskDataCache.error) {
+        console.log("[主会场] 用户任务数据异常:", userTaskDataCache.message || '未知错误');
+      }
     } catch (error) {
       console.error("[主会场] 任务同步检查失败:", error);
-      userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
+      userTaskDataCache = { error: true, hasCompletedTarget: false, taskList: [] };
     }
   }
 
@@ -284,8 +288,10 @@ async function updateCommentStatus($item, itemData) {
       .find();
 
     // 【优化】检查是否为任务作品或冷门作品 - 使用缓存避免重复调用
-    const taskCheck = await checkIfWorkInTaskList(currentUserId, itemData.sequenceId);
-    const hasCompletedTarget = userTaskDataCache ? (userTaskDataCache.hasCompletedTarget || false) : false;
+    // 【新增】同时检查用户任务数据是否有效（排除未提交作品等错误状态）
+    const hasValidTaskData = userTaskDataCache && !userTaskDataCache.error;
+    const taskCheck = hasValidTaskData ? await checkIfWorkInTaskList(currentUserId, itemData.sequenceId) : { inTaskList: false, alreadyCompleted: false };
+    const hasCompletedTarget = hasValidTaskData ? (userTaskDataCache.hasCompletedTarget || false) : false;
     
     const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted && !hasCompletedTarget;
     const isColdWork = taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
@@ -938,9 +944,13 @@ async function refreshRepeaters() {
       try {
         userTaskDataCache = await getUserTaskData(currentUserId);
         // console.log("[性能优化] 任务数据缓存已重新加载");
+        // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
+        if (userTaskDataCache && userTaskDataCache.error) {
+          console.log("[性能优化] 任务数据异常:", userTaskDataCache.message || '未知错误');
+        }
       } catch (error) {
         console.error("[性能优化] 任务数据重新加载失败:", error);
-        userTaskDataCache = { hasCompletedTarget: false, taskList: [] };
+        userTaskDataCache = { error: true, hasCompletedTarget: false, taskList: [] };
       }
     }
     
@@ -1197,30 +1207,7 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   }
 }
 
-// 标记谱面查看状态
-async function markSheetAsViewed(sheetId, userId) {
-  try {
-    const currentItemResult = await wixData
-      .query("enterContest034")
-      .eq("_id", sheetId)
-      .find();
-    let currentItem = currentItemResult.items[0];
-    let viewedBy = currentItem.viewedBy ? JSON.parse(currentItem.viewedBy) : [];
-    let viewedCount = viewedBy.length;
 
-    if (!viewedBy.includes(userId)) {
-      viewedBy.push(userId);
-      currentItem.viewedBy = JSON.stringify(viewedBy);
-      await wixData.update("enterContest034", currentItem);
-      viewedCount = viewedBy.length;
-    }
-
-    return viewedCount;
-  } catch (error) {
-    console.error("Error marking sheet as viewed:", error);
-    return null;
-  }
-}
 
 // 更新下载按钮状态
 async function updateButtonStatus($item, sheetId) {
@@ -2249,10 +2236,11 @@ async function handleWorkNumberChange(workNumber) {
     }
 
     // 优先级4: 未评论，检查任务状态
-    if (currentUserId && isUserVerified) {
+    // 【新增】只有在用户任务数据有效时才显示任务提示
+    if (currentUserId && isUserVerified && userTaskDataCache && !userTaskDataCache.error) {
       try {
         const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
-        const hasCompletedTarget = userTaskDataCache ? (userTaskDataCache.hasCompletedTarget || false) : false;
+        const hasCompletedTarget = userTaskDataCache.hasCompletedTarget || false;
         
         if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
           if (hasCompletedTarget) {
@@ -2270,6 +2258,11 @@ async function handleWorkNumberChange(workNumber) {
       } catch (error) {
         console.error("检查任务状态失败:", error);
         sendWorkStatusUpdate('', '');
+      }
+    } else if (currentUserId && isUserVerified && userTaskDataCache && userTaskDataCache.error) {
+      // 【新增】如果用户未提交作品，显示相应提示
+      if (userTaskDataCache.notSubmitted) {
+        sendWorkStatusUpdate('', ''); // 不显示任务提示（因为用户无法接收任务）
       }
     }
 

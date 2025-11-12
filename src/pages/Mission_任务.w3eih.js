@@ -155,6 +155,17 @@ async function sendTaskData() {
     // 从后端获取任务数据
     const taskData = await getUserTaskData(currentUserId);
     
+    // 【新增】检查是否返回了 notSubmitted 错误（用户未提交作品）
+    if (taskData && taskData.error && taskData.notSubmitted) {
+      console.log('用户未提交作品，发送未提交状态');
+      $w('#html1').postMessage({
+        type: 'TASK_DATA_RESPONSE',
+        data: taskData // 直接转发后端返回的错误数据
+      });
+      isLoadingTaskData = false;
+      return;
+    }
+    
     // console.log('任务数据获取成功:', taskData);
     // console.log('准备发送到HTML组件...');
     
