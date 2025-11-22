@@ -3,15 +3,15 @@
  * 整合了审核员角色管理、用户权限检查和作品审核功能
  */
 
-import { currentMember, members } from 'wix-members-backend';
-import { members as membersV2 } from 'wix-members.v2';
+import { currentMember, members } from "wix-members-backend";
+import { members as membersV2 } from "wix-members.v2";
 
-import wixData from 'wix-data';
-import { COLLECTIONS } from 'backend/constants';
-import { safeJsonParse } from 'backend/utils';
-import { safeExecute, logError } from 'backend/errorHandler';
-import { sendCommentDeletedNotification } from 'backend/emailNotifications.jsw';
-import { unmarkTaskCompleted } from 'backend/ratingTaskManager.jsw';
+import wixData from "wix-data";
+import { COLLECTIONS } from "backend/constants";
+import { safeJsonParse } from "backend/utils";
+import { safeExecute, logError } from "backend/errorHandler";
+import { sendCommentDeletedNotification } from "backend/emailNotifications.jsw";
+import { unmarkTaskCompleted } from "backend/ratingTaskManager.jsw";
 
 // ==================== 审核员角色管理 ====================
 
@@ -21,10 +21,14 @@ import { unmarkTaskCompleted } from 'backend/ratingTaskManager.jsw';
  * @returns {Promise<Object|null>} 成员数据
  */
 export async function logMemberData(memberId) {
-    return safeExecute(async () => {
-        const member = await members.getMember(memberId);
-        return member;
-    }, 'logMemberData', null);
+  return safeExecute(
+    async () => {
+      const member = await members.getMember(memberId);
+      return member;
+    },
+    "logMemberData",
+    null
+  );
 }
 
 /**
@@ -32,10 +36,14 @@ export async function logMemberData(memberId) {
  * @returns {Promise<Array>} 角色列表
  */
 export async function getCurrentMemberRoles() {
-    return safeExecute(async () => {
-        const roles = await currentMember.getRoles();
-        return roles || [];
-    }, 'getCurrentMemberRoles', []);
+  return safeExecute(
+    async () => {
+      const roles = await currentMember.getRoles();
+      return roles || [];
+    },
+    "getCurrentMemberRoles",
+    []
+  );
 }
 
 /**
@@ -44,22 +52,26 @@ export async function getCurrentMemberRoles() {
  * @returns {Promise<Array<string>>} 用户ID数组
  */
 export async function getUsersByRole(roleId) {
-    return safeExecute(async () => {
-        let userIds = [];
-        let cursor = null;
+  return safeExecute(
+    async () => {
+      let userIds = [];
+      let cursor = null;
 
-        do {
-            const results = await membersV2.listMembers({
-                query: { roleId: roleId },
-                paging: { limit: 100, cursor: cursor }
-            });
+      do {
+        const results = await membersV2.listMembers({
+          query: { roleId: roleId },
+          paging: { limit: 100, cursor: cursor },
+        });
 
-            userIds = userIds.concat(results.items.map(member => member._id));
-            cursor = results.pageInfo.nextCursor;
-        } while (cursor);
+        userIds = userIds.concat(results.items.map((member) => member._id));
+        cursor = results.pageInfo.nextCursor;
+      } while (cursor);
 
-        return userIds;
-    }, 'getUsersByRole', []);
+      return userIds;
+    },
+    "getUsersByRole",
+    []
+  );
 }
 
 /**
@@ -68,33 +80,38 @@ export async function getUsersByRole(roleId) {
  * @returns {Promise<boolean>} 是否为审核员
  */
 export async function isUserAuditor(userId = null) {
-    return safeExecute(async () => {
-        
-        // 海选组的具体Velo ID
-        const seaSelectionGroupId = '573f8607-c036-4154-934a-b8c03526a639';
-        
-        let roles;
-        if (userId) {
-            // 检查特定用户的角色
-            const member = await members.getMember(userId);
-            roles = member.roles || [];
-        } else {
-            // 检查当前用户的角色
-            roles = await getCurrentMemberRoles();
+  return safeExecute(
+    async () => {
+      // 海选组的具体Velo ID
+      const seaSelectionGroupId = "573f8607-c036-4154-934a-b8c03526a639";
+
+      let roles;
+      if (userId) {
+        // 检查特定用户的角色
+        const member = await members.getMember(userId);
+        roles = member.roles || [];
+      } else {
+        // 检查当前用户的角色
+        roles = await getCurrentMemberRoles();
+      }
+
+      // 检查每个角色
+      let foundSeaSelectionGroup = false;
+      roles.forEach((role, index) => {
+        // 检查是否匹配海选组ID
+        if (
+          role._id === seaSelectionGroupId ||
+          role.id === seaSelectionGroupId
+        ) {
+          foundSeaSelectionGroup = true;
         }
-        
-        // 检查每个角色
-        let foundSeaSelectionGroup = false;
-        roles.forEach((role, index) => {
-            
-            // 检查是否匹配海选组ID
-            if (role._id === seaSelectionGroupId || role.id === seaSelectionGroupId) {
-                foundSeaSelectionGroup = true;
-            }
-        });
-        
-        return foundSeaSelectionGroup;
-    }, 'isUserAuditor', false);
+      });
+
+      return foundSeaSelectionGroup;
+    },
+    "isUserAuditor",
+    false
+  );
 }
 
 /**
@@ -102,19 +119,23 @@ export async function isUserAuditor(userId = null) {
  * @returns {Promise<Array>} 审核员用户ID列表
  */
 export async function getAllAuditors() {
-    return safeExecute(async () => {
-        // 这里需要根据实际的审核员角色ID来查询
-        const auditorRoleIds = ['auditor-role-id', 'sea-selection-role-id']; // 替换为实际的角色ID
-        let allAuditors = [];
-        
-        for (const roleId of auditorRoleIds) {
-            const auditors = await getUsersByRole(roleId);
-            allAuditors = allAuditors.concat(auditors);
-        }
-        
-        // 去重
-        return [...new Set(allAuditors)];
-    }, 'getAllAuditors', []);
+  return safeExecute(
+    async () => {
+      // 这里需要根据实际的审核员角色ID来查询
+      const auditorRoleIds = ["auditor-role-id", "sea-selection-role-id"]; // 替换为实际的角色ID
+      let allAuditors = [];
+
+      for (const roleId of auditorRoleIds) {
+        const auditors = await getUsersByRole(roleId);
+        allAuditors = allAuditors.concat(auditors);
+      }
+
+      // 去重
+      return [...new Set(allAuditors)];
+    },
+    "getAllAuditors",
+    []
+  );
 }
 
 // ==================== 作品审核功能 ====================
@@ -125,43 +146,44 @@ export async function getAllAuditors() {
  * @returns {Promise<Object>} 审核详情对象
  */
 export async function getSheetDetails(sheetId) {
-    return safeExecute(async () => {
-        const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
-        
-        const approvedBy = safeJsonParse(sheet.approvedByString, []);
-        const viewedBy = safeJsonParse(sheet.viewedBy, []);
-        const disBy = safeJsonParse(sheet.disByString, []);
-        
-        return {
-            id: sheetId,
-            title: sheet.firstName || '',
-            sequenceId: sheet.sequenceId || '',
-            approvedBy,
-            viewedBy,
-            disBy,
-            approvedCount: approvedBy.length,
-            viewedCount: viewedBy.length,
-            disCount: disBy.length,
-            isApproved: approvedBy.length >= 3, // 假设需要3票通过
-            rawData: sheet
-        };
-    }, 'getSheetDetails', { 
+  return safeExecute(
+    async () => {
+      const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
+
+      const approvedBy = safeJsonParse(sheet.approvedByString, []);
+      const viewedBy = safeJsonParse(sheet.viewedBy, []);
+      const disBy = safeJsonParse(sheet.disByString, []);
+
+      return {
         id: sheetId,
-        title: '',
-        sequenceId: '',
-        approvedBy: [], 
-        viewedBy: [], 
-        disBy: [],
-        approvedCount: 0,
-        viewedCount: 0,
-        disCount: 0,
-        isApproved: false,
-        rawData: null
-    });
+        title: sheet.firstName || "",
+        sequenceId: sheet.sequenceId || "",
+        approvedBy,
+        viewedBy,
+        disBy,
+        approvedCount: approvedBy.length,
+        viewedCount: viewedBy.length,
+        disCount: disBy.length,
+        isApproved: approvedBy.length >= 3, // 假设需要3票通过
+        rawData: sheet,
+      };
+    },
+    "getSheetDetails",
+    {
+      id: sheetId,
+      title: "",
+      sequenceId: "",
+      approvedBy: [],
+      viewedBy: [],
+      disBy: [],
+      approvedCount: 0,
+      viewedCount: 0,
+      disCount: 0,
+      isApproved: false,
+      rawData: null,
+    }
+  );
 }
-
-
-
 
 /**
  * 获取待审核作品列表
@@ -170,34 +192,39 @@ export async function getSheetDetails(sheetId) {
  * @returns {Promise<Array>} 待审核作品列表
  */
 export async function getPendingSheets(auditorId, limit = 50) {
-    return safeExecute(async () => {
-        const isAuditor = await isUserAuditor(auditorId);
-        if (!isAuditor) {
-            return [];
-        }
+  return safeExecute(
+    async () => {
+      const isAuditor = await isUserAuditor(auditorId);
+      if (!isAuditor) {
+        return [];
+      }
 
-        const results = await wixData.query(COLLECTIONS.ENTER_CONTEST_034)
-            .limit(limit)
-            .find();
+      const results = await wixData
+        .query(COLLECTIONS.ENTER_CONTEST_034)
+        .limit(limit)
+        .find();
 
-        // 过滤出该审核员尚未审核的作品
-        const pendingSheets = results.items.filter(sheet => {
-            const approvedBy = safeJsonParse(sheet.approvedByString, []);
-            const disBy = safeJsonParse(sheet.disByString, []);
-            
-            // 如果审核员既没有批准也没有拒绝这个作品
-            return !approvedBy.includes(auditorId) && !disBy.includes(auditorId);
-        });
+      // 过滤出该审核员尚未审核的作品
+      const pendingSheets = results.items.filter((sheet) => {
+        const approvedBy = safeJsonParse(sheet.approvedByString, []);
+        const disBy = safeJsonParse(sheet.disByString, []);
 
-        return pendingSheets.map(sheet => ({
-            id: sheet._id,
-            title: sheet.firstName || '',
-            sequenceId: sheet.sequenceId || '',
-            submittedDate: sheet._createdDate,
-            approvedCount: safeJsonParse(sheet.approvedByString, []).length,
-            rejectedCount: safeJsonParse(sheet.disByString, []).length
-        }));
-    }, 'getPendingSheets', []);
+        // 如果审核员既没有批准也没有拒绝这个作品
+        return !approvedBy.includes(auditorId) && !disBy.includes(auditorId);
+      });
+
+      return pendingSheets.map((sheet) => ({
+        id: sheet._id,
+        title: sheet.firstName || "",
+        sequenceId: sheet.sequenceId || "",
+        submittedDate: sheet._createdDate,
+        approvedCount: safeJsonParse(sheet.approvedByString, []).length,
+        rejectedCount: safeJsonParse(sheet.disByString, []).length,
+      }));
+    },
+    "getPendingSheets",
+    []
+  );
 }
 
 /**
@@ -205,44 +232,52 @@ export async function getPendingSheets(auditorId, limit = 50) {
  * @returns {Promise<Object>} 审核统计数据
  */
 export async function getAuditStatistics() {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.ENTER_CONTEST_034)
-            .limit(1000)
-            .find();
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.ENTER_CONTEST_034)
+        .limit(1000)
+        .find();
 
-        let totalSheets = results.items.length;
-        let approvedSheets = 0;
-        let rejectedSheets = 0;
-        let pendingSheets = 0;
+      let totalSheets = results.items.length;
+      let approvedSheets = 0;
+      let rejectedSheets = 0;
+      let pendingSheets = 0;
 
-        results.items.forEach(sheet => {
-            const approvedCount = safeJsonParse(sheet.approvedByString, []).length;
-            const rejectedCount = safeJsonParse(sheet.disByString, []).length;
+      results.items.forEach((sheet) => {
+        const approvedCount = safeJsonParse(sheet.approvedByString, []).length;
+        const rejectedCount = safeJsonParse(sheet.disByString, []).length;
 
-            if (approvedCount >= 3) {
-                approvedSheets++;
-            } else if (rejectedCount >= 2) {
-                rejectedSheets++;
-            } else {
-                pendingSheets++;
-            }
-        });
+        if (approvedCount >= 3) {
+          approvedSheets++;
+        } else if (rejectedCount >= 2) {
+          rejectedSheets++;
+        } else {
+          pendingSheets++;
+        }
+      });
 
-        return {
-            totalSheets,
-            approvedSheets,
-            rejectedSheets,
-            pendingSheets,
-            approvalRate: totalSheets > 0 ? (approvedSheets / totalSheets * 100).toFixed(1) : 0
-        };
-    }, 'getAuditStatistics', {
-        totalSheets: 0,
-        approvedSheets: 0,
-        rejectedSheets: 0,
-        pendingSheets: 0,
-        approvalRate: 0
-    });
-} 
+      return {
+        totalSheets,
+        approvedSheets,
+        rejectedSheets,
+        pendingSheets,
+        approvalRate:
+          totalSheets > 0
+            ? ((approvedSheets / totalSheets) * 100).toFixed(1)
+            : 0,
+      };
+    },
+    "getAuditStatistics",
+    {
+      totalSheets: 0,
+      approvedSheets: 0,
+      rejectedSheets: 0,
+      pendingSheets: 0,
+      approvalRate: 0,
+    }
+  );
+}
 
 /**
  * 删除不合规评论
@@ -252,108 +287,132 @@ export async function getAuditStatistics() {
  * @param {boolean} isSelfScComment - 是否为自己删除自己的Sc评论（默认false）
  * @returns {Promise<Object>} 删除结果
  */
-export async function deleteComment(commentId, auditorId, deleteReason = '', isSelfScComment = false) {
-    return safeExecute(async () => {
-        // 前端已经验证权限，这里直接执行删除操作
+export async function deleteComment(
+  commentId,
+  auditorId,
+  deleteReason = "",
+  isSelfScComment = false
+) {
+  return safeExecute(
+    async () => {
+      // 前端已经验证权限，这里直接执行删除操作
 
-        // 获取评论信息用于日志记录、存档和邮件通知
-        const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
-        
-        // 保存评论所有者和作品编号，用于后续操作
-        const commentOwnerId = comment._owner;
-        const workNumber = comment.workNumber;
-        
-        // 只有在非自己删除自己的Sc评论时，才保存删除信息到deleteInfor数据集并发送邮件
-        if (!isSelfScComment) {
-            const deleteRecord = {
-                workNumber: workNumber,
-                deletedComment: comment.comment,
-                deletedScore: comment.score,
-                deleteReason: deleteReason || '未填写删除理由',
-                deletedBy: auditorId,
-                deletedAt: new Date(),
-                originalCommentId: commentId,
-                originalCommentOwner: commentOwnerId
-            };
-            
-            await wixData.insert(COLLECTIONS.DELETE_INFOR, deleteRecord);
-            
-            // 发送删除通知邮件（异步执行，不阻塞删除流程）
-            try {
-                await sendCommentDeletedNotification(
-                    commentId,
-                    workNumber,
-                    comment.comment,
-                    comment.score,
-                    deleteReason,
-                    auditorId
-                );
-                console.log(`删除通知邮件已发送（作品 #${workNumber}）`);
-            } catch (emailError) {
-                // 邮件发送失败不影响删除操作
-                console.error("发送删除通知邮件失败:", emailError);
-            }
-        }
-        
-        // 删除原评论
-        await wixData.remove(COLLECTIONS.BOF_COMMENT, commentId);
+      // 获取评论信息用于日志记录、存档和邮件通知
+      const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
 
-        // 【新增】同步清除任务完成状态（只针对正式评论，排除作者自评）
-        // 获取作品信息以判断是否为作者自评
-        try {
-            const workResult = await wixData
-                .query(COLLECTIONS.ENTER_CONTEST_034)
-                .eq('sequenceId', workNumber)
-                .find();
-            
-            if (workResult.items.length > 0) {
-                const workOwner = workResult.items[0]._owner;
-                const isAuthorComment = commentOwnerId === workOwner;
-                
-                // 只有非作者自评的正式评论才需要清除任务状态
-                if (!isAuthorComment && !isSelfScComment) {
-                    console.log(`[删除评论] 尝试清除用户 ${commentOwnerId} 对作品 #${workNumber} 的任务完成状态`);
-                    const unmarkResult = await unmarkTaskCompleted(commentOwnerId, workNumber);
-                    
-                    if (unmarkResult.success && unmarkResult.wasInCompletedList) {
-                        console.log(`[删除评论] ✓ 任务完成状态已清除（新完成数: ${unmarkResult.newCompletedCount}）`);
-                    } else {
-                        console.log(`[删除评论] 任务状态处理结果: ${unmarkResult.message}`);
-                    }
-                }
-            }
-        } catch (taskError) {
-            // 任务状态清除失败不影响删除操作本身，只记录日志
-            console.error("[删除评论] 清除任务状态失败（不影响删除）:", taskError);
-        }
+      // 保存评论所有者和作品编号，用于后续操作
+      const commentOwnerId = comment._owner;
+      const workNumber = comment.workNumber;
 
-        return {
-            success: true,
-            message: isSelfScComment ? '评论已删除（自主评论删除）' : '评论已删除并记录删除信息',
-            deletedComment: {
-                id: commentId,
-                workNumber: workNumber,
-                score: comment.score
-            },
-            deleteRecordId: isSelfScComment ? null : undefined
+      // 只有在非自己删除自己的Sc评论时，才保存删除信息到deleteInfor数据集并发送邮件
+      if (!isSelfScComment) {
+        const deleteRecord = {
+          workNumber: workNumber,
+          deletedComment: comment.comment,
+          deletedScore: comment.score,
+          deleteReason: deleteReason || "未填写删除理由",
+          deletedBy: auditorId,
+          deletedAt: new Date(),
+          originalCommentId: commentId,
+          originalCommentOwner: commentOwnerId,
         };
-    }, 'deleteComment', {
-        success: false,
-        message: '删除评论失败',
-        deletedComment: null,
-        deleteRecordId: null
-    });
-} 
+
+        await wixData.insert(COLLECTIONS.DELETE_INFOR, deleteRecord);
+
+        // 发送删除通知邮件（异步执行，不阻塞删除流程）
+        try {
+          await sendCommentDeletedNotification(
+            commentId,
+            workNumber,
+            comment.comment,
+            comment.score,
+            deleteReason,
+            auditorId
+          );
+          console.log(`删除通知邮件已发送（作品 #${workNumber}）`);
+        } catch (emailError) {
+          // 邮件发送失败不影响删除操作
+          console.error("发送删除通知邮件失败:", emailError);
+        }
+      }
+
+      // 删除原评论
+      await wixData.remove(COLLECTIONS.BOF_COMMENT, commentId);
+
+      // 【新增】同步清除任务完成状态（只针对正式评论，排除作者自评）
+      // 获取作品信息以判断是否为作者自评
+      try {
+        const workResult = await wixData
+          .query(COLLECTIONS.ENTER_CONTEST_034)
+          .eq("sequenceId", workNumber)
+          .find();
+
+        if (workResult.items.length > 0) {
+          const workOwner = workResult.items[0]._owner;
+          const isAuthorComment = commentOwnerId === workOwner;
+
+          // 只有非作者自评的正式评论才需要清除任务状态
+          if (!isAuthorComment && !isSelfScComment) {
+            console.log(
+              `[删除评论] 尝试清除用户 ${commentOwnerId} 对作品 #${workNumber} 的任务完成状态`
+            );
+            const unmarkResult = await unmarkTaskCompleted(
+              commentOwnerId,
+              workNumber
+            );
+
+            if (unmarkResult.success && unmarkResult.wasInCompletedList) {
+              console.log(
+                `[删除评论] ✓ 任务完成状态已清除（新完成数: ${unmarkResult.newCompletedCount}）`
+              );
+            } else {
+              console.log(
+                `[删除评论] 任务状态处理结果: ${unmarkResult.message}`
+              );
+            }
+          }
+        }
+      } catch (taskError) {
+        // 任务状态清除失败不影响删除操作本身，只记录日志
+        console.error("[删除评论] 清除任务状态失败（不影响删除）:", taskError);
+      }
+
+      return {
+        success: true,
+        message: isSelfScComment
+          ? "评论已删除（自主评论删除）"
+          : "评论已删除并记录删除信息",
+        deletedComment: {
+          id: commentId,
+          workNumber: workNumber,
+          score: comment.score,
+        },
+        deleteRecordId: isSelfScComment ? null : undefined,
+      };
+    },
+    "deleteComment",
+    {
+      success: false,
+      message: "删除评论失败",
+      deletedComment: null,
+      deleteRecordId: null,
+    }
+  );
+}
 
 /**
  * 获取当前用户角色
  * @returns {Promise<Array>} 角色列表
  */
 export async function getCurrentUserRoles() {
-    return safeExecute(async () => {
-        const roles = await currentMember.getRoles();
-        return roles || [];
-    }, 'getCurrentUserRoles', []);
+  return safeExecute(
+    async () => {
+      const roles = await currentMember.getRoles();
+      return roles || [];
+    },
+    "getCurrentUserRoles",
+    []
+  );
 }
 
 /**
@@ -361,22 +420,30 @@ export async function getCurrentUserRoles() {
  * @returns {Promise<boolean>} 是否为海选组成员
  */
 export async function checkIsSeaSelectionMember() {
-    return safeExecute(async () => {
-        // 使用与isUserAuditor相同的检查方式，确保一致性
-        const roles = await currentMember.getRoles();
-        
-        // 海选组的具体Velo ID
-        const seaSelectionGroupId = '573f8607-c036-4154-934a-b8c03526a639';
-        
-        // 检查每个角色
-        let foundSeaSelectionGroup = false;
-        roles.forEach((role, index) => {
-            // 检查是否匹配海选组ID或标题
-            if (role._id === seaSelectionGroupId || role.id === seaSelectionGroupId || role.title === '海选组') {
-                foundSeaSelectionGroup = true;
-            }
-        });
-        
-        return foundSeaSelectionGroup;
-    }, 'checkIsSeaSelectionMember', false);
-} 
+  return safeExecute(
+    async () => {
+      // 使用与isUserAuditor相同的检查方式，确保一致性
+      const roles = await currentMember.getRoles();
+
+      // 海选组的具体Velo ID
+      const seaSelectionGroupId = "573f8607-c036-4154-934a-b8c03526a639";
+
+      // 检查每个角色
+      let foundSeaSelectionGroup = false;
+      roles.forEach((role, index) => {
+        // 检查是否匹配海选组ID或标题
+        if (
+          role._id === seaSelectionGroupId ||
+          role.id === seaSelectionGroupId ||
+          role.title === "海选组"
+        ) {
+          foundSeaSelectionGroup = true;
+        }
+      });
+
+      return foundSeaSelectionGroup;
+    },
+    "checkIsSeaSelectionMember",
+    false
+  );
+}

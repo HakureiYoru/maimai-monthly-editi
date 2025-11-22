@@ -3,11 +3,16 @@
  * 整合了图片处理、文件下载、Bilibili视频嵌入等媒体相关功能
  */
 
-import wixData from 'wix-data';
-import { mediaManager } from 'wix-media-backend';
-import { fetch } from 'wix-fetch';
-import { COLLECTIONS, QUERY_LIMITS } from 'backend/constants';
-import { safeExecute, logWarning, logInfo, logError } from 'backend/errorHandler';
+import wixData from "wix-data";
+import { mediaManager } from "wix-media-backend";
+import { fetch } from "wix-fetch";
+import { COLLECTIONS, QUERY_LIMITS } from "backend/constants";
+import {
+  safeExecute,
+  logWarning,
+  logInfo,
+  logError,
+} from "backend/errorHandler";
 
 // ==================== 图片和相册管理 ====================
 
@@ -16,22 +21,29 @@ import { safeExecute, logWarning, logInfo, logError } from 'backend/errorHandler
  * @returns {Promise<Array<string>>} 图片URL数组
  */
 export async function getOngakiImageUrls() {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.ONGEKI_ALBUM)
-            .limit(QUERY_LIMITS.MEDIA_QUERY_LIMIT)
-            .find();
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.ONGEKI_ALBUM)
+        .limit(QUERY_LIMITS.MEDIA_QUERY_LIMIT)
+        .find();
 
-        if (!results.items.length) {
-            logWarning('getOngakiImageUrls', 'No images found in the OngekiAlbum dataset');
-            return [];
-        }
+      if (!results.items.length) {
+        logWarning(
+          "getOngakiImageUrls",
+          "No images found in the OngekiAlbum dataset"
+        );
+        return [];
+      }
 
-        // 过滤出有效的图片URL
-        return results.items
-            .map(item => item.image)
-            .filter(imageUrl => imageUrl && imageUrl.trim() !== '');
-            
-    }, 'getOngakiImageUrls', []);
+      // 过滤出有效的图片URL
+      return results.items
+        .map((item) => item.image)
+        .filter((imageUrl) => imageUrl && imageUrl.trim() !== "");
+    },
+    "getOngakiImageUrls",
+    []
+  );
 }
 
 /**
@@ -39,16 +51,20 @@ export async function getOngakiImageUrls() {
  * @returns {Promise<string|null>} 随机图片URL
  */
 export async function getRandomOngakiImage() {
-    return safeExecute(async () => {
-        const imageUrls = await getOngakiImageUrls();
-        
-        if (imageUrls.length === 0) {
-            return null;
-        }
-        
-        const randomIndex = Math.floor(Math.random() * imageUrls.length);
-        return imageUrls[randomIndex];
-    }, 'getRandomOngakiImage', null);
+  return safeExecute(
+    async () => {
+      const imageUrls = await getOngakiImageUrls();
+
+      if (imageUrls.length === 0) {
+        return null;
+      }
+
+      const randomIndex = Math.floor(Math.random() * imageUrls.length);
+      return imageUrls[randomIndex];
+    },
+    "getRandomOngakiImage",
+    null
+  );
 }
 
 /**
@@ -58,29 +74,33 @@ export async function getRandomOngakiImage() {
  * @param {string} description - 图片描述
  * @returns {Promise<Object>} 上传结果
  */
-export async function addImageToAlbum(imageUrl, title = '', description = '') {
-    return safeExecute(async () => {
-        const newImage = {
-            image: imageUrl,
-            title: title,
-            description: description,
-            uploadDate: new Date()
-        };
+export async function addImageToAlbum(imageUrl, title = "", description = "") {
+  return safeExecute(
+    async () => {
+      const newImage = {
+        image: imageUrl,
+        title: title,
+        description: description,
+        uploadDate: new Date(),
+      };
 
-        const result = await wixData.save(COLLECTIONS.ONGEKI_ALBUM, newImage);
-        
-        logInfo('addImageToAlbum', `图片 ${title} 已添加到相册`);
-        
-        return {
-            success: true,
-            imageId: result._id,
-            message: '图片上传成功'
-        };
-    }, 'addImageToAlbum', {
-        success: false,
-        imageId: null,
-        message: '图片上传失败'
-    });
+      const result = await wixData.save(COLLECTIONS.ONGEKI_ALBUM, newImage);
+
+      logInfo("addImageToAlbum", `图片 ${title} 已添加到相册`);
+
+      return {
+        success: true,
+        imageId: result._id,
+        message: "图片上传成功",
+      };
+    },
+    "addImageToAlbum",
+    {
+      success: false,
+      imageId: null,
+      message: "图片上传失败",
+    }
+  );
 }
 
 // ==================== 文件下载管理 ====================
@@ -88,30 +108,41 @@ export async function addImageToAlbum(imageUrl, title = '', description = '') {
 /**
  * 获取多个媒体文件的下载URLs
  * @param {string} maidataUrl - maidata文件URL
- * @param {string} trackUrl - 音频文件URL  
+ * @param {string} trackUrl - 音频文件URL
  * @param {string} bgUrl - 背景图片URL
  * @param {string} bgVideoUrl - 背景视频URL
  * @returns {Promise<string|null>} 下载URL
  */
-export async function getMediaDownloadUrls(maidataUrl, trackUrl, bgUrl, bgVideoUrl) {
-    return safeExecute(async () => {
-        const fileUrls = [maidataUrl, trackUrl, bgUrl, bgVideoUrl].filter(url => url);
-        
-        if (fileUrls.length === 0) {
-            logWarning('getMediaDownloadUrls', 'No valid file URLs provided');
-            return null;
-        }
+export async function getMediaDownloadUrls(
+  maidataUrl,
+  trackUrl,
+  bgUrl,
+  bgVideoUrl
+) {
+  return safeExecute(
+    async () => {
+      const fileUrls = [maidataUrl, trackUrl, bgUrl, bgVideoUrl].filter(
+        (url) => url
+      );
 
-        const downloadUrl = await mediaManager.downloadFiles(fileUrls);
-        
-        if (downloadUrl) {
-           // logInfo('getMediaDownloadUrls', `生成下载链接成功，包含 ${fileUrls.length} 个文件`);
-            return downloadUrl;
-        } else {
-            logError('getMediaDownloadUrls', 'No URL returned from downloadFiles');
-            return null;
-        }
-    }, 'getMediaDownloadUrls', null);
+      if (fileUrls.length === 0) {
+        logWarning("getMediaDownloadUrls", "No valid file URLs provided");
+        return null;
+      }
+
+      const downloadUrl = await mediaManager.downloadFiles(fileUrls);
+
+      if (downloadUrl) {
+        // logInfo('getMediaDownloadUrls', `生成下载链接成功，包含 ${fileUrls.length} 个文件`);
+        return downloadUrl;
+      } else {
+        logError("getMediaDownloadUrls", "No URL returned from downloadFiles");
+        return null;
+      }
+    },
+    "getMediaDownloadUrls",
+    null
+  );
 }
 
 /**
@@ -120,28 +151,34 @@ export async function getMediaDownloadUrls(maidataUrl, trackUrl, bgUrl, bgVideoU
  * @returns {Promise<Object>} 包含下载URL和文件内容的对象
  */
 export async function getFileDownloadUrlAndContent(fileUrl) {
-    return safeExecute(async () => {
-        const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
-        
-        const response = await fetch(downloadUrl);
-        if (!response.ok) {
-            throw new Error(`Error fetching file content: ${response.status} ${response.statusText}`);
-        }
-        
-        const fileContent = await response.text();
-        
-        return { 
-            downloadUrl, 
-            fileContent,
-            fileSize: fileContent.length,
-            contentType: response.headers.get('content-type') || 'text/plain'
-        };
-    }, 'getFileDownloadUrlAndContent', {
-        downloadUrl: null,
-        fileContent: '',
-        fileSize: 0,
-        contentType: 'text/plain'
-    });
+  return safeExecute(
+    async () => {
+      const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
+
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error(
+          `Error fetching file content: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const fileContent = await response.text();
+
+      return {
+        downloadUrl,
+        fileContent,
+        fileSize: fileContent.length,
+        contentType: response.headers.get("content-type") || "text/plain",
+      };
+    },
+    "getFileDownloadUrlAndContent",
+    {
+      downloadUrl: null,
+      fileContent: "",
+      fileSize: 0,
+      contentType: "text/plain",
+    }
+  );
 }
 
 /**
@@ -150,48 +187,58 @@ export async function getFileDownloadUrlAndContent(fileUrl) {
  * @returns {Promise<Array<string|null>>} 下载URL数组
  */
 export async function getBatchDownloadUrls(items) {
-    return safeExecute(async () => {
-        const downloadUrls = [];
-        
-        logInfo('getBatchDownloadUrls', `开始处理 ${items.length} 个项目的批量下载`);
-        
-        for (const item of items) {
-            // 提取所有文件URL字段
-            const fileUrls = [
-                item.inVideo的複本, 
-                item.maidata的複本, 
-                item.track的複本, 
-                item.上傳檔案欄
-            ].filter(url => url);
+  return safeExecute(
+    async () => {
+      const downloadUrls = [];
 
-            if (fileUrls.length === 0) {
-                downloadUrls.push(null);
-                continue;
-            }
+      logInfo(
+        "getBatchDownloadUrls",
+        `开始处理 ${items.length} 个项目的批量下载`
+      );
 
-            try {
-                let suffix = await mediaManager.downloadFiles(fileUrls);
+      for (const item of items) {
+        // 提取所有文件URL字段
+        const fileUrls = [
+          item.inVideo的複本,
+          item.maidata的複本,
+          item.track的複本,
+          item.上傳檔案欄,
+        ].filter((url) => url);
 
-                if (suffix) {
-                    // 清理URL并构建完整下载链接
-                    suffix = suffix.replace('undefined', '');
-                    const prefix = "https://archive.wixmp.com";
-                    const downloadUrl = prefix + suffix;
-                    downloadUrls.push(downloadUrl);
-                } else {
-                    downloadUrls.push(null);
-                }
-            } catch (error) {
-                logError('getBatchDownloadUrls', `处理项目时出错: ${error.message}`);
-                downloadUrls.push(null);
-            }
+        if (fileUrls.length === 0) {
+          downloadUrls.push(null);
+          continue;
         }
-        
-        const successCount = downloadUrls.filter(url => url !== null).length;
-        logInfo('getBatchDownloadUrls', `批量下载完成: ${successCount}/${items.length} 成功`);
-        
-        return downloadUrls;
-    }, 'getBatchDownloadUrls', []);
+
+        try {
+          let suffix = await mediaManager.downloadFiles(fileUrls);
+
+          if (suffix) {
+            // 清理URL并构建完整下载链接
+            suffix = suffix.replace("undefined", "");
+            const prefix = "https://archive.wixmp.com";
+            const downloadUrl = prefix + suffix;
+            downloadUrls.push(downloadUrl);
+          } else {
+            downloadUrls.push(null);
+          }
+        } catch (error) {
+          logError("getBatchDownloadUrls", `处理项目时出错: ${error.message}`);
+          downloadUrls.push(null);
+        }
+      }
+
+      const successCount = downloadUrls.filter((url) => url !== null).length;
+      logInfo(
+        "getBatchDownloadUrls",
+        `批量下载完成: ${successCount}/${items.length} 成功`
+      );
+
+      return downloadUrls;
+    },
+    "getBatchDownloadUrls",
+    []
+  );
 }
 
 /**
@@ -200,26 +247,30 @@ export async function getBatchDownloadUrls(items) {
  * @returns {Promise<Object>} 文件信息对象
  */
 export async function getFileInfo(fileUrl) {
-    return safeExecute(async () => {
-        const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
-        const response = await fetch(downloadUrl, { method: 'HEAD' });
-        
-        return {
-            fileUrl,
-            downloadUrl,
-            contentType: response.headers.get('content-type'),
-            contentLength: parseInt(response.headers.get('content-length') || '0'),
-            lastModified: response.headers.get('last-modified'),
-            isValid: response.ok
-        };
-    }, 'getFileInfo', {
+  return safeExecute(
+    async () => {
+      const downloadUrl = await mediaManager.getDownloadUrl(fileUrl);
+      const response = await fetch(downloadUrl, { method: "HEAD" });
+
+      return {
         fileUrl,
-        downloadUrl: null,
-        contentType: null,
-        contentLength: 0,
-        lastModified: null,
-        isValid: false
-    });
+        downloadUrl,
+        contentType: response.headers.get("content-type"),
+        contentLength: parseInt(response.headers.get("content-length") || "0"),
+        lastModified: response.headers.get("last-modified"),
+        isValid: response.ok,
+      };
+    },
+    "getFileInfo",
+    {
+      fileUrl,
+      downloadUrl: null,
+      contentType: null,
+      contentLength: 0,
+      lastModified: null,
+      isValid: false,
+    }
+  );
 }
 
 // ==================== Bilibili视频嵌入 ====================
@@ -230,17 +281,20 @@ export async function getFileInfo(fileUrl) {
  * @returns {Promise<string>} HTML嵌入代码
  */
 export async function generateEmbedCode(url) {
-    return safeExecute(async () => {
-        // 改进的正则表达式以匹配视频ID并忽略URL中的其他部分
-        const regex = /video\/(BV[a-zA-Z0-9]+)[/?]?/;
-        const match = url.match(regex);
+  return safeExecute(
+    async () => {
+      // 改进的正则表达式以匹配视频ID并忽略URL中的其他部分
+      const regex = /video\/(BV[a-zA-Z0-9]+)[/?]?/;
+      const match = url.match(regex);
 
-        if (!match || !match[1]) {
-            throw new Error("Invalid Bilibili URL: URL should contain a valid BV video ID");
-        }
+      if (!match || !match[1]) {
+        throw new Error(
+          "Invalid Bilibili URL: URL should contain a valid BV video ID"
+        );
+      }
 
-        const videoId = match[1];
-        const embedCode = `
+      const videoId = match[1];
+      const embedCode = `
             <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                 <iframe src="https://player.bilibili.com/player.html?bvid=${videoId}" 
                     allowfullscreen="allowfullscreen" 
@@ -252,10 +306,13 @@ export async function generateEmbedCode(url) {
                 </iframe>
             </div>
         `;
-        
-        logInfo('generateEmbedCode', `为视频 ${videoId} 生成嵌入代码`);
-        return embedCode.trim();
-    }, 'generateEmbedCode', '');
+
+      logInfo("generateEmbedCode", `为视频 ${videoId} 生成嵌入代码`);
+      return embedCode.trim();
+    },
+    "generateEmbedCode",
+    ""
+  );
 }
 
 /**
@@ -264,11 +321,15 @@ export async function generateEmbedCode(url) {
  * @returns {Promise<string|null>} 视频ID
  */
 export async function extractBilibiliVideoId(url) {
-    return safeExecute(async () => {
-        const regex = /video\/(BV[a-zA-Z0-9]+)[/?]?/;
-        const match = url.match(regex);
-        return match ? match[1] : null;
-    }, 'extractBilibiliVideoId', null);
+  return safeExecute(
+    async () => {
+      const regex = /video\/(BV[a-zA-Z0-9]+)[/?]?/;
+      const match = url.match(regex);
+      return match ? match[1] : null;
+    },
+    "extractBilibiliVideoId",
+    null
+  );
 }
 
 /**
@@ -277,10 +338,14 @@ export async function extractBilibiliVideoId(url) {
  * @returns {Promise<boolean>} 是否为有效URL
  */
 export async function validateBilibiliUrl(url) {
-    return safeExecute(async () => {
-        const videoId = await extractBilibiliVideoId(url);
-        return videoId !== null;
-    }, 'validateBilibiliUrl', false);
+  return safeExecute(
+    async () => {
+      const videoId = await extractBilibiliVideoId(url);
+      return videoId !== null;
+    },
+    "validateBilibiliUrl",
+    false
+  );
 }
 
 /**
@@ -290,25 +355,28 @@ export async function validateBilibiliUrl(url) {
  * @returns {Promise<string>} 响应式HTML嵌入代码
  */
 export async function generateResponsiveEmbedCode(url, options = {}) {
-    return safeExecute(async () => {
-        const videoId = await extractBilibiliVideoId(url);
-        if (!videoId) {
-            throw new Error("Invalid Bilibili URL");
-        }
+  return safeExecute(
+    async () => {
+      const videoId = await extractBilibiliVideoId(url);
+      if (!videoId) {
+        throw new Error("Invalid Bilibili URL");
+      }
 
-        const {
-            width = '100%',
-            height = '500',
-            aspectRatio = '16:9',
-            autoplay = false,
-            showInfo = true
-        } = options;
+      const {
+        width = "100%",
+        height = "500",
+        aspectRatio = "16:9",
+        autoplay = false,
+        showInfo = true,
+      } = options;
 
-        const autoplayParam = autoplay ? '&autoplay=1' : '';
-        const pageParam = showInfo ? '' : '&page=1';
-        
-        const embedCode = `
-            <div style="position: relative; width: ${width}; padding-bottom: ${aspectRatio === '16:9' ? '56.25%' : '75%'};">
+      const autoplayParam = autoplay ? "&autoplay=1" : "";
+      const pageParam = showInfo ? "" : "&page=1";
+
+      const embedCode = `
+            <div style="position: relative; width: ${width}; padding-bottom: ${
+        aspectRatio === "16:9" ? "56.25%" : "75%"
+      };">
                 <iframe 
                     src="https://player.bilibili.com/player.html?bvid=${videoId}${autoplayParam}${pageParam}" 
                     allowfullscreen="allowfullscreen" 
@@ -321,9 +389,12 @@ export async function generateResponsiveEmbedCode(url, options = {}) {
                 </iframe>
             </div>
         `;
-        
-        return embedCode.trim();
-    }, 'generateResponsiveEmbedCode', '');
+
+      return embedCode.trim();
+    },
+    "generateResponsiveEmbedCode",
+    ""
+  );
 }
 
 // ==================== 文件处理工具 ====================
@@ -334,15 +405,21 @@ export async function generateResponsiveEmbedCode(url, options = {}) {
  * @returns {Promise<string>} 文件内容
  */
 export async function getFileContent(url) {
-    return safeExecute(async () => {
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-        }
-        
-        return await response.text();
-    }, 'getFileContent', '');
+  return safeExecute(
+    async () => {
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch file: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return await response.text();
+    },
+    "getFileContent",
+    ""
+  );
 }
 
 /**
@@ -351,10 +428,14 @@ export async function getFileContent(url) {
  * @returns {Promise<boolean>} 文件是否存在
  */
 export async function checkFileExists(url) {
-    return safeExecute(async () => {
-        const response = await fetch(url, { method: 'HEAD' });
-        return response.ok;
-    }, 'checkFileExists', false);
+  return safeExecute(
+    async () => {
+      const response = await fetch(url, { method: "HEAD" });
+      return response.ok;
+    },
+    "checkFileExists",
+    false
+  );
 }
 
 /**
@@ -363,40 +444,44 @@ export async function checkFileExists(url) {
  * @returns {Promise<Object>} 文件类型信息
  */
 export async function getFileTypeInfo(url) {
-    return safeExecute(async () => {
-        const response = await fetch(url, { method: 'HEAD' });
-        const contentType = response.headers.get('content-type') || '';
-        
-        // 解析文件类型
-        let fileType = 'unknown';
-        let category = 'other';
-        
-        if (contentType.includes('image/')) {
-            category = 'image';
-            fileType = contentType.split('/')[1];
-        } else if (contentType.includes('audio/')) {
-            category = 'audio';
-            fileType = contentType.split('/')[1];
-        } else if (contentType.includes('video/')) {
-            category = 'video';
-            fileType = contentType.split('/')[1];
-        } else if (contentType.includes('text/')) {
-            category = 'text';
-            fileType = contentType.split('/')[1];
-        }
-        
-        return {
-            contentType,
-            fileType,
-            category,
-            size: parseInt(response.headers.get('content-length') || '0'),
-            exists: response.ok
-        };
-    }, 'getFileTypeInfo', {
-        contentType: '',
-        fileType: 'unknown',
-        category: 'other',
-        size: 0,
-        exists: false
-    });
-} 
+  return safeExecute(
+    async () => {
+      const response = await fetch(url, { method: "HEAD" });
+      const contentType = response.headers.get("content-type") || "";
+
+      // 解析文件类型
+      let fileType = "unknown";
+      let category = "other";
+
+      if (contentType.includes("image/")) {
+        category = "image";
+        fileType = contentType.split("/")[1];
+      } else if (contentType.includes("audio/")) {
+        category = "audio";
+        fileType = contentType.split("/")[1];
+      } else if (contentType.includes("video/")) {
+        category = "video";
+        fileType = contentType.split("/")[1];
+      } else if (contentType.includes("text/")) {
+        category = "text";
+        fileType = contentType.split("/")[1];
+      }
+
+      return {
+        contentType,
+        fileType,
+        category,
+        size: parseInt(response.headers.get("content-length") || "0"),
+        exists: response.ok,
+      };
+    },
+    "getFileTypeInfo",
+    {
+      contentType: "",
+      fileType: "unknown",
+      category: "other",
+      size: 0,
+      exists: false,
+    }
+  );
+}

@@ -4,12 +4,18 @@
  * 注意：这是一个Web Module，可以从前端页面调用
  */
 
-import wixData from 'wix-data';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
-import { updateUserPoints } from 'backend/forumPoints.jsw';
-import { COLLECTIONS, QUERY_LIMITS, PROGRESS_CONFIG, POINTS_CONFIG, APPROVAL_CONFIG } from 'backend/constants';
-import { safeJsonParse, hasRole, isWorkApproved } from 'backend/utils';
-import { logError, safeExecute } from 'backend/errorHandler';
+import wixData from "wix-data";
+import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
+import { updateUserPoints } from "backend/forumPoints.jsw";
+import {
+  COLLECTIONS,
+  QUERY_LIMITS,
+  PROGRESS_CONFIG,
+  POINTS_CONFIG,
+  APPROVAL_CONFIG,
+} from "backend/constants";
+import { safeJsonParse, hasRole, isWorkApproved } from "backend/utils";
+import { logError, safeExecute } from "backend/errorHandler";
 
 /**
  * 获取用户积分信息
@@ -17,23 +23,28 @@ import { logError, safeExecute } from 'backend/errorHandler';
  * @returns {Promise<Object>} 用户积分信息
  */
 export async function getUserPointsInfo(userId) {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.USER_POINTS)
-            .eq('userId', userId)
-            .find();
-        
-        if (results.items.length > 0) {
-            return results.items[0];
-        }
-        
-        // 如果用户没有积分记录，返回默认值
-        return {
-            userId,
-            points: 0,
-            dailyPoints: 0,
-            lastSignedIn: new Date()
-        };
-    }, 'getUserPointsInfo', { userId, points: 0, dailyPoints: 0 });
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .eq("userId", userId)
+        .find();
+
+      if (results.items.length > 0) {
+        return results.items[0];
+      }
+
+      // 如果用户没有积分记录，返回默认值
+      return {
+        userId,
+        points: 0,
+        dailyPoints: 0,
+        lastSignedIn: new Date(),
+      };
+    },
+    "getUserPointsInfo",
+    { userId, points: 0, dailyPoints: 0 }
+  );
 }
 
 /**
@@ -42,20 +53,27 @@ export async function getUserPointsInfo(userId) {
  * @returns {Promise<Array>} 顶级用户列表
  */
 export async function getTopUsers(limit = QUERY_LIMITS.DISPLAY_TOP_USERS) {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.USER_POINTS)
-            .descending('points')
-            .limit(limit)
-            .find();
-        
-        return Promise.all(results.items.map(async (item) => {
-            const userInfo = await getUserPublicInfo(item.userId);
-            return {
-                ...item,
-                userInfo
-            };
-        }));
-    }, 'getTopUsers', []);
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .descending("points")
+        .limit(limit)
+        .find();
+
+      return Promise.all(
+        results.items.map(async (item) => {
+          const userInfo = await getUserPublicInfo(item.userId);
+          return {
+            ...item,
+            userInfo,
+          };
+        })
+      );
+    },
+    "getTopUsers",
+    []
+  );
 }
 
 /**
@@ -64,20 +82,27 @@ export async function getTopUsers(limit = QUERY_LIMITS.DISPLAY_TOP_USERS) {
  * @returns {Promise<Object>} 用户排名信息
  */
 export async function getUserRanking(userId) {
-    return safeExecute(async () => {
-        const allUsers = await wixData.query(COLLECTIONS.USER_POINTS)
-            .descending('points')
-            .find();
-        
-        const userIndex = allUsers.items.findIndex(user => user.userId === userId);
-        const ranking = userIndex >= 0 ? userIndex + 1 : null;
-        
-        return {
-            ranking,
-            totalUsers: allUsers.items.length,
-            userPoints: userIndex >= 0 ? allUsers.items[userIndex] : null
-        };
-    }, 'getUserRanking', { ranking: null, totalUsers: 0, userPoints: null });
+  return safeExecute(
+    async () => {
+      const allUsers = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .descending("points")
+        .find();
+
+      const userIndex = allUsers.items.findIndex(
+        (user) => user.userId === userId
+      );
+      const ranking = userIndex >= 0 ? userIndex + 1 : null;
+
+      return {
+        ranking,
+        totalUsers: allUsers.items.length,
+        userPoints: userIndex >= 0 ? allUsers.items[userIndex] : null,
+      };
+    },
+    "getUserRanking",
+    { ranking: null, totalUsers: 0, userPoints: null }
+  );
 }
 
 /**
@@ -86,11 +111,15 @@ export async function getUserRanking(userId) {
  * @returns {Promise<boolean>} 是否为管理员
  */
 export async function isUserAdmin(userId) {
-    return safeExecute(async () => {
-        const { getCurrentMemberRoles } = await import('backend/auditorRole');
-        const userRoles = await getCurrentMemberRoles();
-        return hasRole(userRoles, 'Admin');
-    }, 'isUserAdmin', false);
+  return safeExecute(
+    async () => {
+      const { getCurrentMemberRoles } = await import("backend/auditorRole");
+      const userRoles = await getCurrentMemberRoles();
+      return hasRole(userRoles, "Admin");
+    },
+    "isUserAdmin",
+    false
+  );
 }
 
 /**
@@ -99,26 +128,30 @@ export async function isUserAdmin(userId) {
  * @returns {Promise<Object>} 注册状态信息
  */
 export async function checkUserTeamRegistration(userLink) {
-    return safeExecute(async () => {
-        const queries = [
-            wixData.query(COLLECTIONS.TEAM_MMFC).eq("member1", userLink),
-            wixData.query(COLLECTIONS.TEAM_MMFC).eq("member2", userLink),
-            wixData.query(COLLECTIONS.TEAM_MMFC).eq("Member3", userLink)
-        ];
-        
-        const results = await Promise.all(queries.map(query => query.find()));
-        const isRegistered = results.some(result => result.items.length > 0);
-        
-        let teamInfo = null;
-        if (isRegistered) {
-            teamInfo = results.find(result => result.items.length > 0)?.items[0];
-        }
-        
-        return {
-            isRegistered,
-            teamInfo
-        };
-    }, 'checkUserTeamRegistration', { isRegistered: false, teamInfo: null });
+  return safeExecute(
+    async () => {
+      const queries = [
+        wixData.query(COLLECTIONS.TEAM_MMFC).eq("member1", userLink),
+        wixData.query(COLLECTIONS.TEAM_MMFC).eq("member2", userLink),
+        wixData.query(COLLECTIONS.TEAM_MMFC).eq("Member3", userLink),
+      ];
+
+      const results = await Promise.all(queries.map((query) => query.find()));
+      const isRegistered = results.some((result) => result.items.length > 0);
+
+      let teamInfo = null;
+      if (isRegistered) {
+        teamInfo = results.find((result) => result.items.length > 0)?.items[0];
+      }
+
+      return {
+        isRegistered,
+        teamInfo,
+      };
+    },
+    "checkUserTeamRegistration",
+    { isRegistered: false, teamInfo: null }
+  );
 }
 
 /**
@@ -127,38 +160,45 @@ export async function checkUserTeamRegistration(userLink) {
  * @returns {Promise<Object>} 进度信息
  */
 export async function calculateUserCommentsProgress(userId) {
-    return safeExecute(async () => {
-        // 获取用户评论
-        const userCommentsResults = await wixData.query(COLLECTIONS.BOF_COMMENT)
-            .eq('userId', userId)
-            .find();
-        
-        // 获取所有作品
-        const allWorksResults = await wixData.query(COLLECTIONS.ENTER_CONTEST_034)
-            .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
-            .find();
-        
-        const userCommentedWorks = new Set();
-        userCommentsResults.items.forEach(comment => {
-            userCommentedWorks.add(comment.workNumber);
-        });
-        
-        const totalWorks = allWorksResults.items.length;
-        const commentedWorks = userCommentedWorks.size;
-        const progressValue = totalWorks > 0 ? (commentedWorks / totalWorks) * 100 : 0;
-        
-        return {
-            totalWorks,
-            commentedWorks,
-            progressValue: Math.round(progressValue),
-            rewardMessage: formatProgressRewardMessage(progressValue)
-        };
-    }, 'calculateUserCommentsProgress', {
-        totalWorks: 0,
-        commentedWorks: 0,
-        progressValue: 0,
-        rewardMessage: "继续评论更多作品以获得更多奖励~"
-    });
+  return safeExecute(
+    async () => {
+      // 获取用户评论
+      const userCommentsResults = await wixData
+        .query(COLLECTIONS.BOF_COMMENT)
+        .eq("userId", userId)
+        .find();
+
+      // 获取所有作品
+      const allWorksResults = await wixData
+        .query(COLLECTIONS.ENTER_CONTEST_034)
+        .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
+        .find();
+
+      const userCommentedWorks = new Set();
+      userCommentsResults.items.forEach((comment) => {
+        userCommentedWorks.add(comment.workNumber);
+      });
+
+      const totalWorks = allWorksResults.items.length;
+      const commentedWorks = userCommentedWorks.size;
+      const progressValue =
+        totalWorks > 0 ? (commentedWorks / totalWorks) * 100 : 0;
+
+      return {
+        totalWorks,
+        commentedWorks,
+        progressValue: Math.round(progressValue),
+        rewardMessage: formatProgressRewardMessage(progressValue),
+      };
+    },
+    "calculateUserCommentsProgress",
+    {
+      totalWorks: 0,
+      commentedWorks: 0,
+      progressValue: 0,
+      rewardMessage: "继续评论更多作品以获得更多奖励~",
+    }
+  );
 }
 
 /**
@@ -168,16 +208,20 @@ export async function calculateUserCommentsProgress(userId) {
  * @returns {Promise<Array>} 用户评论列表
  */
 export async function getUserComments(userId, workNumber = null) {
-    return safeExecute(async () => {
-        let query = wixData.query(COLLECTIONS.BOF_COMMENT).eq('userId', userId);
-        
-        if (workNumber !== null) {
-            query = query.eq('workNumber', workNumber);
-        }
-        
-        const results = await query.find();
-        return results.items;
-    }, 'getUserComments', []);
+  return safeExecute(
+    async () => {
+      let query = wixData.query(COLLECTIONS.BOF_COMMENT).eq("userId", userId);
+
+      if (workNumber !== null) {
+        query = query.eq("workNumber", workNumber);
+      }
+
+      const results = await query.find();
+      return results.items;
+    },
+    "getUserComments",
+    []
+  );
 }
 
 /**
@@ -187,20 +231,24 @@ export async function getUserComments(userId, workNumber = null) {
  * @returns {Promise<boolean>} 更新是否成功
  */
 export async function markSheetAsViewed(sheetId, userId) {
-    return safeExecute(async () => {
-        const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
-        const viewedBy = safeJsonParse(sheet.viewedBy, []);
-        
-        if (!viewedBy.includes(userId)) {
-            viewedBy.push(userId);
-            await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
-                _id: sheetId,
-                viewedBy: JSON.stringify(viewedBy)
-            });
-        }
-        
-        return true;
-    }, 'markSheetAsViewed', false);
+  return safeExecute(
+    async () => {
+      const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
+      const viewedBy = safeJsonParse(sheet.viewedBy, []);
+
+      if (!viewedBy.includes(userId)) {
+        viewedBy.push(userId);
+        await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+          _id: sheetId,
+          viewedBy: JSON.stringify(viewedBy),
+        });
+      }
+
+      return true;
+    },
+    "markSheetAsViewed",
+    false
+  );
 }
 
 /**
@@ -211,58 +259,71 @@ export async function markSheetAsViewed(sheetId, userId) {
  * @param {string} sortType - 排序类型
  * @returns {Promise<Object>} 分页的团队数据
  */
-export async function getTeamData(page = 1, searchValue = '', sortByApproval = false, sortType = 'newest') {
-    return safeExecute(async () => {
-        let query = wixData.query(COLLECTIONS.ENTER_CONTEST_034);
-        
-        // 搜索过滤
-        if (searchValue) {
-            const searchNumber = Number(searchValue);
-            if (!isNaN(searchNumber)) {
-                query = query.contains('firstName', searchValue).or(query.eq('sequenceId', searchNumber));
-            } else {
-                query = query.contains('firstName', searchValue);
-            }
-        }
-        
-        // 排序
-        if (sortByApproval) {
-            query = query.descending('approvedByString');
-        } else if (sortType === 'oldest') {
-            query = query.ascending('_createdDate');
+export async function getTeamData(
+  page = 1,
+  searchValue = "",
+  sortByApproval = false,
+  sortType = "newest"
+) {
+  return safeExecute(
+    async () => {
+      let query = wixData.query(COLLECTIONS.ENTER_CONTEST_034);
+
+      // 搜索过滤
+      if (searchValue) {
+        const searchNumber = Number(searchValue);
+        if (!isNaN(searchNumber)) {
+          query = query
+            .contains("firstName", searchValue)
+            .or(query.eq("sequenceId", searchNumber));
         } else {
-            query = query.descending('_createdDate');
+          query = query.contains("firstName", searchValue);
         }
-        
-        const results = await query.limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT).find();
-        
-        // 处理数据
-        const processedItems = results.items.map(item => {
-            const approvedBy = safeJsonParse(item.approvedByString, []);
-            const viewedBy = safeJsonParse(item.viewedBy, []);
-            const disBy = safeJsonParse(item.disByString, []);
-            
-            return {
-                ...item,
-                approvedByCount: approvedBy.length,
-                viewedByCount: viewedBy.length,
-                disByCount: disBy.length
-            };
-        });
-        
-        // 分页处理
-        const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
-        const startIndex = (page - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = processedItems.slice(startIndex, endIndex);
-        
+      }
+
+      // 排序
+      if (sortByApproval) {
+        query = query.descending("approvedByString");
+      } else if (sortType === "oldest") {
+        query = query.ascending("_createdDate");
+      } else {
+        query = query.descending("_createdDate");
+      }
+
+      const results = await query
+        .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
+        .find();
+
+      // 处理数据
+      const processedItems = results.items.map((item) => {
+        const approvedBy = safeJsonParse(item.approvedByString, []);
+        const viewedBy = safeJsonParse(item.viewedBy, []);
+        const disBy = safeJsonParse(item.disByString, []);
+
         return {
-            items: paginatedItems,
-            totalItems: processedItems.length,
-            totalPages: Math.ceil(processedItems.length / itemsPerPage),
-            currentPage: page
+          ...item,
+          approvedByCount: approvedBy.length,
+          viewedByCount: viewedBy.length,
+          disByCount: disBy.length,
         };
-    }, 'getTeamData', { items: [], totalItems: 0, totalPages: 0, currentPage: 1 });
+      });
+
+      // 分页处理
+      const itemsPerPage = QUERY_LIMITS.ITEMS_PER_PAGE;
+      const startIndex = (page - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedItems = processedItems.slice(startIndex, endIndex);
+
+      return {
+        items: paginatedItems,
+        totalItems: processedItems.length,
+        totalPages: Math.ceil(processedItems.length / itemsPerPage),
+        currentPage: page,
+      };
+    },
+    "getTeamData",
+    { items: [], totalItems: 0, totalPages: 0, currentPage: 1 }
+  );
 }
 
 /**
@@ -270,29 +331,36 @@ export async function getTeamData(page = 1, searchValue = '', sortByApproval = f
  * @param {number} limit - 返回用户数量限制
  * @returns {Promise<Array>} 完整的用户排行榜列表
  */
-export async function getFullUserRanking(limit = QUERY_LIMITS.USER_RANKING_LIMIT) {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.USER_POINTS)
-            .descending('points')
-            .limit(limit)
-            .find();
+export async function getFullUserRanking(
+  limit = QUERY_LIMITS.USER_RANKING_LIMIT
+) {
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .descending("points")
+        .limit(limit)
+        .find();
 
-        const usersWithInfo = await Promise.all(
-            results.items.map(async (user) => {
-                const userInfo = await getUserPublicInfo(user.userId);
-                return {
-                    userId: user.userId,
-                    points: user.points,
-                    name: userInfo ? userInfo.name : '失效账号',
-                    profileImageUrl: userInfo ? userInfo.profileImageUrl : '',
-                    userslug: userInfo ? userInfo.userslug : '',
-                    ...user
-                };
-            })
-        );
+      const usersWithInfo = await Promise.all(
+        results.items.map(async (user) => {
+          const userInfo = await getUserPublicInfo(user.userId);
+          return {
+            userId: user.userId,
+            points: user.points,
+            name: userInfo ? userInfo.name : "失效账号",
+            profileImageUrl: userInfo ? userInfo.profileImageUrl : "",
+            userslug: userInfo ? userInfo.userslug : "",
+            ...user,
+          };
+        })
+      );
 
-        return usersWithInfo;
-    }, 'getFullUserRanking', []);
+      return usersWithInfo;
+    },
+    "getFullUserRanking",
+    []
+  );
 }
 
 /**
@@ -300,51 +368,56 @@ export async function getFullUserRanking(limit = QUERY_LIMITS.USER_RANKING_LIMIT
  * @returns {Promise<Array>} 评论统计数据
  */
 export async function getUserCommentStats() {
-    return safeExecute(async () => {
-        const commentsByOwner = {};
-        let skipCount = 0;
-        let hasMore = true;
+  return safeExecute(
+    async () => {
+      const commentsByOwner = {};
+      let skipCount = 0;
+      let hasMore = true;
 
-        // 分页加载所有评论数据
-        while (hasMore) {
-            const results = await wixData.query(COLLECTIONS.BOF_COMMENT)
-                .skip(skipCount)
-                .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
-                .find();
+      // 分页加载所有评论数据
+      while (hasMore) {
+        const results = await wixData
+          .query(COLLECTIONS.BOF_COMMENT)
+          .skip(skipCount)
+          .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
+          .find();
 
-            if (results.items.length > 0) {
-                results.items.forEach(comment => {
-                    const ownerId = comment._owner;
-                    const workNumber = comment.workNumber;
+        if (results.items.length > 0) {
+          results.items.forEach((comment) => {
+            const ownerId = comment._owner;
+            const workNumber = comment.workNumber;
 
-                    if (!commentsByOwner[ownerId]) {
-                        commentsByOwner[ownerId] = new Set();
-                    }
-                    commentsByOwner[ownerId].add(workNumber);
-                });
-
-                skipCount += results.items.length;
-            } else {
-                hasMore = false;
+            if (!commentsByOwner[ownerId]) {
+              commentsByOwner[ownerId] = new Set();
             }
+            commentsByOwner[ownerId].add(workNumber);
+          });
+
+          skipCount += results.items.length;
+        } else {
+          hasMore = false;
         }
+      }
 
-        // 获取用户信息并构建统计数据
-        const statsArray = await Promise.all(
-            Object.keys(commentsByOwner).map(async (ownerId) => {
-                const userInfo = await getUserPublicInfo(ownerId);
-                return {
-                    userId: ownerId,
-                    uniqueWorkCount: commentsByOwner[ownerId].size,
-                    name: userInfo ? userInfo.name : '失效账号',
-                    photo: userInfo ? userInfo.profileImageUrl : '',
-                    userslug: userInfo ? userInfo.userslug : ''
-                };
-            })
-        );
+      // 获取用户信息并构建统计数据
+      const statsArray = await Promise.all(
+        Object.keys(commentsByOwner).map(async (ownerId) => {
+          const userInfo = await getUserPublicInfo(ownerId);
+          return {
+            userId: ownerId,
+            uniqueWorkCount: commentsByOwner[ownerId].size,
+            name: userInfo ? userInfo.name : "失效账号",
+            photo: userInfo ? userInfo.profileImageUrl : "",
+            userslug: userInfo ? userInfo.userslug : "",
+          };
+        })
+      );
 
-        return statsArray.sort((a, b) => b.uniqueWorkCount - a.uniqueWorkCount);
-    }, 'getUserCommentStats', []);
+      return statsArray.sort((a, b) => b.uniqueWorkCount - a.uniqueWorkCount);
+    },
+    "getUserCommentStats",
+    []
+  );
 }
 
 /**
@@ -353,47 +426,56 @@ export async function getUserCommentStats() {
  * @returns {Promise<Object>} 用户积分详细信息
  */
 export async function getUserDetailedPointsInfo(userId) {
-    return safeExecute(async () => {
-        const userPointsInfo = await getUserPointsInfo(userId);
-        
-        // 动态导入forumPoints函数
-        const { getUserPoints, getBadgeLevelByPoints, getPointsForBadgeLevel } = 
-            await import('backend/forumPoints.jsw');
+  return safeExecute(
+    async () => {
+      const userPointsInfo = await getUserPointsInfo(userId);
 
-        const userPoints = await getUserPoints(userId);
-        
-        if (userPoints) {
-            const badgeLevel = await getBadgeLevelByPoints(userPoints.points);
-            const nextBadgeLevel = badgeLevel + 1;
-            const pointsForNextLevel = await getPointsForBadgeLevel(nextBadgeLevel);
-            const oldLevel = await getPointsForBadgeLevel(badgeLevel);
-            const pointsNeededForNextLevel = pointsForNextLevel - userPoints.points;
-            const progress = 100 * (userPoints.points - oldLevel) / (pointsForNextLevel - oldLevel);
-            const remainingDailyPoints = Math.max(POINTS_CONFIG.DAILY_LIMIT - userPoints.dailyPoints, 0);
+      // 动态导入forumPoints函数
+      const { getUserPoints, getBadgeLevelByPoints, getPointsForBadgeLevel } =
+        await import("backend/forumPoints.jsw");
 
-            return {
-                ...userPointsInfo,
-                badgeLevel,
-                pointsNeededForNextLevel,
-                progress,
-                remainingDailyPoints
-            };
-        }
+      const userPoints = await getUserPoints(userId);
+
+      if (userPoints) {
+        const badgeLevel = await getBadgeLevelByPoints(userPoints.points);
+        const nextBadgeLevel = badgeLevel + 1;
+        const pointsForNextLevel = await getPointsForBadgeLevel(nextBadgeLevel);
+        const oldLevel = await getPointsForBadgeLevel(badgeLevel);
+        const pointsNeededForNextLevel = pointsForNextLevel - userPoints.points;
+        const progress =
+          (100 * (userPoints.points - oldLevel)) /
+          (pointsForNextLevel - oldLevel);
+        const remainingDailyPoints = Math.max(
+          POINTS_CONFIG.DAILY_LIMIT - userPoints.dailyPoints,
+          0
+        );
 
         return {
-            ...userPointsInfo,
-            badgeLevel: 0,
-            pointsNeededForNextLevel: 30,
-            progress: 0,
-            remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT
+          ...userPointsInfo,
+          badgeLevel,
+          pointsNeededForNextLevel,
+          progress,
+          remainingDailyPoints,
         };
-    }, 'getUserDetailedPointsInfo', {
-        points: 0,
+      }
+
+      return {
+        ...userPointsInfo,
         badgeLevel: 0,
         pointsNeededForNextLevel: 30,
         progress: 0,
-        remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT
-    });
+        remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT,
+      };
+    },
+    "getUserDetailedPointsInfo",
+    {
+      points: 0,
+      badgeLevel: 0,
+      pointsNeededForNextLevel: 30,
+      progress: 0,
+      remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT,
+    }
+  );
 }
 
 /**
@@ -402,19 +484,23 @@ export async function getUserDetailedPointsInfo(userId) {
  * @returns {Promise<boolean>} 是否已签到
  */
 export async function checkUserSignInStatus(userId) {
-    return safeExecute(async () => {
-        const userInfo = await getUserPointsInfo(userId);
-        if (userInfo && userInfo.lastSignedIn) {
-            const today = new Date();
-            const lastSignedInDate = new Date(userInfo.lastSignedIn);
-            return (
-                lastSignedInDate.getDate() === today.getDate() &&
-                lastSignedInDate.getMonth() === today.getMonth() &&
-                lastSignedInDate.getFullYear() === today.getFullYear()
-            );
-        }
-        return false;
-    }, 'checkUserSignInStatus', false);
+  return safeExecute(
+    async () => {
+      const userInfo = await getUserPointsInfo(userId);
+      if (userInfo && userInfo.lastSignedIn) {
+        const today = new Date();
+        const lastSignedInDate = new Date(userInfo.lastSignedIn);
+        return (
+          lastSignedInDate.getDate() === today.getDate() &&
+          lastSignedInDate.getMonth() === today.getMonth() &&
+          lastSignedInDate.getFullYear() === today.getFullYear()
+        );
+      }
+      return false;
+    },
+    "checkUserSignInStatus",
+    false
+  );
 }
 
 /**
@@ -423,45 +509,53 @@ export async function checkUserSignInStatus(userId) {
  * @returns {Promise<Array>} 团队成员信息数组
  */
 export async function getTeamMemberInfo(userLink) {
-    return safeExecute(async () => {
-        if (!userLink) {
-            return [];
-        }
-
-        const { extractSlugFromURL, getUserInfoBySlug } = 
-            await import('backend/getUserPublicInfo.jsw');
-
-        const results = await wixData.query('jobApplication089')
-            .eq("_owner", userLink)
-            .limit(800)
-            .find();
-
-        if (results.items.length > 0) {
-            const currentUser = results.items[0];
-            const urls = [currentUser.網址欄2, currentUser.網址欄3];
-
-            const userInfos = await Promise.all(
-                urls.map(async (url) => {
-                    const slug = await extractSlugFromURL(url);
-                    return slug ? getUserInfoBySlug(slug) : null;
-                })
-            );
-
-            return userInfos.map((userInfo) => 
-                userInfo ? {
-                    image: userInfo.profilePhoto,
-                    text: userInfo.nickname,
-                    binding: '已绑定'
-                } : {
-                    image: '',
-                    text: '未找到',
-                    binding: '未知'
-                }
-            );
-        }
-
+  return safeExecute(
+    async () => {
+      if (!userLink) {
         return [];
-    }, 'getTeamMemberInfo', []);
+      }
+
+      const { extractSlugFromURL, getUserInfoBySlug } = await import(
+        "backend/getUserPublicInfo.jsw"
+      );
+
+      const results = await wixData
+        .query("jobApplication089")
+        .eq("_owner", userLink)
+        .limit(800)
+        .find();
+
+      if (results.items.length > 0) {
+        const currentUser = results.items[0];
+        const urls = [currentUser.網址欄2, currentUser.網址欄3];
+
+        const userInfos = await Promise.all(
+          urls.map(async (url) => {
+            const slug = await extractSlugFromURL(url);
+            return slug ? getUserInfoBySlug(slug) : null;
+          })
+        );
+
+        return userInfos.map((userInfo) =>
+          userInfo
+            ? {
+                image: userInfo.profilePhoto,
+                text: userInfo.nickname,
+                binding: "已绑定",
+              }
+            : {
+                image: "",
+                text: "未找到",
+                binding: "未知",
+              }
+        );
+      }
+
+      return [];
+    },
+    "getTeamMemberInfo",
+    []
+  );
 }
 
 /**
@@ -469,15 +563,20 @@ export async function getTeamMemberInfo(userLink) {
  * @returns {Promise<number>} 申请人数
  */
 export async function getApplicationStats() {
-    return safeExecute(async () => {
-        const results = await wixData.query('jobApplication089')
-            .limit(1000)
-            .find();
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query("jobApplication089")
+        .limit(1000)
+        .find();
 
-        const owners = results.items.map(item => item._owner);
-        const uniqueOwners = new Set(owners);
-        return uniqueOwners.size;
-    }, 'getApplicationStats', 0);
+      const owners = results.items.map((item) => item._owner);
+      const uniqueOwners = new Set(owners);
+      return uniqueOwners.size;
+    },
+    "getApplicationStats",
+    0
+  );
 }
 
 /**
@@ -487,14 +586,19 @@ export async function getApplicationStats() {
  * @returns {Promise<Array>} 用户评论列表
  */
 export async function getUserWorkComments(userId, workNumber) {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.BOF_COMMENT)
-            .eq('_owner', userId)
-            .eq('workNumber', workNumber)
-            .find();
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.BOF_COMMENT)
+        .eq("_owner", userId)
+        .eq("workNumber", workNumber)
+        .find();
 
-        return results.items;
-    }, 'getUserWorkComments', []);
+      return results.items;
+    },
+    "getUserWorkComments",
+    []
+  );
 }
 
 /**
@@ -504,34 +608,39 @@ export async function getUserWorkComments(userId, workNumber) {
  * @returns {Promise<Object>} 更新结果
  */
 export async function updateUserPointsAdmin(userId, pointsToAdd) {
-    return safeExecute(async () => {
-        const result = await wixData.query(COLLECTIONS.USER_POINTS)
-            .eq('userId', userId)
-            .find();
+  return safeExecute(
+    async () => {
+      const result = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .eq("userId", userId)
+        .find();
 
-        if (result.items.length > 0) {
-            const currentItem = result.items[0];
-            const newPoints = currentItem.points + pointsToAdd;
+      if (result.items.length > 0) {
+        const currentItem = result.items[0];
+        const newPoints = currentItem.points + pointsToAdd;
 
-            const updatedItem = {
-                ...currentItem,
-                points: newPoints
-            };
+        const updatedItem = {
+          ...currentItem,
+          points: newPoints,
+        };
 
-            await wixData.update(COLLECTIONS.USER_POINTS, updatedItem);
-            
-            return {
-                success: true,
-                newPoints,
-                message: `用户积分已更新为: ${newPoints}`
-            };
-        }
+        await wixData.update(COLLECTIONS.USER_POINTS, updatedItem);
 
         return {
-            success: false,
-            message: "没有找到对应的用户"
+          success: true,
+          newPoints,
+          message: `用户积分已更新为: ${newPoints}`,
         };
-    }, 'updateUserPointsAdmin', { success: false, message: "更新失败" });
+      }
+
+      return {
+        success: false,
+        message: "没有找到对应的用户",
+      };
+    },
+    "updateUserPointsAdmin",
+    { success: false, message: "更新失败" }
+  );
 }
 
 /**
@@ -539,23 +648,28 @@ export async function updateUserPointsAdmin(userId, pointsToAdd) {
  * @returns {Promise<Array>} 已过审作品列表
  */
 export async function getApprovedSheets() {
-    return safeExecute(async () => {
-        const results = await wixData.query(COLLECTIONS.ENTER_CONTEST_034)
-            .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
-            .find();
+  return safeExecute(
+    async () => {
+      const results = await wixData
+        .query(COLLECTIONS.ENTER_CONTEST_034)
+        .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
+        .find();
 
-        const approvedSheets = results.items.filter(item => {
-            const approvedList = safeJsonParse(item.approvedByString, []);
-            const viewedList = safeJsonParse(item.viewedBy, []);
-            return isWorkApproved(approvedList.length, viewedList.length);
-        });
+      const approvedSheets = results.items.filter((item) => {
+        const approvedList = safeJsonParse(item.approvedByString, []);
+        const viewedList = safeJsonParse(item.viewedBy, []);
+        return isWorkApproved(approvedList.length, viewedList.length);
+      });
 
-        return approvedSheets.map(sheet => ({
-            ...sheet,
-            workNumber: sheet.sequenceId,
-            title: sheet.firstName
-        }));
-    }, 'getApprovedSheets', []);
+      return approvedSheets.map((sheet) => ({
+        ...sheet,
+        workNumber: sheet.sequenceId,
+        title: sheet.firstName,
+      }));
+    },
+    "getApprovedSheets",
+    []
+  );
 }
 
 /**
@@ -564,10 +678,10 @@ export async function getApprovedSheets() {
  * @returns {string} 格式化的时间字符串
  */
 export function formatTimeDisplay(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}.${month}.${day}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
 }
 
 /**
@@ -576,13 +690,13 @@ export function formatTimeDisplay(date) {
  * @returns {string} 奖励消息
  */
 function formatProgressRewardMessage(progressValue) {
-    if (progressValue >= PROGRESS_CONFIG.HIGH_REWARD_THRESHOLD) {
-        return `您已经评论了绝大部分作品，小小蓝白会给予您${PROGRESS_CONFIG.HIGH_REWARD_POINTS}积分奖励~`;
-    } else if (progressValue >= PROGRESS_CONFIG.MEDIUM_REWARD_THRESHOLD) {
-        return `您的评论已过大半，小小蓝白会给予您${PROGRESS_CONFIG.MEDIUM_REWARD_POINTS}积分奖励~`;
-    } else if (progressValue >= PROGRESS_CONFIG.LOW_REWARD_THRESHOLD) {
-        return `您已评论了接近半数的作品，小小蓝白会给予您${PROGRESS_CONFIG.LOW_REWARD_POINTS}积分奖励~`;
-    } else {
-        return "继续评论更多作品以获得更多奖励~";
-    }
-} 
+  if (progressValue >= PROGRESS_CONFIG.HIGH_REWARD_THRESHOLD) {
+    return `您已经评论了绝大部分作品，小小蓝白会给予您${PROGRESS_CONFIG.HIGH_REWARD_POINTS}积分奖励~`;
+  } else if (progressValue >= PROGRESS_CONFIG.MEDIUM_REWARD_THRESHOLD) {
+    return `您的评论已过大半，小小蓝白会给予您${PROGRESS_CONFIG.MEDIUM_REWARD_POINTS}积分奖励~`;
+  } else if (progressValue >= PROGRESS_CONFIG.LOW_REWARD_THRESHOLD) {
+    return `您已评论了接近半数的作品，小小蓝白会给予您${PROGRESS_CONFIG.LOW_REWARD_POINTS}积分奖励~`;
+  } else {
+    return "继续评论更多作品以获得更多奖励~";
+  }
+}

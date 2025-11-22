@@ -1,24 +1,24 @@
 /**
  * 评分任务管理系统 - 后端核心算法
- * 
+ *
  * 功能：
  * 1. 基于冷门权重的任务分配
  * 2. 单任务推送机制
  * 3. 自动同步用户评分记录
- * 
+ *
  * 重要说明：
  * - 作品评论数实时从 BOFcomment 数据集统计（排除作者自评）
  * - enterContest034.currentRatingCount 字段已废弃不再使用
  * - 避免使用缓存字段导致数据不同步问题
  */
 
-import wixData from 'wix-data';
+import wixData from "wix-data";
 
 const COLLECTIONS = {
-  USER_TASKS: 'UserRatingTasks',
-  COMMENTS: 'BOFcomment',
-  WORKS: 'enterContest034',
-  REGISTRATIONS: 'jobApplication089'
+  USER_TASKS: "UserRatingTasks",
+  COMMENTS: "BOFcomment",
+  WORKS: "enterContest034",
+  REGISTRATIONS: "jobApplication089",
 };
 
 const TARGET_RATING_COUNT = 20; // 目标评分数
@@ -47,7 +47,7 @@ export async function getUserTaskData(userId) {
       return {
         error: true,
         notSubmitted: true,
-        message: '您还未提交作品，请先提交作品后才能接收评分任务',
+        message: "您还未提交作品，请先提交作品后才能接收评分任务",
         currentTasks: [],
         completedTasks: [],
         freeRatings: [],
@@ -55,13 +55,13 @@ export async function getUserTaskData(userId) {
         targetCompletion: TARGET_USER_COMPLETION,
         isHighQuality: false,
         ownWorks: [],
-        hasCompletedTarget: false
+        hasCompletedTarget: false,
       };
     }
-    
+
     // 2. 获取或创建用户任务记录
     let taskRecord = await getUserTaskRecord(userId);
-    
+
     // 3. 检查是否需要刷新任务（基于时间）
     const needsRefresh = shouldRefreshTasks(taskRecord);
     if (needsRefresh) {
@@ -70,10 +70,10 @@ export async function getUserTaskData(userId) {
       taskRecord.currentTasks = [];
       taskRecord.lastRefreshTime = new Date();
     }
-    
+
     // 4. 生成当前任务列表（最多3条）
     const currentTasks = await generateUserTasks(userId, taskRecord, 3);
-    
+
     // 4. 更新任务列表和刷新时间到数据库
     if (currentTasks.length > 0 || needsRefresh) {
       taskRecord.currentTasks = currentTasks;
@@ -85,19 +85,20 @@ export async function getUserTaskData(userId) {
 
     // 5. 获取用户所有评分记录，计算自主评论的作品
     const allUserRatings = await getUserCompletedRatings(userId);
-    const freeRatings = allUserRatings.filter(workNum => 
-      !taskRecord.completedTasks.includes(workNum)
+    const freeRatings = allUserRatings.filter(
+      (workNum) => !taskRecord.completedTasks.includes(workNum)
     );
 
     // 6. 获取用户是否是高权重用户
     const isHighQuality = await isUserHighQuality(userId);
-    
+
     // 7. 获取用户自己的作品编号（用于前端显示）
     const userOwnWorks = await getUserOwnWorks(userId);
-    
+
     // 8. 判断用户是否已完成任务目标
-    const hasCompletedTarget = taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
-    
+    const hasCompletedTarget =
+      taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
+
     return {
       currentTasks: currentTasks,
       completedTasks: taskRecord.completedTasks.sort((a, b) => b - a),
@@ -108,9 +109,8 @@ export async function getUserTaskData(userId) {
       nextRefreshTime: getNextRefreshTime(taskRecord.lastRefreshTime),
       isHighQuality: isHighQuality, // 用户身份标识
       ownWorks: userOwnWorks, // 用户自己的作品列表
-      hasCompletedTarget: hasCompletedTarget // 是否已完成目标
+      hasCompletedTarget: hasCompletedTarget, // 是否已完成目标
     };
-    
   } catch (error) {
     // console.error('获取用户任务数据失败:', error);
     throw error;
@@ -128,10 +128,10 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
   try {
     // console.log(`\n========== 生成用户任务: ${userId} ==========`);
     const startTime = Date.now();
-    
+
     const completedWorks = taskRecord.completedTasks || [];
     const userOwnWorks = await getUserOwnWorks(userId); // 获取用户所有作品
-    
+
     // 获取用户所有已经评论过的作品（包括自评和其他评论）
     const userRatedWorks = await getUserCompletedRatings(userId);
 
@@ -140,7 +140,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     // 查询所有作品，排除被淘汰的作品
     const allWorksResult = await wixData
       .query(COLLECTIONS.WORKS)
-      .ne('isDq', true)
+      .ne("isDq", true)
       .limit(1000)
       .find();
 
@@ -149,7 +149,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     // 【性能优化】批量预加载所有评分数据，避免N+1查询问题
     const allRatingsData = await getAllWorksWeightedRatingData();
     const { workRatings, workOwnerMap, userQualityMap } = allRatingsData;
-    
+
     // 获取当前用户的权重类型（修复：变量名改为userIsHighQuality避免与函数名冲突）
     const userIsHighQuality = await isUserHighQuality(userId);
     // console.log(`[任务分配] 用户类型: ${userIsHighQuality ? 'Qualified（高权重）' : '普通（低权重）'}`);
@@ -157,48 +157,50 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     const candidateWorks = [];
     let excludedCount = 0;
     let zeroWeightCount = 0;
-    
+
     for (const work of allWorksResult.items) {
       // 排除条件：
       // 1. 已在完成任务列表中
       // 2. 是用户自己的作品（支持多个作品）
       // 3. 用户已经评论过的作品
-      if (completedWorks.includes(work.sequenceId) || 
-          userOwnWorks.includes(work.sequenceId) ||
-          userRatedWorks.includes(work.sequenceId)) {
+      if (
+        completedWorks.includes(work.sequenceId) ||
+        userOwnWorks.includes(work.sequenceId) ||
+        userRatedWorks.includes(work.sequenceId)
+      ) {
         excludedCount++;
         continue;
       }
-      
+
       // 【优化】从预加载的数据中获取评分信息，而不是单独查询
       const ratingData = workRatings[work.sequenceId] || {
         numRatings: 0,
         highWeightCount: 0,
-        lowWeightCount: 0
+        lowWeightCount: 0,
       };
-      
+
       const validRatingCount = ratingData.numRatings;
       work.currentRatingCount = validRatingCount;
-      
+
       // 【优化】直接计算权重，不再需要额外查询
       const coldnessWeight = calculateColdnessWeightOptimized(
-        work, 
+        work,
         validRatingCount,
         ratingData.highWeightCount,
         ratingData.lowWeightCount,
         userIsHighQuality
       );
-      
+
       if (coldnessWeight <= 0) {
         zeroWeightCount++;
         continue;
       }
-      
+
       candidateWorks.push({
         workNumber: work.sequenceId,
         weight: coldnessWeight,
         currentRatings: validRatingCount,
-        submissionDate: work._createdDate
+        submissionDate: work._createdDate,
       });
     }
 
@@ -213,10 +215,10 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
       // console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
       return [];
     }
-    
+
     // 按权重降序排序
     candidateWorks.sort((a, b) => b.weight - a.weight);
-    
+
     // 记录前10个权重最高的作品（用于调试）
     const top10 = candidateWorks.slice(0, 10);
     // console.log(`[任务分配] ⭐ 权重TOP10作品 (个性化权重):`);
@@ -224,15 +226,18 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     //   const ratingInfo = workRatings[w.workNumber] || {};
     //   console.log(`  ${i + 1}. #${w.workNumber} 权重:${w.weight} | 评分:${w.currentRatings}/20 | 高低:${ratingInfo.highWeightCount || 0}:${ratingInfo.lowWeightCount || 0}`);
     // });
-    
+
     // 返回可用的任务数量，不强制凑齐 limit 个
-    const selectedTasks = candidateWorks.slice(0, Math.min(limit, candidateWorks.length));
+    const selectedTasks = candidateWorks.slice(
+      0,
+      Math.min(limit, candidateWorks.length)
+    );
     // console.log(`[任务分配] ✅ 最终分配${selectedTasks.length}个任务:`, selectedTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
     // console.log(`========== 任务生成完成，耗时: ${Date.now() - startTime}ms ==========\n`);
-    
+
     return selectedTasks;
   } catch (e) {
-    console.error('生成用户任务失败:', e);
+    console.error("生成用户任务失败:", e);
     return [];
   }
 }
@@ -246,15 +251,21 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
  * @param {boolean} isUserHighQuality - 用户是否是高权重
  * @returns {number} 冷门权重
  */
-function calculateColdnessWeightOptimized(work, validRatingCount, highWeightCount, lowWeightCount, isUserHighQuality) {
+function calculateColdnessWeightOptimized(
+  work,
+  validRatingCount,
+  highWeightCount,
+  lowWeightCount,
+  isUserHighQuality
+) {
   const daysSinceSubmission = getDaysSinceSubmission(work);
   const currentRatings = validRatingCount;
-  
+
   // 已达标，权重为0
   if (currentRatings >= TARGET_RATING_COUNT) {
     return 0;
   }
-  
+
   // 计算期望评分数（与异步版本保持一致）
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
@@ -266,12 +277,12 @@ function calculateColdnessWeightOptimized(work, validRatingCount, highWeightCoun
   } else {
     expectedRatings = TARGET_RATING_COUNT;
   }
-  
+
   // 计算评分缺口
   const deficit = Math.max(0, expectedRatings - currentRatings);
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60;
-  
+
   // 时间紧迫度加成（使用Math.max取最大值）
   let urgencyBonus = 0;
   if (daysSinceSubmission >= 3 && currentRatings < 2) {
@@ -292,15 +303,19 @@ function calculateColdnessWeightOptimized(work, validRatingCount, highWeightCoun
   if (daysSinceSubmission >= 30 && currentRatings < 20) {
     urgencyBonus = Math.max(urgencyBonus, 80);
   }
-  
+
   let totalWeight = baseWeight + urgencyBonus;
-  
+
   // 应用均衡因子（评分>=1时）
   if (currentRatings >= 1) {
-    const balanceFactor = calculateBalanceFactor(highWeightCount, lowWeightCount, isUserHighQuality);
+    const balanceFactor = calculateBalanceFactor(
+      highWeightCount,
+      lowWeightCount,
+      isUserHighQuality
+    );
     totalWeight = totalWeight * balanceFactor;
   }
-  
+
   // 返回真实计算值，不设上限
   return Math.round(totalWeight);
 }
@@ -314,36 +329,37 @@ function calculateColdnessWeightOptimized(work, validRatingCount, highWeightCoun
 export async function checkIfWorkInTaskList(userId, workNumber) {
   try {
     const taskRecord = await getUserTaskRecord(userId);
-    
+
     // console.log(`[检查] 作品 #${workNumber}, 已完成: [${taskRecord.completedTasks.join(', ')}]`);
-    
+
     // 检查是否在已完成列表中
     if (taskRecord.completedTasks.includes(workNumber)) {
       // console.log(`[检查] ✓ 作品 #${workNumber} 在已完成列表中`);
       return {
         inTaskList: true,
-        alreadyCompleted: true
+        alreadyCompleted: true,
       };
     }
-    
+
     // 检查是否在当前任务列表中（3条任务）
     const currentTasksList = taskRecord.currentTasks || [];
-    const taskNums = currentTasksList.map(t => t.workNumber);
+    const taskNums = currentTasksList.map((t) => t.workNumber);
     // console.log(`[检查] 当前任务列表: [${taskNums.join(', ')}]`);
-    
-    const inCurrentTasks = currentTasksList.some(t => t.workNumber === workNumber);
+
+    const inCurrentTasks = currentTasksList.some(
+      (t) => t.workNumber === workNumber
+    );
     // console.log(`[检查] ${inCurrentTasks ? '✓' : '✗'} 作品 #${workNumber} ${inCurrentTasks ? '在' : '不在'}任务列表中`);
-    
+
     return {
       inTaskList: inCurrentTasks,
-      alreadyCompleted: false
+      alreadyCompleted: false,
     };
-    
   } catch (error) {
     // console.error('检查任务列表失败:', error);
     return {
       inTaskList: false,
-      alreadyCompleted: false
+      alreadyCompleted: false,
     };
   }
 }
@@ -357,18 +373,19 @@ export async function checkIfWorkInTaskList(userId, workNumber) {
 export async function markTaskCompleted(userId, workNumber) {
   try {
     // console.log(`\n========== 标记任务: 用户 ${userId}, 作品 #${workNumber} ==========`);
-    
+
     const taskRecord = await getUserTaskRecord(userId);
     // console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
-    
+
     // 检查用户是否已完成任务目标
-    const hasCompletedTarget = taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
+    const hasCompletedTarget =
+      taskRecord.totalCompleted >= TARGET_USER_COMPLETION;
     // console.log(`[标记] 用户是否已完成目标: ${hasCompletedTarget} (${taskRecord.totalCompleted}/${TARGET_USER_COMPLETION})`);
-    
+
     // 检查这个作品是否在任务列表中
     const taskCheck = await checkIfWorkInTaskList(userId, workNumber);
     // console.log(`[标记] 检查结果: inTaskList=${taskCheck.inTaskList}, alreadyCompleted=${taskCheck.alreadyCompleted}`);
-    
+
     // 如果已经完成过，直接返回
     if (taskCheck.alreadyCompleted) {
       // console.log(`[标记] 作品 #${workNumber} 已在完成列表中，跳过`);
@@ -378,10 +395,10 @@ export async function markTaskCompleted(userId, workNumber) {
         isInTaskList: true,
         alreadyCompleted: true,
         completedCount: taskRecord.totalCompleted,
-        hasCompletedTarget: hasCompletedTarget
+        hasCompletedTarget: hasCompletedTarget,
       };
     }
-    
+
     // 如果用户已完成目标，不再计入任务指标
     if (hasCompletedTarget) {
       // console.log(`[标记] 用户已完成目标，作品 #${workNumber} 不计入任务进度`);
@@ -392,39 +409,38 @@ export async function markTaskCompleted(userId, workNumber) {
         alreadyCompleted: false,
         completedCount: taskRecord.totalCompleted,
         hasCompletedTarget: true,
-        isColdWork: taskCheck.inTaskList // 标记为冷门作品（在任务列表中但不计入进度）
+        isColdWork: taskCheck.inTaskList, // 标记为冷门作品（在任务列表中但不计入进度）
       };
     }
-    
+
     // 只有在任务列表中且未完成目标的作品才计入完成
     let taskCompleted = false;
     if (taskCheck.inTaskList) {
       // console.log(`[标记] ✓ 作品 #${workNumber} 在任务列表中，添加到完成列表`);
-      
+
       // 添加到完成列表
       taskRecord.completedTasks.push(workNumber);
       taskRecord.totalCompleted = taskRecord.completedTasks.length;
       taskCompleted = true;
-      
+
       // console.log(`[标记] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
-      
+
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
       // console.log(`[标记] 数据库已更新`);
     } else {
       // console.log(`[标记] ✗ 作品 #${workNumber} 不在任务列表中，不计入进度`);
     }
-    
+
     // console.log(`========== 标记任务完成 ==========\n`);
-    
+
     return {
       success: true,
       taskCompleted: taskCompleted,
       isInTaskList: taskCheck.inTaskList,
       alreadyCompleted: false,
       completedCount: taskRecord.totalCompleted,
-      hasCompletedTarget: false
+      hasCompletedTarget: false,
     };
-    
   } catch (error) {
     // console.error('标记任务完成失败:', error);
     throw error;
@@ -440,45 +456,46 @@ export async function markTaskCompleted(userId, workNumber) {
 export async function unmarkTaskCompleted(userId, workNumber) {
   try {
     // console.log(`\n========== 取消任务完成: 用户 ${userId}, 作品 #${workNumber} ==========`);
-    
+
     const taskRecord = await getUserTaskRecord(userId);
     // console.log(`[取消] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
-    
+
     // 检查作品是否在已完成列表中
     const wasCompleted = taskRecord.completedTasks.includes(workNumber);
-    
+
     if (!wasCompleted) {
       // console.log(`[取消] 作品 #${workNumber} 不在已完成列表中，无需处理`);
       return {
         success: true,
         wasInCompletedList: false,
-        message: '作品不在已完成列表中'
+        message: "作品不在已完成列表中",
       };
     }
-    
+
     // 从已完成列表中移除
-    taskRecord.completedTasks = taskRecord.completedTasks.filter(num => num !== workNumber);
+    taskRecord.completedTasks = taskRecord.completedTasks.filter(
+      (num) => num !== workNumber
+    );
     taskRecord.totalCompleted = taskRecord.completedTasks.length;
-    
+
     // console.log(`[取消] 更新后已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
-    
+
     await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
     // console.log(`[取消] 数据库已更新`);
     // console.log(`========== 取消任务完成 ==========\n`);
-    
+
     return {
       success: true,
       wasInCompletedList: true,
       newCompletedCount: taskRecord.totalCompleted,
-      message: '任务完成状态已取消'
+      message: "任务完成状态已取消",
     };
-    
   } catch (error) {
-    console.error('取消任务完成失败:', error);
+    console.error("取消任务完成失败:", error);
     return {
       success: false,
       wasInCompletedList: false,
-      message: '取消失败: ' + error.message
+      message: "取消失败: " + error.message,
     };
   }
 }
@@ -501,13 +518,13 @@ async function checkUserHasSubmittedWork(userId) {
   try {
     const result = await wixData
       .query(COLLECTIONS.WORKS)
-      .eq('_owner', userId)
+      .eq("_owner", userId)
       .find();
-    
+
     // 只要有任何一个作品（无论是否被淘汰），就算已提交
     return result.items.length > 0;
   } catch (error) {
-    console.error('检查用户作品提交状态失败:', error);
+    console.error("检查用户作品提交状态失败:", error);
     return false; // 出错时默认返回 false，安全起见
   }
 }
@@ -522,14 +539,15 @@ async function isUserHighQuality(userId) {
   if (userId in userQualityCache) {
     return userQualityCache[userId];
   }
-  
+
   try {
     const result = await wixData
       .query(COLLECTIONS.REGISTRATIONS)
-      .eq('_owner', userId)
+      .eq("_owner", userId)
       .find();
-    
-    const isHighQuality = result.items.length > 0 && result.items[0].isHighQuality === true;
+
+    const isHighQuality =
+      result.items.length > 0 && result.items[0].isHighQuality === true;
     userQualityCache[userId] = isHighQuality;
     return isHighQuality;
   } catch (error) {
@@ -549,57 +567,54 @@ export async function getAllWorksWeightedRatingData() {
     // 1. 一次性查询所有主评论（包括自评）
     const allComments = await wixData
       .query(COLLECTIONS.COMMENTS)
-      .isEmpty('replyTo')
+      .isEmpty("replyTo")
       .limit(1000)
       .find();
-    
+
     // 2. 一次性查询所有作品
-    const allWorks = await wixData
-      .query(COLLECTIONS.WORKS)
-      .limit(1000)
-      .find();
-    
+    const allWorks = await wixData.query(COLLECTIONS.WORKS).limit(1000).find();
+
     // 3. 建立作品所有者和淘汰状态映射
     const workOwnerMap = {};
     const workDQMap = {};
-    allWorks.items.forEach(work => {
+    allWorks.items.forEach((work) => {
       workOwnerMap[work.sequenceId] = work._owner;
       workDQMap[work.sequenceId] = work.isDq === true;
     });
-    
+
     // 4. 获取所有评论者的用户权重
-    const allUserIds = [...new Set(allComments.items.map(c => c._owner))];
+    const allUserIds = [...new Set(allComments.items.map((c) => c._owner))];
     const userQualityMap = await batchCheckUserQuality(allUserIds);
-    
+
     // 5. 按作品分组评论
     const workComments = {};
-    allComments.items.forEach(comment => {
+    allComments.items.forEach((comment) => {
       if (!workComments[comment.workNumber]) {
         workComments[comment.workNumber] = [];
       }
       workComments[comment.workNumber].push(comment);
     });
-    
+
     // 6. 计算每个作品的评分数据
     const workRatings = {};
     const commentCountMap = {}; // 主评论数量（包括自评）
-    
-    Object.keys(workComments).forEach(workNumber => {
+
+    Object.keys(workComments).forEach((workNumber) => {
       const comments = workComments[workNumber];
       const workOwner = workOwnerMap[workNumber];
       const isDQ = workDQMap[workNumber];
-      
+
       commentCountMap[workNumber] = comments.length;
-      
+
       // 排除作者自评计算正式评分
-      const validRatings = comments.filter(c => c._owner !== workOwner);
-      
+      const validRatings = comments.filter((c) => c._owner !== workOwner);
+
       let highWeightSum = 0;
       let highWeightCount = 0;
       let lowWeightSum = 0;
       let lowWeightCount = 0;
-      
-      validRatings.forEach(comment => {
+
+      validRatings.forEach((comment) => {
         const isHighQuality = userQualityMap[comment._owner] || false;
         if (isHighQuality) {
           highWeightSum += comment.score;
@@ -609,18 +624,22 @@ export async function getAllWorksWeightedRatingData() {
           lowWeightCount++;
         }
       });
-      
+
       const totalRatings = highWeightCount + lowWeightCount;
-      const weightedAverage = totalRatings > 0
-        ? (highWeightSum * 2 + lowWeightSum) / (highWeightCount * 2 + lowWeightCount)
-        : 0;
-      const originalAverage = totalRatings > 0
-        ? (highWeightSum + lowWeightSum) / totalRatings
-        : 0;
-      const ratio = lowWeightCount > 0 
-        ? highWeightCount / lowWeightCount 
-        : (highWeightCount > 0 ? 999 : 0);
-      
+      const weightedAverage =
+        totalRatings > 0
+          ? (highWeightSum * 2 + lowWeightSum) /
+            (highWeightCount * 2 + lowWeightCount)
+          : 0;
+      const originalAverage =
+        totalRatings > 0 ? (highWeightSum + lowWeightSum) / totalRatings : 0;
+      const ratio =
+        lowWeightCount > 0
+          ? highWeightCount / lowWeightCount
+          : highWeightCount > 0
+          ? 999
+          : 0;
+
       workRatings[workNumber] = {
         numRatings: totalRatings,
         weightedAverage: weightedAverage,
@@ -628,26 +647,25 @@ export async function getAllWorksWeightedRatingData() {
         highWeightCount: highWeightCount,
         lowWeightCount: lowWeightCount,
         ratio: ratio,
-        isDQ: isDQ
+        isDQ: isDQ,
       };
     });
-    
+
     return {
       workRatings: workRatings,
       userQualityMap: userQualityMap,
       workOwnerMap: workOwnerMap,
       workDQMap: workDQMap,
-      commentCountMap: commentCountMap
+      commentCountMap: commentCountMap,
     };
-    
   } catch (error) {
-    console.error('批量获取评分数据失败:', error);
+    console.error("批量获取评分数据失败:", error);
     return {
       workRatings: {},
       userQualityMap: {},
       workOwnerMap: {},
       workDQMap: {},
-      commentCountMap: {}
+      commentCountMap: {},
     };
   }
 }
@@ -659,32 +677,32 @@ export async function getAllWorksWeightedRatingData() {
  */
 async function batchCheckUserQuality(userIds) {
   const qualityMap = {};
-  
+
   try {
     // 查询所有已注册用户
     const registrations = await wixData
       .query(COLLECTIONS.REGISTRATIONS)
-      .hasSome('_owner', userIds)
+      .hasSome("_owner", userIds)
       .limit(1000)
       .find();
-    
+
     // 建立用户到isHighQuality的映射
-    registrations.items.forEach(reg => {
+    registrations.items.forEach((reg) => {
       qualityMap[reg._owner] = reg.isHighQuality === true;
     });
-    
+
     // 未注册的用户默认为 false
-    userIds.forEach(userId => {
+    userIds.forEach((userId) => {
       if (!(userId in qualityMap)) {
         qualityMap[userId] = false;
       }
     });
-    
+
     return qualityMap;
   } catch (error) {
-    console.error('批量检查用户权重失败:', error);
+    console.error("批量检查用户权重失败:", error);
     // 失败时返回所有用户权重为 false
-    userIds.forEach(userId => {
+    userIds.forEach((userId) => {
       qualityMap[userId] = false;
     });
     return qualityMap;
@@ -700,37 +718,37 @@ export async function getWorkWeightedRatingData(workNumber) {
   try {
     const comments = await wixData
       .query(COLLECTIONS.COMMENTS)
-      .eq('workNumber', workNumber)
-      .isEmpty('replyTo')
+      .eq("workNumber", workNumber)
+      .isEmpty("replyTo")
       .find();
-    
+
     const work = await getWorkInfo(workNumber);
     if (!work) {
-      return { 
-        numRatings: 0, 
-        weightedAverage: 0, 
+      return {
+        numRatings: 0,
+        weightedAverage: 0,
         originalAverage: 0,
-        highWeightCount: 0, 
+        highWeightCount: 0,
         lowWeightCount: 0,
         ratio: 0,
-        userQualityMap: {}
+        userQualityMap: {},
       };
     }
-    
+
     // 排除作者自评
-    const validRatings = comments.items.filter(c => c._owner !== work._owner);
-    
+    const validRatings = comments.items.filter((c) => c._owner !== work._owner);
+
     // 构建用户权重映射
     const userQualityMap = {};
     let highWeightSum = 0;
     let highWeightCount = 0;
     let lowWeightSum = 0;
     let lowWeightCount = 0;
-    
+
     for (const comment of validRatings) {
       const isHighQuality = await isUserHighQuality(comment._owner);
       userQualityMap[comment._owner] = isHighQuality;
-      
+
       if (isHighQuality) {
         highWeightSum += comment.score;
         highWeightCount++;
@@ -739,22 +757,28 @@ export async function getWorkWeightedRatingData(workNumber) {
         lowWeightCount++;
       }
     }
-    
+
     const totalRatings = highWeightCount + lowWeightCount;
-    
+
     // 加权平均分 = (高权重总和 × 2 + 低权重总和) / (高权重人数 × 2 + 低权重人数)
-    const weightedAverage = totalRatings > 0
-      ? (highWeightSum * 2 + lowWeightSum) / (highWeightCount * 2 + lowWeightCount)
-      : 0;
-    
+    const weightedAverage =
+      totalRatings > 0
+        ? (highWeightSum * 2 + lowWeightSum) /
+          (highWeightCount * 2 + lowWeightCount)
+        : 0;
+
     // 原始平均分
-    const originalAverage = totalRatings > 0
-      ? (highWeightSum + lowWeightSum) / totalRatings
-      : 0;
-    
+    const originalAverage =
+      totalRatings > 0 ? (highWeightSum + lowWeightSum) / totalRatings : 0;
+
     // 当前高低权重比例
-    const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
-    
+    const ratio =
+      lowWeightCount > 0
+        ? highWeightCount / lowWeightCount
+        : highWeightCount > 0
+        ? 999
+        : 0;
+
     return {
       numRatings: validRatings.length,
       weightedAverage: weightedAverage,
@@ -762,18 +786,18 @@ export async function getWorkWeightedRatingData(workNumber) {
       highWeightCount: highWeightCount,
       lowWeightCount: lowWeightCount,
       ratio: ratio,
-      userQualityMap: userQualityMap
+      userQualityMap: userQualityMap,
     };
   } catch (error) {
     // console.error('获取加权评分数据失败:', error);
-    return { 
-      numRatings: 0, 
-      weightedAverage: 0, 
+    return {
+      numRatings: 0,
+      weightedAverage: 0,
       originalAverage: 0,
       highWeightCount: 0,
       lowWeightCount: 0,
       ratio: 0,
-      userQualityMap: {}
+      userQualityMap: {},
     };
   }
 }
@@ -785,45 +809,53 @@ export async function getWorkWeightedRatingData(workNumber) {
  * @param {boolean} isUserHighQuality - 当前用户是否是高权重
  * @returns {number} 均衡因子（0.7-1.3）
  */
-function calculateBalanceFactor(highWeightCount, lowWeightCount, isUserHighQuality) {
+function calculateBalanceFactor(
+  highWeightCount,
+  lowWeightCount,
+  isUserHighQuality
+) {
   // 目标比例：高:低 = 1:2 (33.3%占比)
   // 均衡区间：28%-45%占比
-  
+
   if (highWeightCount === 0 && lowWeightCount === 0) {
     return 1.0; // 没有评分，无需调整
   }
-  
+
   const totalCount = highWeightCount + lowWeightCount;
   const highPercentage = highWeightCount / totalCount; // 高权重占比
-  
+
   // 均衡区间：28%-45%
   const lowerBound = 0.28; // 28%
   const upperBound = 0.45; // 45%
-  
+
   // 在均衡区间内，不调整
   if (highPercentage >= lowerBound && highPercentage <= upperBound) {
     return 1.0;
   }
-  
+
   // 高权重评分过多（占比 > 45%）
   if (highPercentage > upperBound) {
     // 高权重用户看到的权重降低，低权重用户看到的权重提高
-    return isUserHighQuality ? (1 - BALANCE_FACTOR_ADJUSTMENT) : (1 + BALANCE_FACTOR_ADJUSTMENT);
+    return isUserHighQuality
+      ? 1 - BALANCE_FACTOR_ADJUSTMENT
+      : 1 + BALANCE_FACTOR_ADJUSTMENT;
   }
-  
+
   // 高权重评分不足（占比 < 28%）
   if (highPercentage < lowerBound) {
     // 高权重用户看到的权重提高，低权重用户看到的权重降低
-    return isUserHighQuality ? (1 + BALANCE_FACTOR_ADJUSTMENT) : (1 - BALANCE_FACTOR_ADJUSTMENT);
+    return isUserHighQuality
+      ? 1 + BALANCE_FACTOR_ADJUSTMENT
+      : 1 - BALANCE_FACTOR_ADJUSTMENT;
   }
-  
+
   return 1.0;
 }
 
 /**
  * 计算作品的冷门权重（0-100）- 增强版，包含高低权重均衡
  * 权重越高表示越冷门，越需要关注
- * 
+ *
  * @param {Object} work - 作品对象
  * @param {string} userId - 用户ID（用于计算均衡因子）
  * @returns {Promise<number>} 冷门权重
@@ -831,12 +863,12 @@ function calculateBalanceFactor(highWeightCount, lowWeightCount, isUserHighQuali
 async function calculateColdnessWeight(work, userId = null) {
   const daysSinceSubmission = getDaysSinceSubmission(work);
   const currentRatings = work.currentRatingCount || 0;
-  
+
   // 已达标，权重为0
   if (currentRatings >= TARGET_RATING_COUNT) {
     return 0;
   }
-  
+
   // 计算期望评分数（基于时间的分段线性模型，更符合实际评分增长规律）
   // 优化：调整为三段式增长，符合作品热度曲线
   let expectedRatings = 0;
@@ -853,18 +885,18 @@ async function calculateColdnessWeight(work, userId = null) {
     // 超过30天，期望达标
     expectedRatings = TARGET_RATING_COUNT;
   }
-  
+
   // 计算评分缺口
   const deficit = Math.max(0, expectedRatings - currentRatings);
-  
+
   // 基础权重：缺口比例 × 系数
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60; // 缺口系数60
-  
+
   // 时间紧迫度加成（大幅加强，确保冷门作品获得足够关注）
   // 修复：使用Math.max取最大加成值，避免后续条件覆盖前面的值
   let urgencyBonus = 0;
-  
+
   // 早期冷启动加成
   if (daysSinceSubmission >= 3 && currentRatings < 2) {
     urgencyBonus = Math.max(urgencyBonus, 15); // 3天内少于2评
@@ -872,7 +904,7 @@ async function calculateColdnessWeight(work, userId = null) {
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
     urgencyBonus = Math.max(urgencyBonus, 20); // 5天内少于5评
   }
-  
+
   // 中期关注加成
   if (daysSinceSubmission >= 7 && currentRatings < 10) {
     urgencyBonus = Math.max(urgencyBonus, 30); // 一周内应达10评
@@ -880,20 +912,20 @@ async function calculateColdnessWeight(work, userId = null) {
   if (daysSinceSubmission >= 14 && currentRatings < 15) {
     urgencyBonus = Math.max(urgencyBonus, 45); // 两周内应达15评
   }
-  
+
   // 后期紧急加成
   if (daysSinceSubmission >= 21 && currentRatings < 18) {
     urgencyBonus = Math.max(urgencyBonus, 65); // 三周内应接近目标
   }
-  
+
   // 超期最高优先级
   if (daysSinceSubmission >= 30 && currentRatings < 20) {
     urgencyBonus = Math.max(urgencyBonus, 80); // 超过一个月的冷门作品
   }
-  
+
   // 总权重（最大约140：100%缺口×60+80加成）
   let totalWeight = baseWeight + urgencyBonus;
-  
+
   // 如果提供了用户ID，应用高低权重均衡因子
   // 优化：降低应用门槛，从评分>=3改为>=1，从第一个评分开始就引导均衡分配
   if (userId && currentRatings >= 1) {
@@ -905,17 +937,17 @@ async function calculateColdnessWeight(work, userId = null) {
         weightData.lowWeightCount,
         userIsHighQuality
       );
-      
+
       //console.log(`[权重计算] 作品#${work.sequenceId}: 基础${Math.round(totalWeight)} × 均衡${balanceFactor.toFixed(2)} = ${Math.round(totalWeight * balanceFactor)}, 高低比例${weightData.highWeightCount}:${weightData.lowWeightCount}, 用户类型:${userIsHighQuality ? 'Qualified' : '普通'}`);
-      
+
       totalWeight = totalWeight * balanceFactor;
     } catch (error) {
-      console.error('应用均衡因子失败，使用基础权重:', error);
+      console.error("应用均衡因子失败，使用基础权重:", error);
     }
   } else if (userId && currentRatings === 0) {
     //console.log(`[权重计算] 作品#${work.sequenceId}: 新作品无评分，不应用均衡因子，使用基础权重${Math.round(totalWeight)}`);
   }
-  
+
   return Math.round(Math.min(100, totalWeight));
 }
 
@@ -929,12 +961,12 @@ function shouldRefreshTasks(taskRecord) {
   if (!taskRecord.lastRefreshTime) {
     return true;
   }
-  
+
   // 计算距离上次刷新的小时数
   const now = new Date();
   const lastRefresh = new Date(taskRecord.lastRefreshTime);
   const hoursSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60);
-  
+
   // 如果超过刷新间隔，需要刷新
   return hoursSinceRefresh >= TASK_REFRESH_HOURS;
 }
@@ -948,7 +980,7 @@ function getNextRefreshTime(lastRefreshTime) {
   if (!lastRefreshTime) {
     return new Date();
   }
-  
+
   const nextRefresh = new Date(lastRefreshTime);
   nextRefresh.setHours(nextRefresh.getHours() + TASK_REFRESH_HOURS);
   return nextRefresh;
@@ -963,25 +995,24 @@ async function getUserTaskRecord(userId) {
   try {
     const results = await wixData
       .query(COLLECTIONS.USER_TASKS)
-      .eq('userId', userId)
+      .eq("userId", userId)
       .find();
-    
+
     if (results.items.length === 0) {
       // 创建新记录
       const newRecord = {
         userId: userId,
-        currentTasks: [],  // 改为任务列表（最多3条）
+        currentTasks: [], // 改为任务列表（最多3条）
         completedTasks: [],
         totalCompleted: 0,
-        lastRefreshTime: new Date() // 初始化刷新时间
+        lastRefreshTime: new Date(), // 初始化刷新时间
       };
-      
+
       const inserted = await wixData.insert(COLLECTIONS.USER_TASKS, newRecord);
       return inserted;
     }
-    
+
     return results.items[0];
-    
   } catch (error) {
     // console.error('获取用户任务记录失败:', error);
     throw error;
@@ -999,25 +1030,24 @@ async function getUserCompletedRatings(userId) {
     let hasMore = true;
     let skipCount = 0;
     const limit = 100;
-    
+
     while (hasMore) {
       const results = await wixData
         .query(COLLECTIONS.COMMENTS)
-        .eq('_owner', userId)
-        .isEmpty('replyTo')
+        .eq("_owner", userId)
+        .isEmpty("replyTo")
         .skip(skipCount)
         .limit(limit)
         .find();
-      
+
       allComments = allComments.concat(results.items);
       skipCount += results.items.length;
       hasMore = results.items.length === limit;
     }
-    
+
     // 提取作品序号（去重）
-    const workNumbers = [...new Set(allComments.map(c => c.workNumber))];
+    const workNumbers = [...new Set(allComments.map((c) => c.workNumber))];
     return workNumbers;
-    
   } catch (error) {
     // console.error('获取用户评分记录失败:', error);
     return [];
@@ -1033,14 +1063,13 @@ async function getWorkInfo(workNumber) {
   try {
     const results = await wixData
       .query(COLLECTIONS.WORKS)
-      .eq('sequenceId', workNumber)
+      .eq("sequenceId", workNumber)
       .find();
-    
+
     if (results.items.length > 0) {
       return results.items[0];
     }
     return null;
-    
   } catch (error) {
     // console.error('获取作品信息失败:', error);
     return null;
@@ -1057,21 +1086,20 @@ async function getWorkValidRatingCount(workNumber) {
     // 获取所有评论
     const comments = await wixData
       .query(COLLECTIONS.COMMENTS)
-      .eq('workNumber', workNumber)
-      .isEmpty('replyTo')
+      .eq("workNumber", workNumber)
+      .isEmpty("replyTo")
       .find();
-    
+
     // 获取作品所有者
     const work = await getWorkInfo(workNumber);
     if (!work) return 0;
-    
+
     const workOwnerId = work._owner;
-    
+
     // 排除作者自评
-    const validRatings = comments.items.filter(c => c._owner !== workOwnerId);
-    
+    const validRatings = comments.items.filter((c) => c._owner !== workOwnerId);
+
     return validRatings.length;
-    
   } catch (error) {
     // console.error('获取作品评分数失败:', error);
     return 0;
@@ -1087,13 +1115,12 @@ async function getUserOwnWorks(userId) {
   try {
     const results = await wixData
       .query(COLLECTIONS.WORKS)
-      .eq('_owner', userId)
+      .eq("_owner", userId)
       .limit(1000) // 支持多个作品
       .find();
-    
+
     // 返回所有作品的序号数组
-    return results.items.map(work => work.sequenceId);
-    
+    return results.items.map((work) => work.sequenceId);
   } catch (error) {
     // console.error('获取用户作品失败:', error);
     return []; // 返回空数组而不是null
@@ -1131,40 +1158,41 @@ function getDaysSinceSubmission(work) {
 export async function syncAllUserRatings() {
   try {
     // console.log('开始同步所有用户任务状态...');
-    
+
     // 获取所有已报名用户
     const registeredUsers = await getRegisteredUsers();
-    
+
     let successCount = 0;
     let errorCount = 0;
-    
+
     for (const user of registeredUsers) {
       try {
         const taskRecord = await getUserTaskRecord(user.userId);
-        
+
         // 只负责为没有任务的用户分配任务
         // 不再同步所有评分记录，因为只有任务列表中的作品才应该计入
-        if ((!taskRecord.currentTask || taskRecord.currentTask.status === 'completed') &&
-            taskRecord.totalCompleted < TARGET_USER_COMPLETION) {
+        if (
+          (!taskRecord.currentTask ||
+            taskRecord.currentTask.status === "completed") &&
+          taskRecord.totalCompleted < TARGET_USER_COMPLETION
+        ) {
           await assignNextTask(user.userId, taskRecord);
         }
-        
+
         successCount++;
-        
       } catch (error) {
         // console.error(`同步用户 ${user.userId} 失败:`, error);
         errorCount++;
       }
     }
-    
+
     // console.log(`同步完成: 成功 ${successCount}, 失败 ${errorCount}`);
-    
+
     return {
       success: true,
       successCount,
-      errorCount
+      errorCount,
     };
-    
   } catch (error) {
     // console.error('同步任务状态失败:', error);
     throw error;
@@ -1181,24 +1209,25 @@ async function getRegisteredUsers() {
     let hasMore = true;
     let skipCount = 0;
     const limit = 100;
-    
+
     while (hasMore) {
       const results = await wixData
         .query(COLLECTIONS.REGISTRATIONS)
         .skip(skipCount)
         .limit(limit)
         .find();
-      
+
       allRegistrations = allRegistrations.concat(results.items);
       skipCount += results.items.length;
       hasMore = results.items.length === limit;
     }
-    
+
     // 提取用户ID（去重）
-    const userIds = [...new Set(allRegistrations.map(reg => reg._owner).filter(id => id))];
-    
-    return userIds.map(userId => ({ userId }));
-    
+    const userIds = [
+      ...new Set(allRegistrations.map((reg) => reg._owner).filter((id) => id)),
+    ];
+
+    return userIds.map((userId) => ({ userId }));
   } catch (error) {
     // console.error('获取参赛用户失败:', error);
     return [];
@@ -1207,18 +1236,20 @@ async function getRegisteredUsers() {
 
 /**
  * 更新所有作品的评分计数（定时任务）- 已废弃
- * 
+ *
  * ⚠️ 此函数已废弃：系统已改为实时从 BOFcomment 统计评论数
  * enterContest034.currentRatingCount 字段不再使用，避免数据不同步问题
- * 
+ *
  * @deprecated 请勿使用此函数，评论数现在实时统计
  */
 export async function updateAllWorkRatingCounts() {
-  console.warn('updateAllWorkRatingCounts 已废弃：评论数现在实时从 BOFcomment 统计');
+  console.warn(
+    "updateAllWorkRatingCounts 已废弃：评论数现在实时从 BOFcomment 统计"
+  );
   return {
     success: true,
     updateCount: 0,
-    message: '此函数已废弃，评论数实时统计'
+    message: "此函数已废弃，评论数实时统计",
   };
 }
 
@@ -1233,78 +1264,78 @@ export async function getSystemStats() {
       .query(COLLECTIONS.USER_TASKS)
       .limit(1000)
       .find();
-    
+
     // 获取所有作品
     const allWorks = await wixData
       .query(COLLECTIONS.WORKS)
-      .ne('isDq', true)
+      .ne("isDq", true)
       .limit(1000)
       .find();
-    
+
     // 获取所有评论（用于实时统计）
     const allComments = await wixData
       .query(COLLECTIONS.COMMENTS)
-      .isEmpty('replyTo')
+      .isEmpty("replyTo")
       .limit(1000)
       .find();
-    
+
     // 统计用户完成情况
     const completionStats = {
       completed20: 0,
       completed10to19: 0,
       completed1to9: 0,
-      completed0: 0
+      completed0: 0,
     };
-    
-    allTasks.items.forEach(task => {
+
+    allTasks.items.forEach((task) => {
       const count = task.totalCompleted || 0;
       if (count >= 20) completionStats.completed20++;
       else if (count >= 10) completionStats.completed10to19++;
       else if (count >= 1) completionStats.completed1to9++;
       else completionStats.completed0++;
     });
-    
+
     // 【修复】实时统计作品评分情况（从 BOFcomment 统计，排除作者自评）
     const workStats = {
       reached20: 0,
       reached10to19: 0,
       reached1to9: 0,
-      reached0: 0
+      reached0: 0,
     };
-    
+
     // 建立作品所有者映射
     const workOwnerMap = {};
-    allWorks.items.forEach(work => {
+    allWorks.items.forEach((work) => {
       workOwnerMap[work.sequenceId] = work._owner;
     });
-    
+
     // 统计每个作品的有效评论数（排除作者自评）
     const workCommentCounts = {};
-    allComments.items.forEach(comment => {
+    allComments.items.forEach((comment) => {
       const workOwner = workOwnerMap[comment.workNumber];
       // 排除作者自评
       if (comment._owner !== workOwner) {
-        workCommentCounts[comment.workNumber] = (workCommentCounts[comment.workNumber] || 0) + 1;
+        workCommentCounts[comment.workNumber] =
+          (workCommentCounts[comment.workNumber] || 0) + 1;
       }
     });
-    
+
     // 统计各评分区间的作品数量
-    allWorks.items.forEach(work => {
+    allWorks.items.forEach((work) => {
       const count = workCommentCounts[work.sequenceId] || 0;
       if (count >= 20) workStats.reached20++;
       else if (count >= 10) workStats.reached10to19++;
       else if (count >= 1) workStats.reached1to9++;
       else workStats.reached0++;
     });
-    
+
     return {
       totalUsers: allTasks.items.length,
       totalWorks: allWorks.items.length,
       userCompletion: completionStats,
       workRatings: workStats,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-    
   } catch (error) {
     // console.error('获取系统统计失败:', error);
     throw error;
@@ -1318,55 +1349,60 @@ export async function getSystemStats() {
 export async function getAllUsersTaskManagementData() {
   try {
     // 1. 并行获取所有基础数据
-    const [allTaskRecords, allRegistrations, allWorks, allComments] = await Promise.all([
-      wixData.query(COLLECTIONS.USER_TASKS).limit(1000).find(),
-      wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
-      wixData.query(COLLECTIONS.WORKS).limit(1000).find(),
-      wixData.query(COLLECTIONS.COMMENTS).isEmpty('replyTo').limit(1000).find()
-    ]);
-    
+    const [allTaskRecords, allRegistrations, allWorks, allComments] =
+      await Promise.all([
+        wixData.query(COLLECTIONS.USER_TASKS).limit(1000).find(),
+        wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
+        wixData.query(COLLECTIONS.WORKS).limit(1000).find(),
+        wixData
+          .query(COLLECTIONS.COMMENTS)
+          .isEmpty("replyTo")
+          .limit(1000)
+          .find(),
+      ]);
+
     // 2. 构建用户高权重映射
     const userQualityMap = {};
-    allRegistrations.items.forEach(reg => {
+    allRegistrations.items.forEach((reg) => {
       userQualityMap[reg._owner] = reg.isHighQuality === true;
     });
-    
+
     // 3. 构建作品信息映射
     const worksMap = {};
-    allWorks.items.forEach(work => {
+    allWorks.items.forEach((work) => {
       worksMap[work.sequenceId] = work;
     });
-    
+
     // 4. 构建评论映射（按作品分组）
     const commentsMap = {};
-    allComments.items.forEach(comment => {
+    allComments.items.forEach((comment) => {
       if (!commentsMap[comment.workNumber]) {
         commentsMap[comment.workNumber] = [];
       }
       commentsMap[comment.workNumber].push(comment);
     });
-    
+
     // 5. 预计算所有涉及作品的权重数据（批量处理）
     const allTaskWorkNumbers = new Set();
-    allTaskRecords.items.forEach(record => {
-      (record.currentTasks || []).forEach(task => {
+    allTaskRecords.items.forEach((record) => {
+      (record.currentTasks || []).forEach((task) => {
         allTaskWorkNumbers.add(task.workNumber);
       });
     });
-    
+
     const workWeightDataMap = {};
     for (const workNumber of allTaskWorkNumbers) {
       const work = worksMap[workNumber];
       if (!work) continue;
-      
+
       const comments = commentsMap[workNumber] || [];
-      const validRatings = comments.filter(c => c._owner !== work._owner);
-      
+      const validRatings = comments.filter((c) => c._owner !== work._owner);
+
       let highWeightSum = 0;
       let highWeightCount = 0;
       let lowWeightSum = 0;
       let lowWeightCount = 0;
-      
+
       for (const comment of validRatings) {
         const isHighQuality = userQualityMap[comment._owner] || false;
         if (isHighQuality) {
@@ -1377,53 +1413,58 @@ export async function getAllUsersTaskManagementData() {
           lowWeightCount++;
         }
       }
-      
-      const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
-      
+
+      const ratio =
+        lowWeightCount > 0
+          ? highWeightCount / lowWeightCount
+          : highWeightCount > 0
+          ? 999
+          : 0;
+
       workWeightDataMap[workNumber] = {
         numRatings: validRatings.length,
         highWeightCount: highWeightCount,
         lowWeightCount: lowWeightCount,
-        ratio: ratio
+        ratio: ratio,
       };
     }
-    
+
     // 6. 为每个用户计算任务详情（使用预计算的数据）
     const usersTaskData = [];
-    
+
     for (const taskRecord of allTaskRecords.items) {
       const userId = taskRecord.userId;
       const isHighQuality = userQualityMap[userId] || false;
       const currentTasks = taskRecord.currentTasks || [];
-      
+
       const tasksWithDetails = [];
       for (const task of currentTasks) {
         const workInfo = worksMap[task.workNumber];
         if (!workInfo) continue;
-        
+
         const weightData = workWeightDataMap[task.workNumber] || {
           numRatings: 0,
           highWeightCount: 0,
           lowWeightCount: 0,
-          ratio: 0
+          ratio: 0,
         };
-        
+
         // 【修复】使用实时统计的评论数，而不是数据库中的 currentRatingCount
         workInfo.currentRatingCount = weightData.numRatings;
-        
+
         // 计算基础冷门权重（不含均衡因子）
         const baseWeight = calculateBaseColdnessWeightSync(workInfo);
-        
+
         // 计算均衡因子
         const balanceFactor = calculateBalanceFactor(
           weightData.highWeightCount,
           weightData.lowWeightCount,
           isHighQuality
         );
-        
+
         // 最终权重 = 基础权重 × 均衡因子
         const finalWeight = Math.round(baseWeight * balanceFactor);
-        
+
         tasksWithDetails.push({
           workNumber: task.workNumber,
           workTitle: workInfo.firstName || "未命名作品",
@@ -1435,31 +1476,36 @@ export async function getAllUsersTaskManagementData() {
           lowWeightCount: weightData.lowWeightCount,
           ratio: weightData.ratio,
           ratioStatus: getRatioStatus(weightData.ratio),
-          daysSinceSubmission: getDaysSinceSubmission(workInfo)
+          daysSinceSubmission: getDaysSinceSubmission(workInfo),
         });
       }
-      
+
       // 获取用户所有评论的作品
       const allUserRatings = await getUserCompletedRatings(userId);
       const completedTasks = taskRecord.completedTasks || [];
-      const freeRatings = allUserRatings.filter(workNum => !completedTasks.includes(workNum));
-      
+      const freeRatings = allUserRatings.filter(
+        (workNum) => !completedTasks.includes(workNum)
+      );
+
       usersTaskData.push({
         userId: userId,
         isHighQuality: isHighQuality,
         currentTasks: tasksWithDetails,
         completedTasks: completedTasks.sort((a, b) => b - a), // 任务完成的作品
-        freeRatings: freeRatings.sort((a, b) => b - a),      // 自主评论的作品
+        freeRatings: freeRatings.sort((a, b) => b - a), // 自主评论的作品
         completedCount: taskRecord.totalCompleted || 0,
         targetCompletion: TARGET_USER_COMPLETION,
-        lastRefreshTime: taskRecord.lastRefreshTime
+        lastRefreshTime: taskRecord.lastRefreshTime,
       });
     }
-    
+
     // 7. 计算整体统计
-    const totalHighQualityUsers = Object.values(userQualityMap).filter(v => v).length;
-    const totalLowQualityUsers = allRegistrations.items.length - totalHighQualityUsers;
-    
+    const totalHighQualityUsers = Object.values(userQualityMap).filter(
+      (v) => v
+    ).length;
+    const totalLowQualityUsers =
+      allRegistrations.items.length - totalHighQualityUsers;
+
     return {
       users: usersTaskData,
       stats: {
@@ -1467,12 +1513,11 @@ export async function getAllUsersTaskManagementData() {
         highQualityUsers: totalHighQualityUsers,
         lowQualityUsers: totalLowQualityUsers,
         targetRatio: TARGET_HIGH_LOW_RATIO,
-        tolerance: RATIO_TOLERANCE
-      }
+        tolerance: RATIO_TOLERANCE,
+      },
     };
-    
   } catch (error) {
-    console.error('获取任务管理数据失败:', error);
+    console.error("获取任务管理数据失败:", error);
     throw error;
   }
 }
@@ -1485,11 +1530,11 @@ export async function getAllUsersTaskManagementData() {
 function calculateBaseColdnessWeightSync(work) {
   const daysSinceSubmission = getDaysSinceSubmission(work);
   const currentRatings = work.currentRatingCount || 0;
-  
+
   if (currentRatings >= TARGET_RATING_COUNT) {
     return 0;
   }
-  
+
   // 与异步版本保持一致的期望评分模型
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
@@ -1501,14 +1546,14 @@ function calculateBaseColdnessWeightSync(work) {
   } else {
     expectedRatings = TARGET_RATING_COUNT;
   }
-  
+
   const deficit = Math.max(0, expectedRatings - currentRatings);
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60; // 与主函数保持一致
-  
+
   // 修复：使用Math.max取最大加成值，避免后续条件覆盖前面的值
   let urgencyBonus = 0;
-  
+
   // 早期冷启动加成
   if (daysSinceSubmission >= 3 && currentRatings < 2) {
     urgencyBonus = Math.max(urgencyBonus, 15);
@@ -1516,7 +1561,7 @@ function calculateBaseColdnessWeightSync(work) {
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
     urgencyBonus = Math.max(urgencyBonus, 20);
   }
-  
+
   // 中期关注加成
   if (daysSinceSubmission >= 7 && currentRatings < 10) {
     urgencyBonus = Math.max(urgencyBonus, 30);
@@ -1524,17 +1569,17 @@ function calculateBaseColdnessWeightSync(work) {
   if (daysSinceSubmission >= 14 && currentRatings < 15) {
     urgencyBonus = Math.max(urgencyBonus, 45);
   }
-  
+
   // 后期紧急加成
   if (daysSinceSubmission >= 21 && currentRatings < 18) {
     urgencyBonus = Math.max(urgencyBonus, 65);
   }
-  
+
   // 超期最高优先级
   if (daysSinceSubmission >= 30 && currentRatings < 20) {
     urgencyBonus = Math.max(urgencyBonus, 80);
   }
-  
+
   return Math.round(baseWeight + urgencyBonus);
 }
 
@@ -1547,7 +1592,7 @@ function getRatioStatus(ratio) {
   // 将"高/低"比值转换为高权重占比
   // 公式：highPercentage = ratio / (1 + ratio) = high/low / (1 + high/low) = high / (low + high)
   let highPercentage;
-  
+
   if (ratio === 0) {
     // 没有高权重评分
     highPercentage = 0;
@@ -1558,14 +1603,14 @@ function getRatioStatus(ratio) {
     // 正常情况：转换比值为占比
     highPercentage = ratio / (1 + ratio);
   }
-  
+
   // 均衡区间：28%-45%
   if (highPercentage >= 0.28 && highPercentage <= 0.45) {
-    return '均衡';
+    return "均衡";
   } else if (highPercentage > 0.45) {
-    return '高权重过多';
+    return "高权重过多";
   } else {
-    return '高权重不足';
+    return "高权重不足";
   }
 }
 
@@ -1577,45 +1622,44 @@ function getRatioStatus(ratio) {
 export async function forceRefreshUserTasks(userId) {
   try {
     // console.log(`\n========== 强制刷新用户任务: ${userId} ==========`);
-    
+
     // 获取用户任务记录
     const taskRecord = await getUserTaskRecord(userId);
     // console.log(`原任务列表:`, taskRecord.currentTasks?.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
-    
+
     // 清空当前任务，强制重新生成
     taskRecord.currentTasks = [];
     taskRecord.lastRefreshTime = new Date();
-    
+
     // 清除用户权重缓存，确保使用最新数据
     if (userId in userQualityCache) {
       delete userQualityCache[userId];
     }
-    
+
     // console.log(`开始生成新任务...`);
-    
+
     // 生成新任务
     const newTasks = await generateUserTasks(userId, taskRecord, 3);
     taskRecord.currentTasks = newTasks;
-    
+
     // console.log(`新任务列表:`, newTasks.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
-    
+
     // 保存到数据库
     await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
     // console.log(`任务已保存到数据库`);
     // console.log(`========== 刷新完成 ==========\n`);
-    
+
     return {
       success: true,
-      message: '任务已刷新',
+      message: "任务已刷新",
       newTasksCount: newTasks.length,
-      newTasks: newTasks
+      newTasks: newTasks,
     };
-    
   } catch (error) {
-    console.error('强制刷新用户任务失败:', error);
+    console.error("强制刷新用户任务失败:", error);
     return {
       success: false,
-      message: '刷新失败: ' + error.message
+      message: "刷新失败: " + error.message,
     };
   }
 }
@@ -1628,37 +1672,37 @@ export async function getAllWorksWeightComparison() {
   try {
     // 1. 并行获取所有基础数据
     const [allWorks, allComments, allRegistrations] = await Promise.all([
-      wixData.query(COLLECTIONS.WORKS).ne('isDq', true).limit(1000).find(),
-      wixData.query(COLLECTIONS.COMMENTS).isEmpty('replyTo').limit(1000).find(),
-      wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find()
+      wixData.query(COLLECTIONS.WORKS).ne("isDq", true).limit(1000).find(),
+      wixData.query(COLLECTIONS.COMMENTS).isEmpty("replyTo").limit(1000).find(),
+      wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
     ]);
-    
+
     // 2. 构建用户权重映射
     const userQualityMap = {};
-    allRegistrations.items.forEach(reg => {
+    allRegistrations.items.forEach((reg) => {
       userQualityMap[reg._owner] = reg.isHighQuality === true;
     });
-    
+
     // 3. 构建评论映射
     const commentsMap = {};
-    allComments.items.forEach(comment => {
+    allComments.items.forEach((comment) => {
       if (!commentsMap[comment.workNumber]) {
         commentsMap[comment.workNumber] = [];
       }
       commentsMap[comment.workNumber].push(comment);
     });
-    
+
     // 4. 计算每个作品的权重数据
     const worksWeightData = [];
-    
+
     for (const work of allWorks.items) {
       const comments = commentsMap[work.sequenceId] || [];
-      const validRatings = comments.filter(c => c._owner !== work._owner);
-      
+      const validRatings = comments.filter((c) => c._owner !== work._owner);
+
       // 统计高低权重评分
       let highWeightCount = 0;
       let lowWeightCount = 0;
-      
+
       for (const comment of validRatings) {
         if (userQualityMap[comment._owner]) {
           highWeightCount++;
@@ -1666,12 +1710,17 @@ export async function getAllWorksWeightComparison() {
           lowWeightCount++;
         }
       }
-      
-      const ratio = lowWeightCount > 0 ? highWeightCount / lowWeightCount : (highWeightCount > 0 ? 999 : 0);
-      
+
+      const ratio =
+        lowWeightCount > 0
+          ? highWeightCount / lowWeightCount
+          : highWeightCount > 0
+          ? 999
+          : 0;
+
       // 【修复】使用实时统计的评论数，而不是数据库中的 currentRatingCount
       work.currentRatingCount = validRatings.length;
-      
+
       // 【关键修复】使用与实际分配完全一致的权重计算逻辑
       // 对于高权重用户的最终权重
       const finalWeightHigh = calculateColdnessWeightOptimized(
@@ -1679,29 +1728,31 @@ export async function getAllWorksWeightComparison() {
         validRatings.length,
         highWeightCount,
         lowWeightCount,
-        true  // isUserHighQuality = true
+        true // isUserHighQuality = true
       );
-      
+
       // 对于低权重用户的最终权重
       const finalWeightLow = calculateColdnessWeightOptimized(
         work,
         validRatings.length,
         highWeightCount,
         lowWeightCount,
-        false  // isUserHighQuality = false
+        false // isUserHighQuality = false
       );
-      
+
       // 计算基础权重（不含均衡因子，仅用于显示）
       const baseWeight = calculateBaseColdnessWeightSync(work);
-      
+
       // 计算均衡因子（仅用于显示）
-      const balanceFactorHigh = validRatings.length >= 1 
-        ? calculateBalanceFactor(highWeightCount, lowWeightCount, true)
-        : 1.0;
-      const balanceFactorLow = validRatings.length >= 1
-        ? calculateBalanceFactor(highWeightCount, lowWeightCount, false)
-        : 1.0;
-      
+      const balanceFactorHigh =
+        validRatings.length >= 1
+          ? calculateBalanceFactor(highWeightCount, lowWeightCount, true)
+          : 1.0;
+      const balanceFactorLow =
+        validRatings.length >= 1
+          ? calculateBalanceFactor(highWeightCount, lowWeightCount, false)
+          : 1.0;
+
       worksWeightData.push({
         sequenceId: work.sequenceId,
         title: work.firstName || "未命名作品",
@@ -1719,10 +1770,10 @@ export async function getAllWorksWeightComparison() {
         balanceFactorLow: balanceFactorLow,
         finalWeightLow: finalWeightLow,
         // 权重差异
-        weightDifference: finalWeightHigh - finalWeightLow
+        weightDifference: finalWeightHigh - finalWeightLow,
       });
     }
-    
+
     // 5. 按权重排序（从高到低），便于查看最需要关注的作品
     // 优先按Qualified用户权重排序（因为他们的权重更能代表作品的冷门程度）
     worksWeightData.sort((a, b) => {
@@ -1737,7 +1788,7 @@ export async function getAllWorksWeightComparison() {
       // 最后按作品ID排序
       return a.sequenceId - b.sequenceId;
     });
-    
+
     // console.log(`[权重对比] 生成了${worksWeightData.length}个作品的权重数据`);
     // if (worksWeightData.length > 0) {
     //   console.log(`[权重对比] TOP5最需关注作品:`);
@@ -1745,21 +1796,18 @@ export async function getAllWorksWeightComparison() {
     //     console.log(`  ${i + 1}. #${w.sequenceId} | Q权重:${w.finalWeightHigh} 普通权重:${w.finalWeightLow} | ${w.currentRatings}/20评分`);
     //   });
     // }
-    
+
     return {
       works: worksWeightData,
       config: {
         targetRatio: TARGET_HIGH_LOW_RATIO,
         tolerance: RATIO_TOLERANCE,
-        balanceAdjustment: BALANCE_FACTOR_ADJUSTMENT
+        balanceAdjustment: BALANCE_FACTOR_ADJUSTMENT,
       },
-      note: '此表显示所有作品的理论权重，实际分配会排除用户已完成/已评论/自己的作品'
+      note: "此表显示所有作品的理论权重，实际分配会排除用户已完成/已评论/自己的作品",
     };
-    
   } catch (error) {
-    console.error('获取作品权重对比数据失败:', error);
+    console.error("获取作品权重对比数据失败:", error);
     throw error;
   }
 }
-
-

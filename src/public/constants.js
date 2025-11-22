@@ -35,5 +35,5 @@ export const FILE_TYPES = {
 
 // 评分与排名相关常量 - 前端需要
 export const RATING_CONFIG = {
-    MIN_RATINGS_FOR_RANKING: 5 // 达到该人数后显示等级并参与正式排名
+    MIN_RATINGS_FOR_RANKING: 8 // 达到该人数后显示等级并参与正式排名
 };

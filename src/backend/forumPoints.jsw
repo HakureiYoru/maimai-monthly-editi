@@ -1,9 +1,9 @@
-import wixData from 'wix-data';
-import wixUsersBackend from 'wix-users-backend';
-import { badges } from 'wix-members-backend';
-import { POINTS_CONFIG, COLLECTIONS } from 'backend/constants';
-import { isSameDay } from 'backend/utils';
-import { logError } from 'backend/errorHandler';
+import wixData from "wix-data";
+import wixUsersBackend from "wix-users-backend";
+import { badges } from "wix-members-backend";
+import { POINTS_CONFIG, COLLECTIONS } from "backend/constants";
+import { isSameDay } from "backend/utils";
+import { logError } from "backend/errorHandler";
 
 let oldBadgeLevel;
 
@@ -15,97 +15,102 @@ let oldBadgeLevel;
  * @param {boolean} excludeFromDailyLimit - 是否排除在每日限制之外
  * @returns {Promise<void>}
  */
-export async function updateUserPoints(userId, pointsToAdd, updateLastSignedIn, excludeFromDailyLimit) {
+export async function updateUserPoints(
+  userId,
+  pointsToAdd,
+  updateLastSignedIn,
+  excludeFromDailyLimit
+) {
   try {
-    const results = await wixData.query(COLLECTIONS.USER_POINTS).eq('userId', userId).find();
+    const results = await wixData
+      .query(COLLECTIONS.USER_POINTS)
+      .eq("userId", userId)
+      .find();
     let userPoints;
     if (results.items.length === 0) {
       userPoints = {
         userId: userId,
         points: pointsToAdd,
         lastSignedIn: new Date(),
-        dailyPoints: Number(pointsToAdd)
+        dailyPoints: Number(pointsToAdd),
       };
       await wixData.insert(COLLECTIONS.USER_POINTS, userPoints);
-  } else {
-    userPoints = results.items[0];
-    
-    // 检查用户今天是否已经达到积分上限
-    const today = new Date();
-    const lastPointsUpdate = new Date(userPoints.lastSignedIn);
-    const pointsLimit = POINTS_CONFIG.DAILY_LIMIT;
-    oldBadgeLevel = getBadgeLevelByPoints(userPoints.points);
-    
-    if (isSameDay(today, lastPointsUpdate)) {
-      // 同一天
-      if (userPoints.dailyPoints < pointsLimit) {
-        const remainingPoints = pointsLimit - userPoints.dailyPoints;
-        const actualPointsToAdd = Math.min(remainingPoints, pointsToAdd);
-        if (excludeFromDailyLimit) {
-          userPoints.points += actualPointsToAdd;
-        }
-        else
-        {
-          userPoints.points += pointsToAdd;
-        }
-        
-        if (excludeFromDailyLimit) {
-          userPoints.dailyPoints += actualPointsToAdd;
-        }
-        console.log("开始计算等级");
+    } else {
+      userPoints = results.items[0];
+
+      // 检查用户今天是否已经达到积分上限
+      const today = new Date();
+      const lastPointsUpdate = new Date(userPoints.lastSignedIn);
+      const pointsLimit = POINTS_CONFIG.DAILY_LIMIT;
+      oldBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+
+      if (isSameDay(today, lastPointsUpdate)) {
+        // 同一天
+        if (userPoints.dailyPoints < pointsLimit) {
+          const remainingPoints = pointsLimit - userPoints.dailyPoints;
+          const actualPointsToAdd = Math.min(remainingPoints, pointsToAdd);
+          if (excludeFromDailyLimit) {
+            userPoints.points += actualPointsToAdd;
+          } else {
+            userPoints.points += pointsToAdd;
+          }
+
+          if (excludeFromDailyLimit) {
+            userPoints.dailyPoints += actualPointsToAdd;
+          }
+          console.log("开始计算等级");
           const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
           console.log(oldBadgeLevel);
           console.log(newBadgeLevel);
           if (oldBadgeLevel !== newBadgeLevel) {
-              await assignBadge(userId, newBadgeLevel);
-              console.log("assigning");
-              
+            await assignBadge(userId, newBadgeLevel);
+            console.log("assigning");
           }
 
+          await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
+        } else if (userPoints.dailyPoints === pointsLimit) {
+          if (excludeFromDailyLimit == false) {
+            userPoints.points += pointsToAdd;
+          }
+          // 检查积分是否达到新等级并分配徽章
+          console.log("开始计算等级");
+          const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
+          if (oldBadgeLevel !== newBadgeLevel) {
+            await assignBadge(userId, newBadgeLevel);
+            console.log("assigning");
+            console.log(oldBadgeLevel);
+            console.log(newBadgeLevel);
+          }
 
-        await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
-      }
-      else if(userPoints.dailyPoints === pointsLimit){
-        if (excludeFromDailyLimit==false) {
-          userPoints.points += pointsToAdd;
+          await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
         }
-        // 检查积分是否达到新等级并分配徽章
+      } else {
+        // 不同天，重置dailyPoints
+        userPoints.points += pointsToAdd;
+        if (excludeFromDailyLimit) {
+          userPoints.dailyPoints = pointsToAdd;
+          userPoints.lastSignedIn = today;
+        }
+
         console.log("开始计算等级");
         const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
-          if (oldBadgeLevel !== newBadgeLevel) {
-              await assignBadge(userId, newBadgeLevel);
-              console.log("assigning");
-              console.log(oldBadgeLevel);
-              console.log(newBadgeLevel);
-          }
 
-        await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
-      }
-
-    } else {
-      // 不同天，重置dailyPoints
-      userPoints.points += pointsToAdd;
-      if (excludeFromDailyLimit) {
-        userPoints.dailyPoints = pointsToAdd;
-        userPoints.lastSignedIn = today;
-      }
-      
-      console.log("开始计算等级");
-      const newBadgeLevel = getBadgeLevelByPoints(userPoints.points);
-        
-      if (oldBadgeLevel !== newBadgeLevel) {
+        if (oldBadgeLevel !== newBadgeLevel) {
           await assignBadge(userId, newBadgeLevel);
           console.log("分配新徽章", { oldBadgeLevel, newBadgeLevel });
+        }
+        await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
       }
-      await wixData.update(COLLECTIONS.USER_POINTS, userPoints);
     }
-  }
   } catch (error) {
-    logError('updateUserPoints', error, { userId, pointsToAdd, excludeFromDailyLimit });
+    logError("updateUserPoints", error, {
+      userId,
+      pointsToAdd,
+      excludeFromDailyLimit,
+    });
     throw error;
   }
 }
-
 
 // 分配徽章的函数
 async function assignBadge(userId, badgeLevel) {
@@ -118,7 +123,8 @@ async function assignBadge(userId, badgeLevel) {
 
     // 获取旧徽章ID
     const oldBadgeLevel = badgeLevel - 1;
-    const oldBadgeId = oldBadgeLevel > 0 ? await getBadgeIdByLevel(oldBadgeLevel) : null;
+    const oldBadgeId =
+      oldBadgeLevel > 0 ? await getBadgeIdByLevel(oldBadgeLevel) : null;
 
     // 如果有旧徽章ID，从用户身上移除旧徽章
     if (oldBadgeId) {
@@ -130,23 +136,22 @@ async function assignBadge(userId, badgeLevel) {
 // 根据徽章等级查询徽章ID的函数
 async function getBadgeIdByLevel(level) {
   const badgeName = `Level ${level}`;
-  const results = await wixData.query('Members/Badges')
-    .eq('title', badgeName)
+  const results = await wixData
+    .query("Members/Badges")
+    .eq("title", badgeName)
     .find();
 
   return results.items.length > 0 ? results.items[0]._id : null;
 }
 
-
 export async function getUserPoints(userId) {
-  const results = await wixData.query('UserPoints').eq('userId', userId).find();
+  const results = await wixData.query("UserPoints").eq("userId", userId).find();
   if (results.items.length > 0) {
     return results.items[0];
   } else {
     return null;
   }
 }
-
 
 export function getBadgeLevelByPoints(points) {
   if (points >= 2000) {
@@ -167,7 +172,6 @@ export function getBadgeLevelByPoints(points) {
   return null;
 }
 
-
 export function getPointsForBadgeLevel(level) {
   switch (level) {
     case 1:
@@ -186,8 +190,3 @@ export function getPointsForBadgeLevel(level) {
       return 0;
   }
 }
-
-
-
-
-

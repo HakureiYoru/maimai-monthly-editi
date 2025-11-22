@@ -9,6 +9,7 @@ import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import { getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
 import { RATING_CONFIG } from "public/constants.js";
+import { getTierFromPercentile } from "public/tierUtils.js";
 
 let allWorksData = [];
 let filteredWorksData = [];
@@ -256,7 +257,9 @@ function calculateRatingData(formalRatings, workOwnerId) {
  */
 function calculateTiers(worksData) {
   // 只对有足够评分且未淘汰的作品排名
-  const validWorks = worksData.filter((w) => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING && !w.isDq);
+  const validWorks = worksData.filter(
+    (w) => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING && !w.isDq
+  );
 
   // 按加权平均分降序排序
   validWorks.sort((a, b) => b.weightedAverage - a.weightedAverage);
@@ -287,24 +290,13 @@ function calculateTiers(worksData) {
 }
 
 /**
- * 根据百分位获取等级
- */
-function getTierFromPercentile(percentile) {
-  if (percentile <= 0.05) return "T0";
-  if (percentile <= 0.2) return "T1";
-  if (percentile <= 0.4) return "T2";
-  if (percentile <= 0.6) return "T3";
-  return "T4";
-}
-
-/**
  * 发送数据到HTML元件
  */
 function sendDataToHTML(data) {
   $w("#htmlScore").postMessage({
     type: "data",
     works: data,
-    config: { minRatingsForRanking: RATING_CONFIG.MIN_RATINGS_FOR_RANKING }
+    config: { minRatingsForRanking: RATING_CONFIG.MIN_RATINGS_FOR_RANKING },
   });
 }
 

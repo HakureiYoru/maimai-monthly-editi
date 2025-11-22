@@ -3,18 +3,24 @@
  * 提供统一的错误处理和HTTP响应格式
  */
 
-import { ok, badRequest, notFound, serverError, response } from 'wix-http-functions';
-import { HTTP_HEADERS } from 'backend/constants.js';
+import {
+  ok,
+  badRequest,
+  notFound,
+  serverError,
+  response,
+} from "wix-http-functions";
+import { HTTP_HEADERS } from "backend/constants.js";
 
 /**
  * 创建CORS预检响应
  * @returns {Object} CORS预检响应
  */
 export function createOptionsResponse() {
-    return response({
-        "status": 204,
-        "headers": HTTP_HEADERS.CORS
-    });
+  return response({
+    status: 204,
+    headers: HTTP_HEADERS.CORS,
+  });
 }
 
 /**
@@ -23,14 +29,15 @@ export function createOptionsResponse() {
  * @param {string} contentType - 内容类型，'json'或'text'
  * @returns {Object} 成功响应
  */
-export function createSuccessResponse(data, contentType = 'json') {
-    const headers = contentType === 'text' ? HTTP_HEADERS.TEXT_CORS : HTTP_HEADERS.JSON_CORS;
-    const body = contentType === 'json' ? JSON.stringify(data) : data;
-    
-    return ok({
-        "headers": headers,
-        "body": body
-    });
+export function createSuccessResponse(data, contentType = "json") {
+  const headers =
+    contentType === "text" ? HTTP_HEADERS.TEXT_CORS : HTTP_HEADERS.JSON_CORS;
+  const body = contentType === "json" ? JSON.stringify(data) : data;
+
+  return ok({
+    headers: headers,
+    body: body,
+  });
 }
 
 /**
@@ -39,28 +46,28 @@ export function createSuccessResponse(data, contentType = 'json') {
  * @param {string} type - 错误类型：'notFound', 'badRequest', 'serverError'
  * @returns {Object} 错误响应
  */
-export function createErrorResponse(message, type = 'serverError') {
-    const errorBody = JSON.stringify({ "message": message });
-    const headers = HTTP_HEADERS.JSON_CORS;
+export function createErrorResponse(message, type = "serverError") {
+  const errorBody = JSON.stringify({ message: message });
+  const headers = HTTP_HEADERS.JSON_CORS;
 
-    switch (type) {
-        case 'notFound':
-            return notFound({
-                "headers": headers,
-                "body": errorBody
-            });
-        case 'badRequest':
-            return badRequest({
-                "headers": headers,
-                "body": errorBody
-            });
-        case 'serverError':
-        default:
-            return serverError({
-                "headers": headers,
-                "body": errorBody
-            });
-    }
+  switch (type) {
+    case "notFound":
+      return notFound({
+        headers: headers,
+        body: errorBody,
+      });
+    case "badRequest":
+      return badRequest({
+        headers: headers,
+        body: errorBody,
+      });
+    case "serverError":
+    default:
+      return serverError({
+        headers: headers,
+        body: errorBody,
+      });
+  }
 }
 
 /**
@@ -69,14 +76,14 @@ export function createErrorResponse(message, type = 'serverError') {
  * @returns {Function} 包装后的处理函数
  */
 export function asyncErrorHandler(handler) {
-    return async (request) => {
-        try {
-            return await handler(request);
-        } catch (error) {
-            logError('AsyncErrorHandler', error, { request: request.path });
-            return createErrorResponse(`An error occurred: ${error.message}`);
-        }
-    };
+  return async (request) => {
+    try {
+      return await handler(request);
+    } catch (error) {
+      logError("AsyncErrorHandler", error, { request: request.path });
+      return createErrorResponse(`An error occurred: ${error.message}`);
+    }
+  };
 }
 
 /**
@@ -86,13 +93,13 @@ export function asyncErrorHandler(handler) {
  * @throws {Error} 如果缺少必需参数则抛出错误
  */
 export function validateRequiredParams(params, requiredFields) {
-    const missingFields = requiredFields.filter(field => 
-        params[field] === undefined || params[field] === null
-    );
-    
-    if (missingFields.length > 0) {
-        throw new Error(`Missing required parameters: ${missingFields.join(', ')}`);
-    }
+  const missingFields = requiredFields.filter(
+    (field) => params[field] === undefined || params[field] === null
+  );
+
+  if (missingFields.length > 0) {
+    throw new Error(`Missing required parameters: ${missingFields.join(", ")}`);
+  }
 }
 
 /**
@@ -103,11 +110,11 @@ export function validateRequiredParams(params, requiredFields) {
  * @throws {Error} 如果不是有效数字则抛出错误
  */
 export function validateNumberParam(value, fieldName) {
-    const num = parseInt(value, 10);
-    if (isNaN(num)) {
-        throw new Error(`Invalid ${fieldName}: must be a valid number`);
-    }
-    return num;
+  const num = parseInt(value, 10);
+  if (isNaN(num)) {
+    throw new Error(`Invalid ${fieldName}: must be a valid number`);
+  }
+  return num;
 }
 
 /**
@@ -117,16 +124,19 @@ export function validateNumberParam(value, fieldName) {
  * @param {Object} context - 错误上下文
  */
 export function logError(operation, error, context = {}) {
-    const timestamp = new Date().toISOString();
-    const errorInfo = {
-        timestamp,
-        operation,
-        message: error.message,
-        stack: error.stack,
-        context
-    };
-    
-    console.error(`[${timestamp}] Error in ${operation}:`, JSON.stringify(errorInfo, null, 2));
+  const timestamp = new Date().toISOString();
+  const errorInfo = {
+    timestamp,
+    operation,
+    message: error.message,
+    stack: error.stack,
+    context,
+  };
+
+  console.error(
+    `[${timestamp}] Error in ${operation}:`,
+    JSON.stringify(errorInfo, null, 2)
+  );
 }
 
 /**
@@ -136,8 +146,8 @@ export function logError(operation, error, context = {}) {
  * @param {Object} context - 上下文信息
  */
 export function logInfo(operation, message, context = {}) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${operation}: ${message}`, context);
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${operation}: ${message}`, context);
 }
 
 /**
@@ -147,8 +157,8 @@ export function logInfo(operation, message, context = {}) {
  * @param {Object} context - 上下文信息
  */
 export function logWarning(operation, message, context = {}) {
-    const timestamp = new Date().toISOString();
-    console.warn(`[${timestamp}] Warning in ${operation}: ${message}`, context);
+  const timestamp = new Date().toISOString();
+  console.warn(`[${timestamp}] Warning in ${operation}: ${message}`, context);
 }
 
 /**
@@ -159,12 +169,12 @@ export function logWarning(operation, message, context = {}) {
  * @returns {Promise<*>} 函数执行结果或默认值
  */
 export async function safeExecute(func, operationName, defaultValue = null) {
-    try {
-        return await func();
-    } catch (error) {
-        logError(operationName, error);
-        return defaultValue;
-    }
+  try {
+    return await func();
+  } catch (error) {
+    logError(operationName, error);
+    return defaultValue;
+  }
 }
 
 /**
@@ -174,13 +184,13 @@ export async function safeExecute(func, operationName, defaultValue = null) {
  * @returns {boolean} 是否有权限
  */
 export function validateUserPermissions(userRoles, requiredRoles) {
-    if (!userRoles || !Array.isArray(userRoles)) {
-        return false;
-    }
-    
-    return requiredRoles.some(requiredRole => 
-        userRoles.some(userRole => userRole.title === requiredRole)
-    );
+  if (!userRoles || !Array.isArray(userRoles)) {
+    return false;
+  }
+
+  return requiredRoles.some((requiredRole) =>
+    userRoles.some((userRole) => userRole.title === requiredRole)
+  );
 }
 
 /**
@@ -191,19 +201,19 @@ export function validateUserPermissions(userRoles, requiredRoles) {
  * @returns {Object} 分页结果
  */
 export function createPaginatedResponse(items, page = 1, pageSize = 20) {
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedItems = items.slice(startIndex, endIndex);
-    
-    return {
-        items: paginatedItems,
-        pagination: {
-            currentPage: page,
-            pageSize,
-            totalItems: items.length,
-            totalPages: Math.ceil(items.length / pageSize),
-            hasNext: endIndex < items.length,
-            hasPrevious: page > 1
-        }
-    };
-} 
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedItems = items.slice(startIndex, endIndex);
+
+  return {
+    items: paginatedItems,
+    pagination: {
+      currentPage: page,
+      pageSize,
+      totalItems: items.length,
+      totalPages: Math.ceil(items.length / pageSize),
+      hasNext: endIndex < items.length,
+      hasPrevious: page > 1,
+    },
+  };
+}

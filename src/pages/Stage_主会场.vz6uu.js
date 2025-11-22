@@ -11,9 +11,16 @@ import {
   deleteComment,
   checkIsSeaSelectionMember,
 } from "backend/auditorManagement.jsw";
-import { markTaskCompleted, checkIfWorkInTaskList, getUserTaskData, getWorkWeightedRatingData, getAllWorksWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import {
+  markTaskCompleted,
+  checkIfWorkInTaskList,
+  getUserTaskData,
+  getWorkWeightedRatingData,
+  getAllWorksWeightedRatingData,
+} from "backend/ratingTaskManager.jsw";
 import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
+import { getTierFromPercentile } from "public/tierUtils.js";
 
 // 全局状态管理
 let commentsCountByWorkNumber = {};
@@ -103,7 +110,7 @@ function updateCommentControlsVerificationStatus() {
 
 // 【新增】批量加载所有数据（性能优化核心函数）
 async function loadBatchData() {
-   // 如果已有缓存，直接返回
+  // 如果已有缓存，直接返回
   if (batchDataCache) {
     return batchDataCache;
   }
@@ -113,7 +120,7 @@ async function loadBatchData() {
     // console.log("[性能优化] 批量数据正在加载中，等待完成...");
     let waitCount = 0;
     while (isLoadingBatchData && waitCount < 600) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       waitCount++;
     }
     return batchDataCache;
@@ -125,20 +132,26 @@ async function loadBatchData() {
   try {
     // console.log("[性能优化] 开始批量加载所有作品数据...");
     const startTime = Date.now();
-    
+
     batchDataCache = await getAllWorksWeightedRatingData();
-    
+
     // 从批量数据中提取评论计数
     commentsCountByWorkNumber = batchDataCache.commentCountMap || {};
-    
+
     // 从批量数据中提取作品所有者信息
     workOwnersCache = batchDataCache.workOwnerMap || {};
-    
+
     const endTime = Date.now();
     console.log(`加载完成，耗时: ${endTime - startTime}ms`);
-    console.log(`加载了 ${Object.keys(batchDataCache.workRatings || {}).length} 个作品的评分数据`);
-    console.log(`加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`);
-    
+    console.log(
+      `加载了 ${
+        Object.keys(batchDataCache.workRatings || {}).length
+      } 个作品的评分数据`
+    );
+    console.log(
+      `加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`
+    );
+
     return batchDataCache;
   } catch (error) {
     console.error("[性能优化] 批量数据加载失败:", error);
@@ -147,7 +160,7 @@ async function loadBatchData() {
       userQualityMap: {},
       workOwnerMap: {},
       workDQMap: {},
-      commentCountMap: {}
+      commentCountMap: {},
     };
     return batchDataCache;
   } finally {
@@ -173,17 +186,24 @@ $w.onReady(async function () {
       // console.log("[主会场] 任务同步检查完成，已缓存");
       // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
       if (userTaskDataCache && userTaskDataCache.error) {
-        console.log("[主会场] 用户任务数据异常:", userTaskDataCache.message || '未知错误');
+        console.log(
+          "[主会场] 用户任务数据异常:",
+          userTaskDataCache.message || "未知错误"
+        );
       }
     } catch (error) {
       console.error("[主会场] 任务同步检查失败:", error);
-      userTaskDataCache = { error: true, hasCompletedTarget: false, taskList: [] };
+      userTaskDataCache = {
+        error: true,
+        hasCompletedTarget: false,
+        taskList: [],
+      };
     }
   }
 
   // 初始化自定义HTML楼中楼回复面板
   initCommentRepliesPanel();
-  
+
   // 初始化删除确认面板
   initDeleteConfirmationPanel();
 
@@ -235,17 +255,17 @@ $w.onReady(async function () {
 
   // 数据初始化
   await updateRepeaterData(1, "", "");
-  
+
   // 【优化】预加载用户评分状态（使用批量数据）
   if (currentUserId && isUserVerified) {
     await batchLoadUserFormalRatings();
   }
-  
+
   // 【优化】预加载作品排名数据（使用批量数据）
   await calculateAllWorksRanking();
-  
+
   // 【已移除】loadAllFormalComments() - 旧repeater1初始化，新系统通过HTML元件初始化
-  
+
   // 预加载当前显示评论的回复数量（新系统会自动处理）
   // 【注释】旧repeater1的回复数量预加载已不需要
 
@@ -290,11 +310,19 @@ async function updateCommentStatus($item, itemData) {
     // 【优化】检查是否为任务作品或冷门作品 - 使用缓存避免重复调用
     // 【新增】同时检查用户任务数据是否有效（排除未提交作品等错误状态）
     const hasValidTaskData = userTaskDataCache && !userTaskDataCache.error;
-    const taskCheck = hasValidTaskData ? await checkIfWorkInTaskList(currentUserId, itemData.sequenceId) : { inTaskList: false, alreadyCompleted: false };
-    const hasCompletedTarget = hasValidTaskData ? (userTaskDataCache.hasCompletedTarget || false) : false;
-    
-    const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted && !hasCompletedTarget;
-    const isColdWork = taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
+    const taskCheck = hasValidTaskData
+      ? await checkIfWorkInTaskList(currentUserId, itemData.sequenceId)
+      : { inTaskList: false, alreadyCompleted: false };
+    const hasCompletedTarget = hasValidTaskData
+      ? userTaskDataCache.hasCompletedTarget || false
+      : false;
+
+    const isTask =
+      taskCheck.inTaskList &&
+      !taskCheck.alreadyCompleted &&
+      !hasCompletedTarget;
+    const isColdWork =
+      taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
 
     if (results.items.length > 0) {
       $item("#ifComment").text = "已评论";
@@ -321,27 +349,6 @@ async function updateCommentStatus($item, itemData) {
   }
 }
 
-// 【已移除 - 旧系统】以下函数已废弃，功能已迁移到新的HTML元件
-// - setupWorkSelectionEvent()
-// - setupSubmitButtonEvent()
-// - setupScoreCheckboxEvent()
-// - setupDropdownFilterEvent()
-// - setupCommentsPaginationEvents()
-// - setupSearchAndPaginationEvents()
-// - updateCommentControlsVerificationStatus()
-// - getCommentFilterMode()
-// - loadAllFormalComments()
-// - setDropdownValue()
-
-/* 【已移除 - 旧系统】setupWorkSelectionEvent() 已废弃，功能已迁移到HTML元件
-function setupWorkSelectionEvent() {
-  $w("#inputNumber").onChange(async () => {
-    const workNumber = parseInt($w("#inputNumber").value);
-    // ... 约150行代码 ...
-  });
-}
-*/
-
 // Lightbox弹窗管理
 function showTextPopup(content) {
   wixWindow.openLightbox("TextPopup", { content: content });
@@ -352,20 +359,19 @@ async function handleDeleteComment(data, isSelfScComment = false) {
   try {
     // 显示删除确认面板
     $w("#deleteConfirmation").show();
-    
+
     // 发送初始化数据到HTML元件
     $w("#deleteConfirmation").postMessage({
-      action: 'init',
+      action: "init",
       commentData: {
         commentId: data.commentId,
         workNumber: data.workNumber,
         score: data.score,
         comment: data.comment,
         isSelfScComment: data.isSelfScComment || isSelfScComment,
-        _owner: data._owner
-      }
+        _owner: data._owner,
+      },
     });
-    
   } catch (error) {
     console.error("显示删除确认面板失败:", error);
   }
@@ -390,7 +396,7 @@ async function executeDelete(commentData, deleteReason) {
       deleteReason,
       commentData.isSelfScComment
     );
-    
+
     if (deleteResult.success) {
       resetCommentDataCache();
 
@@ -400,38 +406,36 @@ async function executeDelete(commentData, deleteReason) {
         const workOwner = batchDataCache.workOwnerMap[commentData.workNumber];
         isAuthorComment = commentData._owner === workOwner;
       }
-      
+
       // 发送删除成功结果到HTML元件
       $w("#deleteConfirmation").postMessage({
-        action: 'deleteResult',
+        action: "deleteResult",
         result: {
           success: true,
           deleteReason: deleteReason,
-          isAuthorComment: isAuthorComment
-        }
+          isAuthorComment: isAuthorComment,
+        },
       });
-      
     } else {
       // 发送删除失败结果到HTML元件
       $w("#deleteConfirmation").postMessage({
-        action: 'deleteResult',
+        action: "deleteResult",
         result: {
           success: false,
-          message: deleteResult.message || '删除失败'
-        }
+          message: deleteResult.message || "删除失败",
+        },
       });
     }
-    
   } catch (error) {
     console.error("执行删除操作失败:", error);
-    
+
     // 发送错误结果到HTML元件
     $w("#deleteConfirmation").postMessage({
-      action: 'deleteResult',
+      action: "deleteResult",
       result: {
         success: false,
-        message: error.message || '删除时发生异常'
-      }
+        message: error.message || "删除时发生异常",
+      },
     });
   }
 }
@@ -441,29 +445,29 @@ function initDeleteConfirmationPanel() {
   try {
     // 初始时隐藏面板
     $w("#deleteConfirmation").hide();
-    
+
     // 监听来自HTML元件的消息
     $w("#deleteConfirmation").onMessage(async (event) => {
       const action = event.data.action;
-      
-      if (action === 'confirmDelete') {
+
+      if (action === "confirmDelete") {
         // 执行删除操作
         await executeDelete(event.data.commentData, event.data.deleteReason);
-      } else if (action === 'cancelDelete') {
+      } else if (action === "cancelDelete") {
         // 取消删除
         closeDeleteConfirmation();
-      } else if (action === 'closeDeleteConfirmation') {
+      } else if (action === "closeDeleteConfirmation") {
         // 关闭面板并刷新数据
         closeDeleteConfirmation();
         await refreshRepeaters();
-        
+
         // 【新增】同时刷新评论系统HTML元件的评论列表
         if ($w("#commentSystemPanel")) {
           try {
             await sendCommentsData({
-              workFilter: '',
-              filterMode: 'default',
-              currentPage: 1
+              workFilter: "",
+              filterMode: "default",
+              currentPage: 1,
             });
             // console.log("[评论系统] 删除后已刷新评论列表");
           } catch (error) {
@@ -483,18 +487,18 @@ function initCommentRepliesPanel() {
   try {
     // 初始时隐藏面板
     $w("#commentRepliesPanel").hide();
-    
+
     // 监听来自HTML元件的消息
     $w("#commentRepliesPanel").onMessage(async (event) => {
       const action = event.data.action;
-      
-      if (action === 'getReplies') {
+
+      if (action === "getReplies") {
         // 获取回复数据
         await handleGetReplies(event.data.commentId);
-      } else if (action === 'submitReply') {
+      } else if (action === "submitReply") {
         // 提交回复
         await handleSubmitReply(event.data);
-      } else if (action === 'closeReplies') {
+      } else if (action === "closeReplies") {
         // 关闭面板
         closeCommentRepliesPanel();
       }
@@ -516,19 +520,19 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
 
     // 显示HTML面板
     $w("#commentRepliesPanel").show();
-    
+
     // 发送初始化数据到HTML元件
     $w("#commentRepliesPanel").postMessage({
-      action: 'init',
+      action: "init",
       commentData: {
         commentId: commentId,
         workNumber: workNumber,
         originalComment: originalComment,
-        replies: replies.items
+        replies: replies.items,
       },
-      currentUserId: currentUserId
+      currentUserId: currentUserId,
     });
-    
+
     // 滚动到顶部以确保面板可见
     $w("#commentRepliesPanel").scrollTo();
   } catch (err) {
@@ -542,14 +546,14 @@ function closeCommentRepliesPanel() {
     $w("#commentRepliesPanel").hide();
     // 刷新页面数据
     refreshRepeaters();
-    
+
     // 【新增】同时刷新评论系统HTML元件的评论列表（如果有新回复）
     if ($w("#commentSystemPanel")) {
       try {
         sendCommentsData({
-          workFilter: '',
-          filterMode: 'default',
-          currentPage: 1
+          workFilter: "",
+          filterMode: "default",
+          currentPage: 1,
         });
         // console.log("[评论系统] 回复后已刷新评论列表");
       } catch (error) {
@@ -569,17 +573,17 @@ async function handleGetReplies(commentId) {
       .eq("replyTo", commentId)
       .ascending("_createdDate")
       .find();
-    
+
     // 将回复数据发送回HTML元件
     $w("#commentRepliesPanel").postMessage({
-      action: 'repliesData',
-      replies: replies.items
+      action: "repliesData",
+      replies: replies.items,
     });
   } catch (error) {
     console.error("获取回复数据失败:", error);
     $w("#commentRepliesPanel").postMessage({
-      action: 'repliesData',
-      replies: []
+      action: "repliesData",
+      replies: [],
     });
   }
 }
@@ -588,28 +592,28 @@ async function handleGetReplies(commentId) {
 async function handleSubmitReply(data) {
   try {
     const { commentId, workNumber, replyContent } = data;
-    
+
     if (!currentUserId) {
       $w("#commentRepliesPanel").postMessage({
-        action: 'submitReplyResult',
+        action: "submitReplyResult",
         success: false,
-        error: '用户未登录'
+        error: "用户未登录",
       });
       return;
     }
-    
+
     // 创建回复数据
     const replyData = {
       workNumber: workNumber,
       comment: replyContent,
       score: 0, // 回复不计分
       replyTo: commentId,
-      submissionTime: new Date().toISOString()
+      submissionTime: new Date().toISOString(),
     };
-    
+
     // 提交到数据库
     const insertedReply = await wixData.insert("BOFcomment", replyData);
-    
+
     // 发送邮件通知（异步执行，不阻塞用户体验）
     try {
       await sendReplyNotification(
@@ -621,19 +625,18 @@ async function handleSubmitReply(data) {
     } catch (emailError) {
       console.error("发送邮件通知失败（不影响回复提交）:", emailError);
     }
-    
+
     // 通知HTML元件提交成功
     $w("#commentRepliesPanel").postMessage({
-      action: 'submitReplyResult',
-      success: true
+      action: "submitReplyResult",
+      success: true,
     });
-    
   } catch (error) {
     console.error("提交回复失败:", error);
     $w("#commentRepliesPanel").postMessage({
-      action: 'submitReplyResult',
+      action: "submitReplyResult",
       success: false,
-      error: error.message || '提交失败'
+      error: error.message || "提交失败",
     });
   }
 }
@@ -653,7 +656,7 @@ async function calculateAllWorksRanking() {
     // console.log("[性能优化] 排名数据正在加载中，等待完成...");
     let waitCount = 0;
     while (isLoadingRanking && waitCount < 600) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       waitCount++;
     }
     return allWorksRankingCache;
@@ -665,34 +668,36 @@ async function calculateAllWorksRanking() {
   try {
     // console.log("[性能优化] 开始计算所有作品排名...");
     const startTime = Date.now();
-    
+
     // 【优化】直接从批量缓存中获取数据
     if (!batchDataCache || !batchDataCache.workRatings) {
       console.warn("[性能提示] 批量缓存未加载，重新加载");
       await loadBatchData();
     }
-    
+
     const workRatings = batchDataCache.workRatings;
-    
+
     // 构建作品评分数组，排除淘汰作品
     const worksWithScores = [];
     for (const [workNumber, ratingData] of Object.entries(workRatings)) {
       // 排除淘汰作品
       if (ratingData.isDQ) continue;
-      
+
       worksWithScores.push({
         sequenceId: parseInt(workNumber),
         averageScore: ratingData.weightedAverage,
-        numRatings: ratingData.numRatings
+        numRatings: ratingData.numRatings,
       });
     }
 
     // 只考虑有足够评分的作品（>=阈值人评分）
-    const validWorks = worksWithScores.filter(w => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING);
-    
+    const validWorks = worksWithScores.filter(
+      (w) => w.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING
+    );
+
     // 按平均分降序排序
     validWorks.sort((a, b) => b.averageScore - a.averageScore);
-    
+
     // 创建排名映射
     const rankingMap = {};
     validWorks.forEach((work, index) => {
@@ -701,17 +706,21 @@ async function calculateAllWorksRanking() {
         averageScore: work.averageScore,
         numRatings: work.numRatings,
         percentile: percentile,
-        rank: index + 1
+        rank: index + 1,
       };
     });
 
     allWorksRankingCache = {
       rankingMap: rankingMap,
-      totalValidWorks: validWorks.length
+      totalValidWorks: validWorks.length,
     };
 
     const endTime = Date.now();
-    console.log(`作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${endTime - startTime}ms`);
+    console.log(
+      `作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${
+        endTime - startTime
+      }ms`
+    );
     return allWorksRankingCache;
   } catch (error) {
     console.error("计算作品排名失败:", error);
@@ -721,15 +730,6 @@ async function calculateAllWorksRanking() {
     // 释放加载锁
     isLoadingRanking = false;
   }
-}
-
-// 根据百分位获取等级
-function getTierFromPercentile(percentile) {
-  if (percentile <= 0.05) return "T0";
-  if (percentile <= 0.20) return "T1";
-  if (percentile <= 0.40) return "T2";
-  if (percentile <= 0.60) return "T3";
-  return "T4";
 }
 
 // 【优化】批量获取用户正式评分状态
@@ -746,7 +746,7 @@ async function batchLoadUserFormalRatings() {
     // 等待加载完成（最多等待60秒）
     let waitCount = 0;
     while (isLoadingUserFormalRatings && waitCount < 600) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       waitCount++;
     }
     return userFormalRatingsCache || {};
@@ -758,13 +758,13 @@ async function batchLoadUserFormalRatings() {
   try {
     // console.log("[性能优化] 批量加载用户评分状态...");
     const startTime = Date.now();
-    
+
     // 【优化】从批量缓存获取作品所有者信息
     if (!batchDataCache || !batchDataCache.workOwnerMap) {
       console.warn("[性能提示] 批量缓存未加载，重新加载");
       await loadBatchData();
     }
-    
+
     const workOwnerMap = batchDataCache.workOwnerMap;
 
     // 获取用户所有评论
@@ -786,7 +786,11 @@ async function batchLoadUserFormalRatings() {
 
     userFormalRatingsCache = formalRatings;
     const endTime = Date.now();
-    console.log(`用户评分状态加载完成，共${Object.keys(formalRatings).length}个作品有正式评分，耗时: ${endTime - startTime}ms`);
+    console.log(
+      `用户评分状态加载完成，共${
+        Object.keys(formalRatings).length
+      }个作品有正式评分，耗时: ${endTime - startTime}ms`
+    );
     return formalRatings;
   } catch (error) {
     console.error("批量加载用户正式评分状态失败:", error);
@@ -820,21 +824,26 @@ function clearCaches() {
   batchDataCache = null; // 清理批量数据缓存
   userTaskDataCache = null; // 清理任务数据缓存
   resetCommentDataCache(); // 清理评论分页缓存
-  
+
   // 重置所有加载锁
   isLoadingUserFormalRatings = false;
   isLoadingBatchData = false;
   isLoadingRanking = false;
-  
+
   // console.log("[性能优化] 缓存数据已清理");
 }
 
 // 【新增】增量热更新 - 评论提交后快速更新状态（无需完全刷新）
-async function incrementalUpdateAfterComment(workNumber, score, comment, isAuthorComment = false) {
+async function incrementalUpdateAfterComment(
+  workNumber,
+  score,
+  comment,
+  isAuthorComment = false
+) {
   try {
     // console.log(`[热更新] 开始增量更新作品 #${workNumber} 的状态...`);
     const startTime = Date.now();
-    
+
     // 1. 更新评论计数缓存
     if (batchDataCache && batchDataCache.commentCountMap) {
       const currentCount = batchDataCache.commentCountMap[workNumber] || 0;
@@ -842,7 +851,7 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
       commentsCountByWorkNumber[workNumber] = currentCount + 1;
       // console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
     }
-    
+
     // 2. 如果不是作者自评，更新用户正式评分缓存和作品评分数据
     if (!isAuthorComment) {
       // 更新用户正式评分状态
@@ -850,7 +859,7 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
         userFormalRatingsCache[workNumber] = true;
         // console.log(`[热更新] 用户评分状态已更新`);
       }
-      
+
       // 【修复】等待评分数据更新完成后再更新显示
       let updatedRatingData = null;
       if (batchDataCache && batchDataCache.workRatings) {
@@ -866,7 +875,7 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
               highWeightCount: newRating.highWeightCount,
               lowWeightCount: newRating.lowWeightCount,
               ratio: newRating.ratio,
-              isDQ: oldRating.isDQ
+              isDQ: oldRating.isDQ,
             };
             updatedRatingData = newRating;
             // console.log(`[热更新] 评分数据已更新: 作品 #${workNumber} 现有 ${newRating.numRatings}人评分`);
@@ -875,28 +884,28 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
           console.error("[热更新] 更新评分数据失败:", error);
         }
       }
-      
+
       // 清理排名缓存，强制重新计算（因为评分可能影响排名）
       allWorksRankingCache = null;
     }
-    
+
     // 3. 热更新 Repeater2（作品列表）中当前页的该作品状态
     try {
       const repeater2Data = $w("#repeater2").data;
       let needUpdateRepeater2 = false;
-      
+
       $w("#repeater2").forEachItem(($item, itemData, index) => {
         if (itemData.sequenceId === workNumber) {
           needUpdateRepeater2 = true;
           // 更新评论计数显示
           const newCount = commentsCountByWorkNumber[workNumber] || 0;
           $item("#Commments").text = `${newCount}`;
-          
+
           // 更新评论状态（异步更新）
           updateCommentStatus($item, itemData).then(() => {
             // console.log(`[热更新] 作品 #${workNumber} 的评论状态已更新`);
           });
-          
+
           // 【修复】等待评分数据更新后再更新显示，确保使用最新数据
           if (!isAuthorComment) {
             updateItemEvaluationDisplay($item, itemData).then(() => {
@@ -905,21 +914,17 @@ async function incrementalUpdateAfterComment(workNumber, score, comment, isAutho
           }
         }
       });
-      
+
       if (needUpdateRepeater2) {
         // console.log(`[热更新] Repeater2中作品 #${workNumber} 已热更新`);
       }
     } catch (error) {
       console.error("[热更新] 更新Repeater2失败:", error);
     }
-    
-    // 4. 【优化】通知新评论系统刷新（如果正在查看该作品的评论）
-    // 新系统会自动在提交后刷新，这里无需额外操作
-    // 旧的 setDropdownValue 已废弃
-    
+
     const endTime = Date.now();
     // console.log(`[热更新] 增量更新完成，耗时: ${endTime - startTime}ms`);
-    
+
     return { success: true };
   } catch (error) {
     console.error("[热更新] 增量更新失败:", error);
@@ -932,13 +937,13 @@ async function refreshRepeaters() {
   try {
     // console.log("[性能优化] 开始完全刷新Repeaters...");
     const startTime = Date.now();
-    
+
     // 清理缓存以确保数据同步
     clearCaches();
-    
+
     // 重新批量加载所有数据
     await loadBatchData();
-    
+
     // 【优化】重新加载任务数据缓存
     if (currentUserId && isUserVerified) {
       try {
@@ -946,14 +951,21 @@ async function refreshRepeaters() {
         // console.log("[性能优化] 任务数据缓存已重新加载");
         // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
         if (userTaskDataCache && userTaskDataCache.error) {
-          console.log("[性能优化] 任务数据异常:", userTaskDataCache.message || '未知错误');
+          console.log(
+            "[性能优化] 任务数据异常:",
+            userTaskDataCache.message || "未知错误"
+          );
         }
       } catch (error) {
         console.error("[性能优化] 任务数据重新加载失败:", error);
-        userTaskDataCache = { error: true, hasCompletedTarget: false, taskList: [] };
+        userTaskDataCache = {
+          error: true,
+          hasCompletedTarget: false,
+          taskList: [],
+        };
       }
     }
-    
+
     const currentPage = $w("#paginator").currentPage || 1;
     const searchValue = $w("#input1").value;
     const dropdownValue = $w("#dropdown1").value;
@@ -963,7 +975,7 @@ async function refreshRepeaters() {
     if (currentUserId && isUserVerified) {
       await batchLoadUserFormalRatings();
     }
-    
+
     // 重新加载排名数据
     await calculateAllWorksRanking();
 
@@ -971,9 +983,9 @@ async function refreshRepeaters() {
     if ($w("#commentSystemPanel")) {
       try {
         await sendCommentsData({
-          workFilter: '',
-          filterMode: 'default',
-          currentPage: 1
+          workFilter: "",
+          filterMode: "default",
+          currentPage: 1,
         });
         // console.log("[评论系统] 已刷新评论列表");
       } catch (error) {
@@ -1034,7 +1046,6 @@ async function displayAuthorInfo($item, itemData) {
     } else {
       $item("#text15").text = "未知作品";
     }
-   
   } catch (error) {
     console.error("显示作者信息失败:", error);
     $item("#text15").text = "Unknown";
@@ -1043,15 +1054,15 @@ async function displayAuthorInfo($item, itemData) {
 
 // 批量加载回复数量
 async function batchLoadReplyCounts(commentIds) {
-  const uncachedIds = commentIds.filter(id => !(id in replyCountsCache));
-  
+  const uncachedIds = commentIds.filter((id) => !(id in replyCountsCache));
+
   if (uncachedIds.length === 0) {
     return;
   }
 
   try {
-   // console.log(`批量加载${uncachedIds.length}个评论的回复数量...`);
-    
+    // console.log(`批量加载${uncachedIds.length}个评论的回复数量...`);
+
     // 批量查询所有回复
     const allReplies = await wixData
       .query("BOFcomment")
@@ -1060,21 +1071,21 @@ async function batchLoadReplyCounts(commentIds) {
 
     // 统计每个评论的回复数量
     const counts = {};
-    allReplies.items.forEach(reply => {
+    allReplies.items.forEach((reply) => {
       const parentId = reply.replyTo;
       counts[parentId] = (counts[parentId] || 0) + 1;
     });
 
     // 更新缓存
-    uncachedIds.forEach(id => {
+    uncachedIds.forEach((id) => {
       replyCountsCache[id] = counts[id] || 0;
     });
 
-   // console.log(`回复数量加载完成，共${Object.keys(counts).length}个评论有回复`);
+    // console.log(`回复数量加载完成，共${Object.keys(counts).length}个评论有回复`);
   } catch (err) {
     console.error("批量加载回复数量失败", err);
     // 为未能加载的ID设置默认值
-    uncachedIds.forEach(id => {
+    uncachedIds.forEach((id) => {
       replyCountsCache[id] = 0;
     });
   }
@@ -1124,8 +1135,8 @@ function setupItemEventListeners($item, itemData, downloadUrl) {
       try {
         await sendCommentsData({
           workFilter: itemData.sequenceId.toString(),
-          filterMode: 'default',
-          currentPage: 1
+          filterMode: "default",
+          currentPage: 1,
         });
         // console.log(`[评论系统] 已切换到作品 #${itemData.sequenceId} 的评论`);
       } catch (error) {
@@ -1143,7 +1154,6 @@ function formatDate(date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}.${month}.${day}`;
 }
-
 
 // 数据处理与分页
 async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
@@ -1207,8 +1217,6 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   }
 }
 
-
-
 // 更新下载按钮状态
 async function updateButtonStatus($item, sheetId) {
   $item("#button3").enable();
@@ -1221,7 +1229,11 @@ async function updateButtonStatus($item, sheetId) {
 async function getRatingData(workNumber) {
   try {
     // 优先从批量缓存中获取
-    if (batchDataCache && batchDataCache.workRatings && batchDataCache.workRatings[workNumber]) {
+    if (
+      batchDataCache &&
+      batchDataCache.workRatings &&
+      batchDataCache.workRatings[workNumber]
+    ) {
       const cachedData = batchDataCache.workRatings[workNumber];
       return {
         numRatings: cachedData.numRatings,
@@ -1229,21 +1241,21 @@ async function getRatingData(workNumber) {
         originalAverage: cachedData.originalAverage,
         highWeightCount: cachedData.highWeightCount,
         lowWeightCount: cachedData.lowWeightCount,
-        ratio: cachedData.ratio
+        ratio: cachedData.ratio,
       };
     }
-    
+
     // 缓存未命中时才调用后端（降级方案）
     console.warn(`[性能提示] 作品 ${workNumber} 未在缓存中，降级查询`);
     const weightedData = await getWorkWeightedRatingData(workNumber);
-    
+
     return {
       numRatings: weightedData.numRatings,
       averageScore: weightedData.weightedAverage,
       originalAverage: weightedData.originalAverage,
       highWeightCount: weightedData.highWeightCount,
       lowWeightCount: weightedData.lowWeightCount,
-      ratio: weightedData.ratio
+      ratio: weightedData.ratio,
     };
   } catch (error) {
     console.error("获取评分数据失败:", error);
@@ -1253,11 +1265,10 @@ async function getRatingData(workNumber) {
       originalAverage: 0,
       highWeightCount: 0,
       lowWeightCount: 0,
-      ratio: 0
+      ratio: 0,
     };
   }
 }
-
 
 // 【已废弃】统计所有作品的评论数量（仅主评论）
 // 改用批量数据中的 commentCountMap，无需单独查询
@@ -1267,11 +1278,11 @@ async function getAllCommentsCount() {
   if (batchDataCache && batchDataCache.commentCountMap) {
     return batchDataCache.commentCountMap;
   }
-  
+
   // 降级方案：直接查询（性能较低，仅作为备用）
   console.warn("[性能提示] 批量缓存未加载，使用降级查询评论计数");
   let commentsCountByWorkNumber = {};
-  
+
   try {
     // 一次性查询所有主评论
     const allComments = await wixData
@@ -1329,7 +1340,7 @@ async function updateItemEvaluationDisplay($item, itemData) {
         // 获取排名信息
         const rankingData = await calculateAllWorksRanking();
         const workRanking = rankingData.rankingMap[workNumber];
-        
+
         if (workRanking) {
           const tier = getTierFromPercentile(workRanking.percentile);
           $item("#totalscore").text = `${tier} (${evaluationCount}人评分)`;
@@ -1352,9 +1363,7 @@ async function updateItemEvaluationDisplay($item, itemData) {
           $item("#box1").style.backgroundColor = "transparent";
         }
       } else {
-        $item(
-          "#totalscore"
-        ).text = `评分量不足(${evaluationCount}人评分)`;
+        $item("#totalscore").text = `评分量不足(${evaluationCount}人评分)`;
         $item("#box1").style.backgroundColor = "rgba(255, 255, 0, 0.3)";
       }
     } else {
@@ -1377,7 +1386,10 @@ async function sortByTask(items) {
 
     const itemsWithTaskStatus = await Promise.all(
       items.map(async (item) => {
-        const taskCheck = await checkIfWorkInTaskList(currentUserId, item.sequenceId);
+        const taskCheck = await checkIfWorkInTaskList(
+          currentUserId,
+          item.sequenceId
+        );
         const isTask = taskCheck.inTaskList && !taskCheck.alreadyCompleted;
         const isTaskCompleted = taskCheck.alreadyCompleted;
         const isDQ = item.isDq === true;
@@ -1386,16 +1398,22 @@ async function sortByTask(items) {
           ...item,
           isTask: isTask, // 未完成的任务
           isTaskCompleted: isTaskCompleted, // 已完成的任务
-          isDQ: isDQ // 淘汰作品
+          isDQ: isDQ, // 淘汰作品
         };
       })
     );
 
     // 四级分类：未完成的任务 > 已完成的任务 > 其他作品 > 淘汰作品
-    const uncompletedTaskItems = itemsWithTaskStatus.filter(item => item.isTask && !item.isDQ);
-    const completedTaskItems = itemsWithTaskStatus.filter(item => item.isTaskCompleted && !item.isDQ && !item.isTask);
-    const otherItems = itemsWithTaskStatus.filter(item => !item.isTask && !item.isTaskCompleted && !item.isDQ);
-    const disqualifiedItems = itemsWithTaskStatus.filter(item => item.isDQ);
+    const uncompletedTaskItems = itemsWithTaskStatus.filter(
+      (item) => item.isTask && !item.isDQ
+    );
+    const completedTaskItems = itemsWithTaskStatus.filter(
+      (item) => item.isTaskCompleted && !item.isDQ && !item.isTask
+    );
+    const otherItems = itemsWithTaskStatus.filter(
+      (item) => !item.isTask && !item.isTaskCompleted && !item.isDQ
+    );
+    const disqualifiedItems = itemsWithTaskStatus.filter((item) => item.isDQ);
 
     // 各分类内部按sequenceId排序
     uncompletedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
@@ -1404,7 +1422,12 @@ async function sortByTask(items) {
     disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
 
     // 排序优先级：未完成任务 > 已完成任务 > 其他作品 > 淘汰作品
-    return [...uncompletedTaskItems, ...completedTaskItems, ...otherItems, ...disqualifiedItems];
+    return [
+      ...uncompletedTaskItems,
+      ...completedTaskItems,
+      ...otherItems,
+      ...disqualifiedItems,
+    ];
   } catch (error) {
     console.error("按任务排序时出错:", error);
     return items;
@@ -1412,38 +1435,72 @@ async function sortByTask(items) {
 }
 
 // 基于评分排序作品（排除作者自评，考虑用户评分权限，淘汰作品后置）
+// 【修改】按tier分类排序，同tier内部按作品ID排序，隐藏精确排名
 async function sortByRating(items) {
   try {
+    // 获取排名数据用于计算tier
+    const rankingData = await calculateAllWorksRanking();
+    
     const itemsWithRating = await Promise.all(
       items.map(async (item) => {
         const ratingData = await getRatingData(item.sequenceId);
-        const userHasFormalRating = await checkUserHasFormalRating(item.sequenceId);
-        
+        const userHasFormalRating = await checkUserHasFormalRating(
+          item.sequenceId
+        );
+
         // 只有用户对该作品有正式评分时，才能看到并参与排序
-        const canSeeRating = userHasFormalRating && ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING;
-        const averageScore = canSeeRating ? ratingData.averageScore : 0;
+        const canSeeRating =
+          userHasFormalRating &&
+          ratingData.numRatings >= RATING_CONFIG.MIN_RATINGS_FOR_RANKING;
+        
+        // 获取tier信息
+        let tier = null;
+        let tierOrder = 999; // 默认排序值（用于没有tier的作品）
+        
+        if (canSeeRating && rankingData.rankingMap[item.sequenceId]) {
+          const workRanking = rankingData.rankingMap[item.sequenceId];
+          tier = getTierFromPercentile(workRanking.percentile);
+          
+          // 定义tier的排序优先级（数字越小越靠前）
+          const tierOrderMap = {
+            'T0': 0,
+            'T1': 1,
+            'T2': 2,
+            'T3': 3,
+            'T4': 4
+          };
+          tierOrder = tierOrderMap[tier] !== undefined ? tierOrderMap[tier] : 999;
+        }
 
         return {
           ...item,
-          rating: averageScore,
+          rating: ratingData.averageScore,
           numRatings: ratingData.numRatings,
           canSeeRating: canSeeRating, // 标记用户是否能看到评分
           isDQ: item.isDq === true, // 标记是否淘汰
+          tier: tier, // tier等级
+          tierOrder: tierOrder, // tier排序优先级
         };
       })
     );
 
     // 三级分类：能看到评分的非淘汰作品、不能看到评分的非淘汰作品、淘汰作品
-    const visibleRatingItems = itemsWithRating.filter(item => item.canSeeRating && !item.isDQ);
-    const hiddenRatingItems = itemsWithRating.filter(item => !item.canSeeRating && !item.isDQ);
-    const disqualifiedItems = itemsWithRating.filter(item => item.isDQ);
+    const visibleRatingItems = itemsWithRating.filter(
+      (item) => item.canSeeRating && !item.isDQ
+    );
+    const hiddenRatingItems = itemsWithRating.filter(
+      (item) => !item.canSeeRating && !item.isDQ
+    );
+    const disqualifiedItems = itemsWithRating.filter((item) => item.isDQ);
 
-    // 能看到评分的作品按评分排序
+    // 【关键修改】能看到评分的作品按tier分类排序，同tier内按作品ID排序
     visibleRatingItems.sort((a, b) => {
-      if (a.rating === b.rating) {
-        return b.numRatings - a.numRatings;
+      // 先按tier排序（T0 > T1 > T2...）
+      if (a.tierOrder !== b.tierOrder) {
+        return a.tierOrder - b.tierOrder;
       }
-      return b.rating - a.rating;
+      // 同tier内按作品ID排序（隐藏精确排名）
+      return a.sequenceId - b.sequenceId;
     });
 
     // 不能看到评分的作品按sequenceId排序
@@ -1484,16 +1541,6 @@ function setupSearchAndPaginationEvents() {
   });
 }
 
-/* 【已移除 - 旧评论系统】以下函数已废弃，功能已迁移到HTML元件
-- setupCommentsPaginationEvents() - 评论分页（已废弃）
-- setupSubmitButtonEvent() - 提交按钮（已废弃）
-- getCommentFilterMode() - 获取筛选模式（已废弃）
-- setupScoreCheckboxEvent() - 评分筛选（已废弃）
-- loadAllFormalComments() - 加载评论（已废弃）
-- setupDropdownFilterEvent() - 评论筛选（已废弃）
-*/
-
-// ==================== 评论系统HTML元件集成 ====================
 
 // 初始化评论系统HTML元件
 function initCommentSystemPanel() {
@@ -1512,32 +1559,32 @@ function initCommentSystemPanel() {
       // console.log(`[评论系统] 收到消息: ${type}`, data);
 
       switch (type) {
-        case 'COMMENT_SYSTEM_READY':
+        case "COMMENT_SYSTEM_READY":
           await handleCommentSystemReady();
           break;
-        case 'REQUEST_WORK_OPTIONS':
+        case "REQUEST_WORK_OPTIONS":
           await sendWorkOptions();
           break;
-        case 'REQUEST_COMMENTS':
+        case "REQUEST_COMMENTS":
           await sendCommentsData(data);
           break;
-        case 'SUBMIT_COMMENT':
+        case "SUBMIT_COMMENT":
           await handleCommentSubmit(data);
           break;
-        case 'WORK_NUMBER_CHANGED':
+        case "WORK_NUMBER_CHANGED":
           await handleWorkNumberChange(data.workNumber);
           break;
-        case 'GOTO_WORK':
+        case "GOTO_WORK":
           await handleGotoWork(data.workNumber);
           break;
-        case 'VIEW_REPLIES':
+        case "VIEW_REPLIES":
           await handleViewReplies(data);
           break;
-        case 'DELETE_COMMENT':
+        case "DELETE_COMMENT":
           await handleDeleteComment(data, data.isSelfScComment);
           break;
         default:
-          // console.log('[评论系统] 未知消息类型:', type);
+        // console.log('[评论系统] 未知消息类型:', type);
       }
     });
 
@@ -1553,11 +1600,11 @@ async function handleCommentSystemReady() {
 
   // 发送初始化数据
   $w("#commentSystemPanel").postMessage({
-    type: 'INIT_COMMENT_SYSTEM',
+    type: "INIT_COMMENT_SYSTEM",
     data: {
       currentUserId: currentUserId,
-      isUserVerified: isUserVerified
-    }
+      isUserVerified: isUserVerified,
+    },
   });
 }
 
@@ -1567,21 +1614,21 @@ async function sendWorkOptions() {
     // 查询所有作品（排除淘汰作品）
     const results = await wixData.query("enterContest034").limit(1000).find();
     const filteredItems = results.items.filter((item) => item.isDq !== true);
-    
+
     // 【优化】同时缓存所有作品标题，避免后续查询
     results.items.forEach((item) => {
       workTitlesCache[item.sequenceId] = item.firstName;
     });
     // console.log(`[评论系统] 已缓存 ${Object.keys(workTitlesCache).length} 个作品标题`);
-    
+
     const options = filteredItems.map((item) => ({
       label: `${item.sequenceId} - ${item.firstName}`,
-      value: item.sequenceId.toString()
+      value: item.sequenceId.toString(),
     }));
 
     $w("#commentSystemPanel").postMessage({
-      type: 'WORK_OPTIONS',
-      data: { options }
+      type: "WORK_OPTIONS",
+      data: { options },
     });
 
     console.log(`[评论系统] 已发送 ${options.length} 个作品选项`);
@@ -1602,7 +1649,7 @@ function normalizeWorkFilter(workFilter) {
 function getCommentCacheKey(workFilter, filterMode) {
   const normalized = normalizeWorkFilter(workFilter);
   const modeKey = filterMode || "default";
-  const ownerKey = modeKey === "YourComment" ? (currentUserId || "guest") : "all";
+  const ownerKey = modeKey === "YourComment" ? currentUserId || "guest" : "all";
   return `${normalized !== null ? normalized : "all"}|${modeKey}|${ownerKey}`;
 }
 
@@ -1613,7 +1660,10 @@ function updateCommentPaginationTotals(state, pageLength) {
   const computedCount = (state.pages.size - 1) * state.pageSize + pageLength;
   if (computedCount > state.totalCount) {
     state.totalCount = computedCount;
-    state.totalPages = Math.max(1, Math.ceil(state.totalCount / state.pageSize));
+    state.totalPages = Math.max(
+      1,
+      Math.ceil(state.totalCount / state.pageSize)
+    );
   }
 }
 
@@ -1642,7 +1692,9 @@ async function loadSelfScCommentIdSet() {
     await loadBatchData();
 
     const ownerMap = workOwnersCache || {};
-    const ownerIds = Array.from(new Set(Object.values(ownerMap).filter(Boolean)));
+    const ownerIds = Array.from(
+      new Set(Object.values(ownerMap).filter(Boolean))
+    );
 
     if (ownerIds.length === 0) {
       selfScCommentIdCache = new Set();
@@ -1664,14 +1716,17 @@ async function loadSelfScCommentIdSet() {
 
       while (result) {
         result.items.forEach((item) => {
-          if (ownerMap[item.workNumber] && ownerMap[item.workNumber] === item._owner) {
+          if (
+            ownerMap[item.workNumber] &&
+            ownerMap[item.workNumber] === item._owner
+          ) {
             scCommentIds.add(item._id);
           }
         });
 
         if (result.hasNext()) {
           result = await result.next();
-    } else {
+        } else {
           break;
         }
       }
@@ -1688,7 +1743,10 @@ async function loadSelfScCommentIdSet() {
   }
 }
 
-async function initializeCommentPaginationState(workFilter, filterMode = "default") {
+async function initializeCommentPaginationState(
+  workFilter,
+  filterMode = "default"
+) {
   const normalizedWorkFilter = normalizeWorkFilter(workFilter);
   const effectiveFilterMode = filterMode || "default";
   const pageSize = commentsPerPage;
@@ -1697,7 +1755,9 @@ async function initializeCommentPaginationState(workFilter, filterMode = "defaul
     let query = wixData.query("BOFcomment");
 
     if (normalizedWorkFilter !== null) {
-      return query.eq("workNumber", normalizedWorkFilter).ascending("_createdDate");
+      return query
+        .eq("workNumber", normalizedWorkFilter)
+        .ascending("_createdDate");
     }
 
     if (effectiveFilterMode === "YourComment") {
@@ -1712,14 +1772,21 @@ async function initializeCommentPaginationState(workFilter, filterMode = "defaul
 
   let totalCount = 0;
   let selfScCommentIds = new Set();
-  const isScoreOnly = normalizedWorkFilter === null && effectiveFilterMode === "ScoreOnly";
+  const isScoreOnly =
+    normalizedWorkFilter === null && effectiveFilterMode === "ScoreOnly";
 
   if (effectiveFilterMode === "YourComment" && !currentUserId) {
     totalCount = 0;
   } else if (normalizedWorkFilter !== null) {
-    totalCount = await wixData.query("BOFcomment").eq("workNumber", normalizedWorkFilter).count();
+    totalCount = await wixData
+      .query("BOFcomment")
+      .eq("workNumber", normalizedWorkFilter)
+      .count();
   } else if (effectiveFilterMode === "YourComment") {
-    totalCount = await wixData.query("BOFcomment").eq("_owner", currentUserId).count();
+    totalCount = await wixData
+      .query("BOFcomment")
+      .eq("_owner", currentUserId)
+      .count();
   } else {
     totalCount = await wixData.query("BOFcomment").isEmpty("replyTo").count();
   }
@@ -1731,7 +1798,8 @@ async function initializeCommentPaginationState(workFilter, filterMode = "defaul
     }
   }
 
-  const initialTotalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
+  const initialTotalPages =
+    totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
   const state = {
     workFilter: normalizedWorkFilter,
@@ -1774,7 +1842,9 @@ async function fetchMoreComments(state) {
       state.noMoreData = true;
       if (state.isScoreOnly && state.buffer.length > 0) {
         const pageNumber = state.pages.size + 1;
-        const formatted = await Promise.all(state.buffer.splice(0).map((item) => formatCommentForHTML(item)));
+        const formatted = await Promise.all(
+          state.buffer.splice(0).map((item) => formatCommentForHTML(item))
+        );
         state.pages.set(pageNumber, formatted);
         updateCommentPaginationTotals(state, formatted.length);
       }
@@ -1784,13 +1854,17 @@ async function fetchMoreComments(state) {
     state.lastResult = result;
 
     if (state.isScoreOnly) {
-      const filteredItems = result.items.filter((item) => !state.selfScCommentIds.has(item._id));
+      const filteredItems = result.items.filter(
+        (item) => !state.selfScCommentIds.has(item._id)
+      );
       state.buffer.push(...filteredItems);
 
       while (state.buffer.length >= state.pageSize) {
         const pageNumber = state.pages.size + 1;
         const rawItems = state.buffer.splice(0, state.pageSize);
-        const formatted = await Promise.all(rawItems.map((item) => formatCommentForHTML(item)));
+        const formatted = await Promise.all(
+          rawItems.map((item) => formatCommentForHTML(item))
+        );
         state.pages.set(pageNumber, formatted);
         updateCommentPaginationTotals(state, formatted.length);
       }
@@ -1800,14 +1874,18 @@ async function fetchMoreComments(state) {
         if (state.buffer.length > 0) {
           const pageNumber = state.pages.size + 1;
           const rawItems = state.buffer.splice(0);
-          const formatted = await Promise.all(rawItems.map((item) => formatCommentForHTML(item)));
+          const formatted = await Promise.all(
+            rawItems.map((item) => formatCommentForHTML(item))
+          );
           state.pages.set(pageNumber, formatted);
           updateCommentPaginationTotals(state, formatted.length);
         }
       }
     } else {
       const pageNumber = state.pages.size + 1;
-      const formatted = await Promise.all(result.items.map((item) => formatCommentForHTML(item)));
+      const formatted = await Promise.all(
+        result.items.map((item) => formatCommentForHTML(item))
+      );
       state.pages.set(pageNumber, formatted);
       updateCommentPaginationTotals(state, formatted.length);
 
@@ -1855,7 +1933,11 @@ async function ensureCommentPage(state, requestedPage) {
 // 发送评论数据
 async function sendCommentsData(requestData) {
   try {
-    const { workFilter = "", filterMode = "default", currentPage = 1 } = requestData || {};
+    const {
+      workFilter = "",
+      filterMode = "default",
+      currentPage = 1,
+    } = requestData || {};
     // console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
 
     const cacheKey = getCommentCacheKey(workFilter, filterMode);
@@ -1866,7 +1948,10 @@ async function sendCommentsData(requestData) {
       commentDataCache.set(cacheKey, state);
     }
 
-    const targetPage = await ensureCommentPage(state, parseInt(currentPage, 10) || 1);
+    const targetPage = await ensureCommentPage(
+      state,
+      parseInt(currentPage, 10) || 1
+    );
     const comments = state.pages.get(targetPage) || [];
 
     $w("#commentSystemPanel").postMessage({
@@ -1881,7 +1966,9 @@ async function sendCommentsData(requestData) {
       },
     });
 
-    console.log(`[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`);
+    console.log(
+      `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`
+    );
   } catch (error) {
     console.error("[评论系统] 发送评论数据失败:", error);
     $w("#commentSystemPanel").postMessage({
@@ -1911,7 +1998,7 @@ async function formatCommentForHTML(comment) {
       ratingInfo: "",
       workTitle: "",
       replyCount: 0,
-      isSelfScComment: false
+      isSelfScComment: false,
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询
@@ -1921,7 +2008,9 @@ async function formatCommentForHTML(comment) {
 
     if (batchDataCache && batchDataCache.workOwnerMap) {
       workOwnerId = batchDataCache.workOwnerMap[comment.workNumber];
-      isWorkDQ = batchDataCache.workDQMap ? (batchDataCache.workDQMap[comment.workNumber] === true) : false;
+      isWorkDQ = batchDataCache.workDQMap
+        ? batchDataCache.workDQMap[comment.workNumber] === true
+        : false;
       workTitle = workTitlesCache[comment.workNumber] || "";
     }
 
@@ -1932,8 +2021,10 @@ async function formatCommentForHTML(comment) {
     }
 
     // 设置作品标题（优先使用缓存，避免504超时）
-    formattedComment.workTitle = workTitle ? `#${comment.workNumber} - ${workTitle}` : `#${comment.workNumber}`;
-    
+    formattedComment.workTitle = workTitle
+      ? `#${comment.workNumber} - ${workTitle}`
+      : `#${comment.workNumber}`;
+
     // 判断是否为作者自评
     if (workOwnerId) {
       formattedComment.isAuthorComment = comment._owner === workOwnerId;
@@ -1942,13 +2033,17 @@ async function formatCommentForHTML(comment) {
 
     // 判断是否淘汰
     if (isWorkDQ) {
-      formattedComment.commentText = "*该作品已淘汰*" + formattedComment.commentText;
+      formattedComment.commentText =
+        "*该作品已淘汰*" + formattedComment.commentText;
     }
 
     // 判断是否显示评分
     if (!comment.replyTo) {
-      const userHasFormalRating = await checkUserHasFormalRating(comment.workNumber);
-      formattedComment.showScore = userHasFormalRating && !formattedComment.isAuthorComment;
+      const userHasFormalRating = await checkUserHasFormalRating(
+        comment.workNumber
+      );
+      formattedComment.showScore =
+        userHasFormalRating && !formattedComment.isAuthorComment;
 
       // 获取评分信息
       if (userHasFormalRating && !formattedComment.isAuthorComment) {
@@ -2002,7 +2097,7 @@ async function formatCommentForHTML(comment) {
       canDelete: false,
       ratingInfo: "",
       workTitle: `#${comment.workNumber}`,
-      replyCount: 0
+      replyCount: 0,
     };
   }
 }
@@ -2015,20 +2110,20 @@ async function handleCommentSubmit(data) {
 
     // 步骤1: 验证用户登录和报名状态
     sendSubmitProgress("验证用户身份...", "validating");
-      
-      if (!currentUserId) {
-      sendSubmitResult(false, "❌ 用户未登录");
-        return;
-      }
 
-      if (!isUserVerified) {
+    if (!currentUserId) {
+      sendSubmitResult(false, "❌ 用户未登录");
+      return;
+    }
+
+    if (!isUserVerified) {
       sendSubmitResult(false, "❌ 用户未报名");
-        return;
-      }
+      return;
+    }
 
     // 步骤2: 验证输入
     sendSubmitProgress("验证输入数据...", "validating");
-    
+
     if (!workNumber || !score || !comment) {
       sendSubmitResult(false, "❌ 请填写完整信息");
       return;
@@ -2041,11 +2136,11 @@ async function handleCommentSubmit(data) {
 
     // 步骤3: 检查作品状态
     sendSubmitProgress("检查作品状态...", "validating");
-        
-        const workResults = await wixData
-          .query("enterContest034")
-          .eq("sequenceId", workNumber)
-          .find();
+
+    const workResults = await wixData
+      .query("enterContest034")
+      .eq("sequenceId", workNumber)
+      .find();
 
     if (workResults.items.length === 0) {
       sendSubmitResult(false, "❌ 作品不存在");
@@ -2056,70 +2151,71 @@ async function handleCommentSubmit(data) {
     const isAuthor = currentUserId === workItem._owner;
     const isWorkDQ = workItem.isDq === true;
 
-        if (isWorkDQ) {
+    if (isWorkDQ) {
       sendSubmitResult(false, "❌ 作品已淘汰，无法评论");
-          return;
-        }
+      return;
+    }
 
     // 步骤4: 非作者检查是否已评论
-        if (!isAuthor) {
+    if (!isAuthor) {
       sendSubmitProgress("检查评论记录...", "validating");
-          
-          const existingComment = await wixData
-            .query("BOFcomment")
-            .eq("workNumber", workNumber)
-            .eq("_owner", currentUserId)
-            .isEmpty("replyTo")
-            .find();
 
-          if (existingComment.items.length > 0) {
+      const existingComment = await wixData
+        .query("BOFcomment")
+        .eq("workNumber", workNumber)
+        .eq("_owner", currentUserId)
+        .isEmpty("replyTo")
+        .find();
+
+      if (existingComment.items.length > 0) {
         sendSubmitResult(false, "❌ 已评论过此作品");
-            return;
+        return;
       }
     }
 
     // 步骤5: 插入评论
     sendSubmitProgress("正在保存评论...", "saving");
-        
-        let toInsert = {
-          workNumber: workNumber,
-          score: score,
-          comment: comment,
-        };
 
-        const insertedComment = await wixData.insert("BOFcomment", toInsert);
+    let toInsert = {
+      workNumber: workNumber,
+      score: score,
+      comment: comment,
+    };
+
+    const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
     // 步骤6: 更新积分
     sendSubmitProgress("更新积分...", "updating");
-    
+
     try {
-            await updateUserPoints(currentUserId, 1, false, false);
-          } catch (error) {
+      await updateUserPoints(currentUserId, 1, false, false);
+    } catch (error) {
       console.error("更新积分失败:", error);
-          }
-          
+    }
+
     // 步骤7: 检查并标记任务完成
     sendSubmitProgress("检查任务状态...", "updating");
-    
+
     let taskStatusMessage = "";
-          try {
-            const result = await markTaskCompleted(currentUserId, workNumber);
-            
-            if (result.taskCompleted) {
+    try {
+      const result = await markTaskCompleted(currentUserId, workNumber);
+
+      if (result.taskCompleted) {
         taskStatusMessage = `\n\n任务完成！进度: ${result.completedCount}/10`;
-              
+
         // 更新任务数据缓存
-              if (userTaskDataCache) {
-                userTaskDataCache.hasCompletedTarget = result.hasCompletedTarget || false;
-              }
-            } else if (result.alreadyCompleted) {
+        if (userTaskDataCache) {
+          userTaskDataCache.hasCompletedTarget =
+            result.hasCompletedTarget || false;
+        }
+      } else if (result.alreadyCompleted) {
         taskStatusMessage = "\n\n此任务已完成过";
-            } else if (result.isColdWork) {
+      } else if (result.isColdWork) {
         taskStatusMessage = "\n\n冷门作品已评分（已完成任务目标）";
-            } else if (!result.isInTaskList) {
+      } else if (!result.isInTaskList) {
         taskStatusMessage = "\n\n非任务作品（不计入进度）";
-            }
-          } catch (error) {
+      }
+    } catch (error) {
       console.error("标记任务完成失败:", error);
     }
 
@@ -2128,44 +2224,47 @@ async function handleCommentSubmit(data) {
     await incrementalUpdateAfterComment(workNumber, score, comment, isAuthor);
 
     // 步骤9: 发送成功结果并立即刷新评论列表
-    const successMessage = isAuthor 
+    const successMessage = isAuthor
       ? `✅ 自评提交成功！\n\n自评不计入评分统计${taskStatusMessage}`
       : `✅ 评论提交成功！\n\n评分: ${score}${taskStatusMessage}`;
-    
+
     sendSubmitResult(true, successMessage);
 
     // 立即刷新评论列表（重要：确保新评论立即显示）
     resetCommentDataCache();
     setTimeout(() => {
       sendCommentsData({
-        workFilter: '',
-        filterMode: 'default',
-        currentPage: 1
+        workFilter: "",
+        filterMode: "default",
+        currentPage: 1,
       });
     }, 500); // 500ms延迟确保数据库已完成写入
 
     // console.log(`[评论系统] 评论提交成功`);
   } catch (error) {
     console.error("[评论系统] 评论提交失败:", error);
-    sendSubmitResult(false, "❌ 提交失败，请重试\n\n" + (error.message || '未知错误'));
+    sendSubmitResult(
+      false,
+      "❌ 提交失败，请重试\n\n" + (error.message || "未知错误")
+    );
   }
 }
 
 // 发送提交结果
 function sendSubmitResult(success, message) {
   $w("#commentSystemPanel").postMessage({
-    type: 'SUBMIT_RESULT',
+    type: "SUBMIT_RESULT",
     data: {
       success: success,
-      message: message
-    }
+      message: message,
+    },
   });
 }
 
 // 处理作品编号变化 - 显示详细的作品状态并发送完整的UI状态
 async function handleWorkNumberChange(workNumber) {
   // console.log(`[评论系统] 作品编号变化: ${workNumber}`);
-  
+
   try {
     // 获取作品信息
     const workResults = await wixData
@@ -2174,12 +2273,12 @@ async function handleWorkNumberChange(workNumber) {
       .find();
 
     if (workResults.items.length === 0) {
-      sendWorkStatusUpdate('', '');
+      sendWorkStatusUpdate("", "");
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: false,
         isAlreadyCommented: false,
-        existingComment: null
+        existingComment: null,
       });
       return;
     }
@@ -2190,24 +2289,27 @@ async function handleWorkNumberChange(workNumber) {
 
     // 优先级1: 淘汰作品
     if (isWorkDQ) {
-      sendWorkStatusUpdate('该作品已淘汰，无法评论', 'dq');
+      sendWorkStatusUpdate("该作品已淘汰，无法评论", "dq");
       sendWorkSelectionState({
         isWorkDQ: true,
         isAuthor: false,
         isAlreadyCommented: false,
-        existingComment: null
+        existingComment: null,
       });
       return;
     }
 
     // 优先级2: 作者自评
     if (isAuthor) {
-      sendWorkStatusUpdate('这是您的作品，可以进行自评（Sc评论）\n自评不计入评分统计，可多次提交', 'author');
+      sendWorkStatusUpdate(
+        "这是您的作品，可以进行自评（Sc评论）\n自评不计入评分统计，可多次提交",
+        "author"
+      );
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: true,
         isAlreadyCommented: false,
-        existingComment: null
+        existingComment: null,
       });
       return;
     }
@@ -2222,47 +2324,67 @@ async function handleWorkNumberChange(workNumber) {
 
     if (existingCommentResults.items.length > 0) {
       const existingComment = existingCommentResults.items[0];
-      sendWorkStatusUpdate('您已评论过此作品', 'completed');
+      sendWorkStatusUpdate("您已评论过此作品", "completed");
       sendWorkSelectionState({
         isWorkDQ: false,
         isAuthor: false,
         isAlreadyCommented: true,
         existingComment: {
           comment: existingComment.comment,
-          score: existingComment.score
-        }
+          score: existingComment.score,
+        },
       });
       return;
     }
 
     // 优先级4: 未评论，检查任务状态
     // 【新增】只有在用户任务数据有效时才显示任务提示
-    if (currentUserId && isUserVerified && userTaskDataCache && !userTaskDataCache.error) {
+    if (
+      currentUserId &&
+      isUserVerified &&
+      userTaskDataCache &&
+      !userTaskDataCache.error
+    ) {
       try {
-        const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
-        const hasCompletedTarget = userTaskDataCache.hasCompletedTarget || false;
-        
+        const taskCheck = await checkIfWorkInTaskList(
+          currentUserId,
+          workNumber
+        );
+        const hasCompletedTarget =
+          userTaskDataCache.hasCompletedTarget || false;
+
         if (taskCheck.inTaskList && !taskCheck.alreadyCompleted) {
           if (hasCompletedTarget) {
             // 已完成目标，显示为冷门作品
-            sendWorkStatusUpdate('这是一个冷门作品\n您已完成任务目标，评论此作品不计入任务进度', 'coldWork');
-      } else {
+            sendWorkStatusUpdate(
+              "这是一个冷门作品\n您已完成任务目标，评论此作品不计入任务进度",
+              "coldWork"
+            );
+          } else {
             // 未完成目标，显示为任务作品
-            sendWorkStatusUpdate('这是您的任务作品！\n完成此评论将计入任务进度', 'task');
+            sendWorkStatusUpdate(
+              "这是您的任务作品！\n完成此评论将计入任务进度",
+              "task"
+            );
           }
         } else if (taskCheck.alreadyCompleted) {
-          sendWorkStatusUpdate('此任务已完成', 'completedTask');
-    } else {
-          sendWorkStatusUpdate('', '');
+          sendWorkStatusUpdate("此任务已完成", "completedTask");
+        } else {
+          sendWorkStatusUpdate("", "");
         }
       } catch (error) {
         console.error("检查任务状态失败:", error);
-        sendWorkStatusUpdate('', '');
+        sendWorkStatusUpdate("", "");
       }
-    } else if (currentUserId && isUserVerified && userTaskDataCache && userTaskDataCache.error) {
+    } else if (
+      currentUserId &&
+      isUserVerified &&
+      userTaskDataCache &&
+      userTaskDataCache.error
+    ) {
       // 【新增】如果用户未提交作品，显示相应提示
       if (userTaskDataCache.notSubmitted) {
-        sendWorkStatusUpdate('', ''); // 不显示任务提示（因为用户无法接收任务）
+        sendWorkStatusUpdate("", ""); // 不显示任务提示（因为用户无法接收任务）
       }
     }
 
@@ -2271,17 +2393,16 @@ async function handleWorkNumberChange(workNumber) {
       isWorkDQ: false,
       isAuthor: false,
       isAlreadyCommented: false,
-      existingComment: null
+      existingComment: null,
     });
-
   } catch (error) {
     console.error("[评论系统] 获取作品状态失败:", error);
-    sendWorkStatusUpdate('', '');
+    sendWorkStatusUpdate("", "");
     sendWorkSelectionState({
       isWorkDQ: false,
       isAuthor: false,
       isAlreadyCommented: false,
-      existingComment: null
+      existingComment: null,
     });
   }
 }
@@ -2289,22 +2410,22 @@ async function handleWorkNumberChange(workNumber) {
 // 发送作品状态更新到HTML元件
 function sendWorkStatusUpdate(message, statusType) {
   $w("#commentSystemPanel").postMessage({
-    type: 'WORK_STATUS_UPDATE',
+    type: "WORK_STATUS_UPDATE",
     data: {
       message: message,
-      statusType: statusType
-    }
+      statusType: statusType,
+    },
   });
 }
 
 // 发送提交进度到HTML元件
 function sendSubmitProgress(message, stage) {
   $w("#commentSystemPanel").postMessage({
-    type: 'SUBMIT_PROGRESS',
+    type: "SUBMIT_PROGRESS",
     data: {
       message: message,
-      stage: stage
-    }
+      stage: stage,
+    },
   });
 }
 
@@ -2312,8 +2433,8 @@ function sendSubmitProgress(message, stage) {
 function sendWorkSelectionState(state) {
   try {
     $w("#commentSystemPanel").postMessage({
-      type: 'WORK_SELECTION_STATE',
-      data: state
+      type: "WORK_SELECTION_STATE",
+      data: state,
     });
   } catch (error) {
     console.error("[评论系统] 发送作品选择状态失败:", error);
@@ -2324,16 +2445,16 @@ function sendWorkSelectionState(state) {
 async function handleViewReplies(data) {
   try {
     const { commentId, workNumber, originalComment, isReply, replyTo } = data;
-    
+
     // 如果是楼中楼回复，需要先查询父评论数据
     if (isReply && replyTo) {
       // console.log(`[评论系统] 楼中楼回复，查询父评论: ${replyTo}`);
-      
+
       const parentCommentResult = await wixData
         .query("BOFcomment")
         .eq("_id", replyTo)
         .find();
-      
+
       if (parentCommentResult.items.length > 0) {
         const parentComment = parentCommentResult.items[0];
         await showCommentReplies(
@@ -2357,24 +2478,24 @@ async function handleViewReplies(data) {
 async function handleGotoWork(workNumber) {
   try {
     // console.log(`[评论系统] 跳转到作品 #${workNumber}`);
-    
+
     // 获取作品标题
     const workResults = await wixData
       .query("enterContest034")
       .eq("sequenceId", workNumber)
       .find();
-    
+
     if (workResults.items.length > 0) {
       const workTitle = workResults.items[0].firstName;
-      
+
       // 更新作品搜索框（input1）的值为作品名称
       // 这会触发作品列表的搜索和刷新
       if ($w("#input1")) {
         $w("#input1").value = workTitle;
-        
+
         // 刷新作品列表（repeater2）
         await refreshRepeaters();
-        
+
         // 滚动到 anchor2 位置
         try {
           if ($w("#anchor2")) {
@@ -2384,7 +2505,7 @@ async function handleGotoWork(workNumber) {
         } catch (scrollError) {
           console.error("[评论系统] 滚动到anchor2失败:", scrollError);
         }
-        
+
         // console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
       }
     }

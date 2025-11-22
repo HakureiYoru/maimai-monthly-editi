@@ -1,186 +1,194 @@
-import wixData from 'wix-data';
-import { getUserRankAndVoteWeight } from 'backend/getUserPublicInfo.jsw';
-import { QUERY_LIMITS } from 'backend/constants';
+import wixData from "wix-data";
+import { getUserRankAndVoteWeight } from "backend/getUserPublicInfo.jsw";
+import { QUERY_LIMITS } from "backend/constants";
 
 // 获取用户信息
 export async function getUserInfo(userId) {
-    try {
-        // 获取用户排名和投票权重
-        const rankData = await getUserRankAndVoteWeight(userId);
-        
-        // 如果用户没有积分记录，使用默认值
-        const rank = rankData ? rankData.rank : '未排名';
-        const voteWeight = rankData ? rankData.voteWeight : 1;
-        
-        // 检查用户是否已投票
-        const hasVoted = await checkIfUserVoted(userId);
-        
-        return {
-            rank,
-            voteWeight,
-            hasVoted
-        };
-    } catch (error) {
-        console.error('获取用户信息失败:', error);
-        throw error;
-    }
+  try {
+    // 获取用户排名和投票权重
+    const rankData = await getUserRankAndVoteWeight(userId);
+
+    // 如果用户没有积分记录，使用默认值
+    const rank = rankData ? rankData.rank : "未排名";
+    const voteWeight = rankData ? rankData.voteWeight : 1;
+
+    // 检查用户是否已投票
+    const hasVoted = await checkIfUserVoted(userId);
+
+    return {
+      rank,
+      voteWeight,
+      hasVoted,
+    };
+  } catch (error) {
+    console.error("获取用户信息失败:", error);
+    throw error;
+  }
 }
 
 // 检查用户是否已投票
 export async function checkIfUserVoted(userId) {
-    try {
-        const results = await wixData.query('ThemeVote')
-            .eq('_owner', userId)
-            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
-            .find();
-        
-        return results.items.length > 0;
-    } catch (error) {
-        console.error('检查用户投票状态失败:', error);
-        throw error;
-    }
+  try {
+    const results = await wixData
+      .query("ThemeVote")
+      .eq("_owner", userId)
+      .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+      .find();
+
+    return results.items.length > 0;
+  } catch (error) {
+    console.error("检查用户投票状态失败:", error);
+    throw error;
+  }
 }
 
 // 获取投票选项
 export async function getVotingOptions() {
-    try {
-        // 这里可以从数据库获取投票选项，或者直接返回硬编码的选项
-        // 为了演示，我们返回硬编码的选项
-        return {
-            options: [
-                { value: 'theme1', label: 'MMFC1-11回忆录' },
-                { value: 'theme2', label: 'BMS' },
-                { value: 'theme3', label: '东方Project' },
-                { value: 'theme4', label: '游戏音乐' }
-            ]
-        };
-    } catch (error) {
-        console.error('获取投票选项失败:', error);
-        throw error;
-    }
+  try {
+    // 这里可以从数据库获取投票选项，或者直接返回硬编码的选项
+    // 为了演示，我们返回硬编码的选项
+    return {
+      options: [
+        { value: "theme1", label: "MMFC1-11回忆录" },
+        { value: "theme2", label: "BMS" },
+        { value: "theme3", label: "东方Project" },
+        { value: "theme4", label: "游戏音乐" },
+      ],
+    };
+  } catch (error) {
+    console.error("获取投票选项失败:", error);
+    throw error;
+  }
 }
 
 // 提交投票
-export async function submitVote(userId, userName, themeValue, userRank, voteWeight) {
-    try {
-        // 检查用户是否已投票
-        const hasVoted = await checkIfUserVoted(userId);
-        if (hasVoted) {
-            return {
-                success: false,
-                message: '您已经投过票了'
-            };
-        }
-        
-        // 创建投票记录
-        const voteData = {
-            userName: userName,
-            themeValue: themeValue,
-            userRank: userRank,
-            voteWeight: voteWeight,
-            voteDate: new Date()
-        };
-        
-        const result = await wixData.save('ThemeVote', voteData);
-        
-        return {
-            success: true,
-            voteId: result._id,
-            message: '投票成功'
-        };
-    } catch (error) {
-        console.error('提交投票失败:', error);
-        return {
-            success: false,
-            message: '提交投票时发生错误，请稍后重试'
-        };
+export async function submitVote(
+  userId,
+  userName,
+  themeValue,
+  userRank,
+  voteWeight
+) {
+  try {
+    // 检查用户是否已投票
+    const hasVoted = await checkIfUserVoted(userId);
+    if (hasVoted) {
+      return {
+        success: false,
+        message: "您已经投过票了",
+      };
     }
+
+    // 创建投票记录
+    const voteData = {
+      userName: userName,
+      themeValue: themeValue,
+      userRank: userRank,
+      voteWeight: voteWeight,
+      voteDate: new Date(),
+    };
+
+    const result = await wixData.save("ThemeVote", voteData);
+
+    return {
+      success: true,
+      voteId: result._id,
+      message: "投票成功",
+    };
+  } catch (error) {
+    console.error("提交投票失败:", error);
+    return {
+      success: false,
+      message: "提交投票时发生错误，请稍后重试",
+    };
+  }
 }
 
 // 获取投票结果
 export async function getVotingResults() {
-    try {
-        // 获取所有投票记录
-        const results = await wixData.query('ThemeVote')
-            .ascending('voteDate')
-            .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
-            .find();
-        
-        if (results.items.length === 0) {
-            return {
-                labels: [],
-                data: [],
-                voters: [],
-                weightData: []
-            };
-        }
-        
-        // 统计每个主题的投票数和权重
-        const themeVotes = {};
-        const themeWeightedVotes = {};
-        const themeVoters = {};
-        const themeWeights = {};
-        
-        results.items.forEach(item => {
-            const theme = item.themeValue;
-            const userName = item.userName;
-            const weight = item.voteWeight || 1;
-            
-            // 统计投票数（人数）
-            themeVotes[theme] = (themeVotes[theme] || 0) + 1;
-            
-            // 统计加权票数（权重计入票数）
-            themeWeightedVotes[theme] = (themeWeightedVotes[theme] || 0) + weight;
-            
-            // 记录投票者
-            if (!themeVoters[theme]) {
-                themeVoters[theme] = [];
-            }
-            themeVoters[theme].push(userName);
-            
-            // 记录权重
-            if (!themeWeights[theme]) {
-                themeWeights[theme] = [];
-            }
-            themeWeights[theme].push(weight);
-        });
-        
-        // 获取主题选项
-        const options = await getVotingOptions();
-        const optionMap = {};
-        options.options.forEach(option => {
-            optionMap[option.value] = option.label;
-        });
-        
-        // 准备图表数据
-        const labels = [];
-        const data = [];
-        const voters = [];
-        const weightData = [];
-        
-        options.options.forEach(option => {
-            const themeValue = option.value;
-            labels.push(option.label);
-            // 使用加权票数而不是简单人数
-            data.push(themeWeightedVotes[themeValue] || 0);
-            voters.push((themeVoters[themeValue] || []).join(', '));
-            
-            if (themeWeights[themeValue] && themeWeights[themeValue].length > 0) {
-                weightData.push({
-                    label: option.label,
-                    data: themeWeights[themeValue]
-                });
-            }
-        });
-        
-        return {
-            labels,
-            data,
-            voters,
-            weightData
-        };
-    } catch (error) {
-        console.error('获取投票结果失败:', error);
-        throw error;
+  try {
+    // 获取所有投票记录
+    const results = await wixData
+      .query("ThemeVote")
+      .ascending("voteDate")
+      .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+      .find();
+
+    if (results.items.length === 0) {
+      return {
+        labels: [],
+        data: [],
+        voters: [],
+        weightData: [],
+      };
     }
+
+    // 统计每个主题的投票数和权重
+    const themeVotes = {};
+    const themeWeightedVotes = {};
+    const themeVoters = {};
+    const themeWeights = {};
+
+    results.items.forEach((item) => {
+      const theme = item.themeValue;
+      const userName = item.userName;
+      const weight = item.voteWeight || 1;
+
+      // 统计投票数（人数）
+      themeVotes[theme] = (themeVotes[theme] || 0) + 1;
+
+      // 统计加权票数（权重计入票数）
+      themeWeightedVotes[theme] = (themeWeightedVotes[theme] || 0) + weight;
+
+      // 记录投票者
+      if (!themeVoters[theme]) {
+        themeVoters[theme] = [];
+      }
+      themeVoters[theme].push(userName);
+
+      // 记录权重
+      if (!themeWeights[theme]) {
+        themeWeights[theme] = [];
+      }
+      themeWeights[theme].push(weight);
+    });
+
+    // 获取主题选项
+    const options = await getVotingOptions();
+    const optionMap = {};
+    options.options.forEach((option) => {
+      optionMap[option.value] = option.label;
+    });
+
+    // 准备图表数据
+    const labels = [];
+    const data = [];
+    const voters = [];
+    const weightData = [];
+
+    options.options.forEach((option) => {
+      const themeValue = option.value;
+      labels.push(option.label);
+      // 使用加权票数而不是简单人数
+      data.push(themeWeightedVotes[themeValue] || 0);
+      voters.push((themeVoters[themeValue] || []).join(", "));
+
+      if (themeWeights[themeValue] && themeWeights[themeValue].length > 0) {
+        weightData.push({
+          label: option.label,
+          data: themeWeights[themeValue],
+        });
+      }
+    });
+
+    return {
+      labels,
+      data,
+      voters,
+      weightData,
+    };
+  } catch (error) {
+    console.error("获取投票结果失败:", error);
+    throw error;
+  }
 }
