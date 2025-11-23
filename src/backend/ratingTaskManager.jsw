@@ -26,8 +26,8 @@ const TARGET_USER_COMPLETION = 10; // 用户目标完成数
 const TASK_REFRESH_HOURS = 24; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
 
 // 高权重评分系统配置
-const TARGET_HIGH_LOW_RATIO = 0.5; // 目标高低权重比例 1:2 = 0.5
-const RATIO_TOLERANCE = 0.1; // 容忍度 ±20% → 0.4到0.6可接受
+const TARGET_HIGH_LOW_RATIO = 0.333; // 目标高低权重比例 1:3 = 0.333
+const RATIO_TOLERANCE = 0.15; // 容忍度 ±5% → 0.20到0.30可接受
 const BALANCE_FACTOR_ADJUSTMENT = 0.3; // 权重调整幅度 30%
 
 // 用户权重缓存
@@ -266,15 +266,19 @@ function calculateColdnessWeightOptimized(
     return 0;
   }
 
-  // 计算期望评分数（与异步版本保持一致）
+  // 计算期望评分数（15天达到20评分的三段式模型）
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
-    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
-  } else if (daysSinceSubmission <= 14) {
-    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 0.78);
-  } else if (daysSinceSubmission <= 30) {
-    expectedRatings = 12 + Math.floor((daysSinceSubmission - 14) * 0.5);
+    // 早期快速增长：1.4评分/天，5天达到7个
+    expectedRatings = Math.floor(daysSinceSubmission * 1.4);
+  } else if (daysSinceSubmission <= 10) {
+    // 中期稳定增长：1.3评分/天，10天达到13.5个
+    expectedRatings = 7 + Math.floor((daysSinceSubmission - 5) * 1.3);
+  } else if (daysSinceSubmission <= 15) {
+    // 后期冲刺：1.3评分/天，15天达到20个
+    expectedRatings = 13 + Math.floor((daysSinceSubmission - 10) * 1.4);
   } else {
+    // 超过15天，期望达标
     expectedRatings = TARGET_RATING_COUNT;
   }
 
@@ -283,25 +287,37 @@ function calculateColdnessWeightOptimized(
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60;
 
-  // 时间紧迫度加成（使用Math.max取最大值）
+  // 时间紧迫度加成（15天达标，10级阶梯，使用Math.max取最大值）
   let urgencyBonus = 0;
-  if (daysSinceSubmission >= 3 && currentRatings < 2) {
-    urgencyBonus = Math.max(urgencyBonus, 15);
+  if (daysSinceSubmission >= 2 && currentRatings < 2) {
+    urgencyBonus = Math.max(urgencyBonus, 10); // 2天：早期冷启动1
+  }
+  if (daysSinceSubmission >= 3 && currentRatings < 3) {
+    urgencyBonus = Math.max(urgencyBonus, 15); // 3天：早期冷启动2
   }
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
-    urgencyBonus = Math.max(urgencyBonus, 20);
+    urgencyBonus = Math.max(urgencyBonus, 25); // 5天：早期关注
   }
-  if (daysSinceSubmission >= 7 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 30);
+  if (daysSinceSubmission >= 6 && currentRatings < 7) {
+    urgencyBonus = Math.max(urgencyBonus, 35); // 6天：中期关注1
   }
-  if (daysSinceSubmission >= 14 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 45);
+  if (daysSinceSubmission >= 8 && currentRatings < 10) {
+    urgencyBonus = Math.max(urgencyBonus, 50); // 8天：中期关注2
   }
-  if (daysSinceSubmission >= 21 && currentRatings < 18) {
-    urgencyBonus = Math.max(urgencyBonus, 65);
+  if (daysSinceSubmission >= 10 && currentRatings < 13) {
+    urgencyBonus = Math.max(urgencyBonus, 65); // 10天：中期紧急
   }
-  if (daysSinceSubmission >= 30 && currentRatings < 20) {
-    urgencyBonus = Math.max(urgencyBonus, 80);
+  if (daysSinceSubmission >= 12 && currentRatings < 16) {
+    urgencyBonus = Math.max(urgencyBonus, 80); // 12天：后期紧急1
+  }
+  if (daysSinceSubmission >= 13 && currentRatings < 18) {
+    urgencyBonus = Math.max(urgencyBonus, 90); // 13天：后期紧急2
+  }
+  if (daysSinceSubmission >= 14 && currentRatings < 19) {
+    urgencyBonus = Math.max(urgencyBonus, 100); // 14天：即将超期
+  }
+  if (daysSinceSubmission >= 15 && currentRatings < 20) {
+    urgencyBonus = Math.max(urgencyBonus, 110); // 15天：超期最高优先级
   }
 
   let totalWeight = baseWeight + urgencyBonus;
@@ -498,15 +514,6 @@ export async function unmarkTaskCompleted(userId, workNumber) {
       message: "取消失败: " + error.message,
     };
   }
-}
-
-/**
- * 为用户分配下一个任务（已废弃，改用 generateUserTasks）
- * 保留此函数以兼容同步任务
- */
-async function assignNextTask(userId, taskRecord) {
-  const tasks = await generateUserTasks(userId, taskRecord, 1);
-  return tasks && tasks.length > 0 ? tasks[0] : null;
 }
 
 /**
@@ -814,8 +821,8 @@ function calculateBalanceFactor(
   lowWeightCount,
   isUserHighQuality
 ) {
-  // 目标比例：高:低 = 1:2 (33.3%占比)
-  // 均衡区间：28%-45%占比
+  // 目标比例：高:低 = 1:3 (25%占比)
+  // 均衡区间：20%-30%占比
 
   if (highWeightCount === 0 && lowWeightCount === 0) {
     return 1.0; // 没有评分，无需调整
@@ -824,16 +831,16 @@ function calculateBalanceFactor(
   const totalCount = highWeightCount + lowWeightCount;
   const highPercentage = highWeightCount / totalCount; // 高权重占比
 
-  // 均衡区间：28%-45%
-  const lowerBound = 0.28; // 28%
-  const upperBound = 0.45; // 45%
+  // 均衡区间：20%-30%
+  const lowerBound = 0.2; // 20%
+  const upperBound = 0.3; // 30%
 
   // 在均衡区间内，不调整
   if (highPercentage >= lowerBound && highPercentage <= upperBound) {
     return 1.0;
   }
 
-  // 高权重评分过多（占比 > 45%）
+  // 高权重评分过多（占比 > 30%）
   if (highPercentage > upperBound) {
     // 高权重用户看到的权重降低，低权重用户看到的权重提高
     return isUserHighQuality
@@ -841,7 +848,7 @@ function calculateBalanceFactor(
       : 1 + BALANCE_FACTOR_ADJUSTMENT;
   }
 
-  // 高权重评分不足（占比 < 28%）
+  // 高权重评分不足（占比 < 20%）
   if (highPercentage < lowerBound) {
     // 高权重用户看到的权重提高，低权重用户看到的权重降低
     return isUserHighQuality
@@ -850,105 +857,6 @@ function calculateBalanceFactor(
   }
 
   return 1.0;
-}
-
-/**
- * 计算作品的冷门权重（0-100）- 增强版，包含高低权重均衡
- * 权重越高表示越冷门，越需要关注
- *
- * @param {Object} work - 作品对象
- * @param {string} userId - 用户ID（用于计算均衡因子）
- * @returns {Promise<number>} 冷门权重
- */
-async function calculateColdnessWeight(work, userId = null) {
-  const daysSinceSubmission = getDaysSinceSubmission(work);
-  const currentRatings = work.currentRatingCount || 0;
-
-  // 已达标，权重为0
-  if (currentRatings >= TARGET_RATING_COUNT) {
-    return 0;
-  }
-
-  // 计算期望评分数（基于时间的分段线性模型，更符合实际评分增长规律）
-  // 优化：调整为三段式增长，符合作品热度曲线
-  let expectedRatings = 0;
-  if (daysSinceSubmission <= 5) {
-    // 早期快速增长期（0-5天）：每天约1个评分，达到5个
-    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
-  } else if (daysSinceSubmission <= 14) {
-    // 中期稳定增长期（6-14天）：9天增长7个，从5个到12个
-    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 0.78);
-  } else if (daysSinceSubmission <= 30) {
-    // 后期缓慢增长期（15-30天）：16天增长8个，从12个到20个
-    expectedRatings = 12 + Math.floor((daysSinceSubmission - 14) * 0.5);
-  } else {
-    // 超过30天，期望达标
-    expectedRatings = TARGET_RATING_COUNT;
-  }
-
-  // 计算评分缺口
-  const deficit = Math.max(0, expectedRatings - currentRatings);
-
-  // 基础权重：缺口比例 × 系数
-  const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
-  const baseWeight = deficitRatio * 60; // 缺口系数60
-
-  // 时间紧迫度加成（大幅加强，确保冷门作品获得足够关注）
-  // 修复：使用Math.max取最大加成值，避免后续条件覆盖前面的值
-  let urgencyBonus = 0;
-
-  // 早期冷启动加成
-  if (daysSinceSubmission >= 3 && currentRatings < 2) {
-    urgencyBonus = Math.max(urgencyBonus, 15); // 3天内少于2评
-  }
-  if (daysSinceSubmission >= 5 && currentRatings < 5) {
-    urgencyBonus = Math.max(urgencyBonus, 20); // 5天内少于5评
-  }
-
-  // 中期关注加成
-  if (daysSinceSubmission >= 7 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 30); // 一周内应达10评
-  }
-  if (daysSinceSubmission >= 14 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 45); // 两周内应达15评
-  }
-
-  // 后期紧急加成
-  if (daysSinceSubmission >= 21 && currentRatings < 18) {
-    urgencyBonus = Math.max(urgencyBonus, 65); // 三周内应接近目标
-  }
-
-  // 超期最高优先级
-  if (daysSinceSubmission >= 30 && currentRatings < 20) {
-    urgencyBonus = Math.max(urgencyBonus, 80); // 超过一个月的冷门作品
-  }
-
-  // 总权重（最大约140：100%缺口×60+80加成）
-  let totalWeight = baseWeight + urgencyBonus;
-
-  // 如果提供了用户ID，应用高低权重均衡因子
-  // 优化：降低应用门槛，从评分>=3改为>=1，从第一个评分开始就引导均衡分配
-  if (userId && currentRatings >= 1) {
-    try {
-      const weightData = await getWorkWeightedRatingData(work.sequenceId);
-      const userIsHighQuality = await isUserHighQuality(userId);
-      const balanceFactor = calculateBalanceFactor(
-        weightData.highWeightCount,
-        weightData.lowWeightCount,
-        userIsHighQuality
-      );
-
-      //console.log(`[权重计算] 作品#${work.sequenceId}: 基础${Math.round(totalWeight)} × 均衡${balanceFactor.toFixed(2)} = ${Math.round(totalWeight * balanceFactor)}, 高低比例${weightData.highWeightCount}:${weightData.lowWeightCount}, 用户类型:${userIsHighQuality ? 'Qualified' : '普通'}`);
-
-      totalWeight = totalWeight * balanceFactor;
-    } catch (error) {
-      console.error("应用均衡因子失败，使用基础权重:", error);
-    }
-  } else if (userId && currentRatings === 0) {
-    //console.log(`[权重计算] 作品#${work.sequenceId}: 新作品无评分，不应用均衡因子，使用基础权重${Math.round(totalWeight)}`);
-  }
-
-  return Math.round(Math.min(100, totalWeight));
 }
 
 /**
@@ -1077,36 +985,6 @@ async function getWorkInfo(workNumber) {
 }
 
 /**
- * 获取作品的有效评分数（排除作者自评）
- * @param {number} workNumber - 作品序号
- * @returns {Promise<number>} 有效评分数
- */
-async function getWorkValidRatingCount(workNumber) {
-  try {
-    // 获取所有评论
-    const comments = await wixData
-      .query(COLLECTIONS.COMMENTS)
-      .eq("workNumber", workNumber)
-      .isEmpty("replyTo")
-      .find();
-
-    // 获取作品所有者
-    const work = await getWorkInfo(workNumber);
-    if (!work) return 0;
-
-    const workOwnerId = work._owner;
-
-    // 排除作者自评
-    const validRatings = comments.items.filter((c) => c._owner !== workOwnerId);
-
-    return validRatings.length;
-  } catch (error) {
-    // console.error('获取作品评分数失败:', error);
-    return 0;
-  }
-}
-
-/**
  * 获取用户自己的所有作品序号（数组形式）
  * @param {string} userId - 用户ID
  * @returns {Promise<number[]>} 作品序号数组
@@ -1128,17 +1006,6 @@ async function getUserOwnWorks(userId) {
 }
 
 /**
- * 获取用户自己的第一个作品序号（向后兼容，已废弃）
- * @param {string} userId - 用户ID
- * @returns {Promise<number|null>} 作品序号
- * @deprecated 请使用 getUserOwnWorks
- */
-async function getUserOwnWork(userId) {
-  const works = await getUserOwnWorks(userId);
-  return works.length > 0 ? works[0] : null;
-}
-
-/**
  * 计算作品提交天数
  * @param {Object} work - 作品对象
  * @returns {number} 天数
@@ -1149,197 +1016,6 @@ function getDaysSinceSubmission(work) {
   const diffTime = Math.abs(now - submissionDate);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
-}
-
-/**
- * 同步所有用户的任务状态（定时任务）
- * 每日运行一次 - 主要用于为没有任务的用户分配任务
- */
-export async function syncAllUserRatings() {
-  try {
-    // console.log('开始同步所有用户任务状态...');
-
-    // 获取所有已报名用户
-    const registeredUsers = await getRegisteredUsers();
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const user of registeredUsers) {
-      try {
-        const taskRecord = await getUserTaskRecord(user.userId);
-
-        // 只负责为没有任务的用户分配任务
-        // 不再同步所有评分记录，因为只有任务列表中的作品才应该计入
-        if (
-          (!taskRecord.currentTask ||
-            taskRecord.currentTask.status === "completed") &&
-          taskRecord.totalCompleted < TARGET_USER_COMPLETION
-        ) {
-          await assignNextTask(user.userId, taskRecord);
-        }
-
-        successCount++;
-      } catch (error) {
-        // console.error(`同步用户 ${user.userId} 失败:`, error);
-        errorCount++;
-      }
-    }
-
-    // console.log(`同步完成: 成功 ${successCount}, 失败 ${errorCount}`);
-
-    return {
-      success: true,
-      successCount,
-      errorCount,
-    };
-  } catch (error) {
-    // console.error('同步任务状态失败:', error);
-    throw error;
-  }
-}
-
-/**
- * 获取所有已报名的参赛用户
- * @returns {Promise<Array>} 用户列表
- */
-async function getRegisteredUsers() {
-  try {
-    let allRegistrations = [];
-    let hasMore = true;
-    let skipCount = 0;
-    const limit = 100;
-
-    while (hasMore) {
-      const results = await wixData
-        .query(COLLECTIONS.REGISTRATIONS)
-        .skip(skipCount)
-        .limit(limit)
-        .find();
-
-      allRegistrations = allRegistrations.concat(results.items);
-      skipCount += results.items.length;
-      hasMore = results.items.length === limit;
-    }
-
-    // 提取用户ID（去重）
-    const userIds = [
-      ...new Set(allRegistrations.map((reg) => reg._owner).filter((id) => id)),
-    ];
-
-    return userIds.map((userId) => ({ userId }));
-  } catch (error) {
-    // console.error('获取参赛用户失败:', error);
-    return [];
-  }
-}
-
-/**
- * 更新所有作品的评分计数（定时任务）- 已废弃
- *
- * ⚠️ 此函数已废弃：系统已改为实时从 BOFcomment 统计评论数
- * enterContest034.currentRatingCount 字段不再使用，避免数据不同步问题
- *
- * @deprecated 请勿使用此函数，评论数现在实时统计
- */
-export async function updateAllWorkRatingCounts() {
-  console.warn(
-    "updateAllWorkRatingCounts 已废弃：评论数现在实时从 BOFcomment 统计"
-  );
-  return {
-    success: true,
-    updateCount: 0,
-    message: "此函数已废弃，评论数实时统计",
-  };
-}
-
-/**
- * 获取系统统计信息（管理用）
- * 实时从 BOFcomment 统计评论数
- */
-export async function getSystemStats() {
-  try {
-    // 获取所有任务记录
-    const allTasks = await wixData
-      .query(COLLECTIONS.USER_TASKS)
-      .limit(1000)
-      .find();
-
-    // 获取所有作品
-    const allWorks = await wixData
-      .query(COLLECTIONS.WORKS)
-      .ne("isDq", true)
-      .limit(1000)
-      .find();
-
-    // 获取所有评论（用于实时统计）
-    const allComments = await wixData
-      .query(COLLECTIONS.COMMENTS)
-      .isEmpty("replyTo")
-      .limit(1000)
-      .find();
-
-    // 统计用户完成情况
-    const completionStats = {
-      completed20: 0,
-      completed10to19: 0,
-      completed1to9: 0,
-      completed0: 0,
-    };
-
-    allTasks.items.forEach((task) => {
-      const count = task.totalCompleted || 0;
-      if (count >= 20) completionStats.completed20++;
-      else if (count >= 10) completionStats.completed10to19++;
-      else if (count >= 1) completionStats.completed1to9++;
-      else completionStats.completed0++;
-    });
-
-    // 【修复】实时统计作品评分情况（从 BOFcomment 统计，排除作者自评）
-    const workStats = {
-      reached20: 0,
-      reached10to19: 0,
-      reached1to9: 0,
-      reached0: 0,
-    };
-
-    // 建立作品所有者映射
-    const workOwnerMap = {};
-    allWorks.items.forEach((work) => {
-      workOwnerMap[work.sequenceId] = work._owner;
-    });
-
-    // 统计每个作品的有效评论数（排除作者自评）
-    const workCommentCounts = {};
-    allComments.items.forEach((comment) => {
-      const workOwner = workOwnerMap[comment.workNumber];
-      // 排除作者自评
-      if (comment._owner !== workOwner) {
-        workCommentCounts[comment.workNumber] =
-          (workCommentCounts[comment.workNumber] || 0) + 1;
-      }
-    });
-
-    // 统计各评分区间的作品数量
-    allWorks.items.forEach((work) => {
-      const count = workCommentCounts[work.sequenceId] || 0;
-      if (count >= 20) workStats.reached20++;
-      else if (count >= 10) workStats.reached10to19++;
-      else if (count >= 1) workStats.reached1to9++;
-      else workStats.reached0++;
-    });
-
-    return {
-      totalUsers: allTasks.items.length,
-      totalWorks: allWorks.items.length,
-      userCompletion: completionStats,
-      workRatings: workStats,
-      timestamp: new Date(),
-    };
-  } catch (error) {
-    // console.error('获取系统统计失败:', error);
-    throw error;
-  }
 }
 
 /**
@@ -1535,15 +1211,19 @@ function calculateBaseColdnessWeightSync(work) {
     return 0;
   }
 
-  // 与异步版本保持一致的期望评分模型
+  // 与异步版本保持一致的期望评分模型（15天达标）
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
-    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
-  } else if (daysSinceSubmission <= 14) {
-    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 0.78);
-  } else if (daysSinceSubmission <= 30) {
-    expectedRatings = 12 + Math.floor((daysSinceSubmission - 14) * 0.5);
+    // 早期快速增长：1.4评分/天，5天达到7个
+    expectedRatings = Math.floor(daysSinceSubmission * 1.4);
+  } else if (daysSinceSubmission <= 10) {
+    // 中期稳定增长：1.3评分/天，10天达到13.5个
+    expectedRatings = 7 + Math.floor((daysSinceSubmission - 5) * 1.3);
+  } else if (daysSinceSubmission <= 15) {
+    // 后期冲刺：1.4评分/天，15天达到20个
+    expectedRatings = 13 + Math.floor((daysSinceSubmission - 10) * 1.4);
   } else {
+    // 超过15天，期望达标
     expectedRatings = TARGET_RATING_COUNT;
   }
 
@@ -1551,33 +1231,37 @@ function calculateBaseColdnessWeightSync(work) {
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60; // 与主函数保持一致
 
-  // 修复：使用Math.max取最大加成值，避免后续条件覆盖前面的值
+  // 时间紧迫度加成（15天达标，10级阶梯，使用Math.max取最大值）
   let urgencyBonus = 0;
-
-  // 早期冷启动加成
-  if (daysSinceSubmission >= 3 && currentRatings < 2) {
-    urgencyBonus = Math.max(urgencyBonus, 15);
+  if (daysSinceSubmission >= 2 && currentRatings < 2) {
+    urgencyBonus = Math.max(urgencyBonus, 10); // 2天：早期冷启动1
+  }
+  if (daysSinceSubmission >= 3 && currentRatings < 3) {
+    urgencyBonus = Math.max(urgencyBonus, 15); // 3天：早期冷启动2
   }
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
-    urgencyBonus = Math.max(urgencyBonus, 20);
+    urgencyBonus = Math.max(urgencyBonus, 25); // 5天：早期关注
   }
-
-  // 中期关注加成
-  if (daysSinceSubmission >= 7 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 30);
+  if (daysSinceSubmission >= 6 && currentRatings < 7) {
+    urgencyBonus = Math.max(urgencyBonus, 35); // 6天：中期关注1
   }
-  if (daysSinceSubmission >= 14 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 45);
+  if (daysSinceSubmission >= 8 && currentRatings < 10) {
+    urgencyBonus = Math.max(urgencyBonus, 50); // 8天：中期关注2
   }
-
-  // 后期紧急加成
-  if (daysSinceSubmission >= 21 && currentRatings < 18) {
-    urgencyBonus = Math.max(urgencyBonus, 65);
+  if (daysSinceSubmission >= 10 && currentRatings < 13) {
+    urgencyBonus = Math.max(urgencyBonus, 65); // 10天：中期紧急
   }
-
-  // 超期最高优先级
-  if (daysSinceSubmission >= 30 && currentRatings < 20) {
-    urgencyBonus = Math.max(urgencyBonus, 80);
+  if (daysSinceSubmission >= 12 && currentRatings < 16) {
+    urgencyBonus = Math.max(urgencyBonus, 80); // 12天：后期紧急1
+  }
+  if (daysSinceSubmission >= 13 && currentRatings < 18) {
+    urgencyBonus = Math.max(urgencyBonus, 90); // 13天：后期紧急2
+  }
+  if (daysSinceSubmission >= 14 && currentRatings < 19) {
+    urgencyBonus = Math.max(urgencyBonus, 100); // 14天：即将超期
+  }
+  if (daysSinceSubmission >= 15 && currentRatings < 20) {
+    urgencyBonus = Math.max(urgencyBonus, 110); // 15天：超期最高优先级
   }
 
   return Math.round(baseWeight + urgencyBonus);
@@ -1604,10 +1288,10 @@ function getRatioStatus(ratio) {
     highPercentage = ratio / (1 + ratio);
   }
 
-  // 均衡区间：28%-45%
-  if (highPercentage >= 0.28 && highPercentage <= 0.45) {
+  // 均衡区间：20%-30%（目标比例1:3）
+  if (highPercentage >= 0.2 && highPercentage <= 0.3) {
     return "均衡";
-  } else if (highPercentage > 0.45) {
+  } else if (highPercentage > 0.3) {
     return "高权重过多";
   } else {
     return "高权重不足";
@@ -1788,14 +1472,6 @@ export async function getAllWorksWeightComparison() {
       // 最后按作品ID排序
       return a.sequenceId - b.sequenceId;
     });
-
-    // console.log(`[权重对比] 生成了${worksWeightData.length}个作品的权重数据`);
-    // if (worksWeightData.length > 0) {
-    //   console.log(`[权重对比] TOP5最需关注作品:`);
-    //   worksWeightData.slice(0, 5).forEach((w, i) => {
-    //     console.log(`  ${i + 1}. #${w.sequenceId} | Q权重:${w.finalWeightHigh} 普通权重:${w.finalWeightLow} | ${w.currentRatings}/20评分`);
-    //   });
-    // }
 
     return {
       works: worksWeightData,

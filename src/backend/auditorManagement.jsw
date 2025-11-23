@@ -16,22 +16,6 @@ import { unmarkTaskCompleted } from "backend/ratingTaskManager.jsw";
 // ==================== 审核员角色管理 ====================
 
 /**
- * 记录成员数据（调试用）
- * @param {string} memberId - 成员ID
- * @returns {Promise<Object|null>} 成员数据
- */
-export async function logMemberData(memberId) {
-  return safeExecute(
-    async () => {
-      const member = await members.getMember(memberId);
-      return member;
-    },
-    "logMemberData",
-    null
-  );
-}
-
-/**
  * 获取当前成员的角色列表
  * @returns {Promise<Array>} 角色列表
  */
@@ -114,170 +98,7 @@ export async function isUserAuditor(userId = null) {
   );
 }
 
-/**
- * 获取所有审核员列表
- * @returns {Promise<Array>} 审核员用户ID列表
- */
-export async function getAllAuditors() {
-  return safeExecute(
-    async () => {
-      // 这里需要根据实际的审核员角色ID来查询
-      const auditorRoleIds = ["auditor-role-id", "sea-selection-role-id"]; // 替换为实际的角色ID
-      let allAuditors = [];
-
-      for (const roleId of auditorRoleIds) {
-        const auditors = await getUsersByRole(roleId);
-        allAuditors = allAuditors.concat(auditors);
-      }
-
-      // 去重
-      return [...new Set(allAuditors)];
-    },
-    "getAllAuditors",
-    []
-  );
-}
-
 // ==================== 作品审核功能 ====================
-
-/**
- * 获取作品的详细审核信息
- * @param {string} sheetId - 作品ID
- * @returns {Promise<Object>} 审核详情对象
- */
-export async function getSheetDetails(sheetId) {
-  return safeExecute(
-    async () => {
-      const sheet = await wixData.get(COLLECTIONS.ENTER_CONTEST_034, sheetId);
-
-      const approvedBy = safeJsonParse(sheet.approvedByString, []);
-      const viewedBy = safeJsonParse(sheet.viewedBy, []);
-      const disBy = safeJsonParse(sheet.disByString, []);
-
-      return {
-        id: sheetId,
-        title: sheet.firstName || "",
-        sequenceId: sheet.sequenceId || "",
-        approvedBy,
-        viewedBy,
-        disBy,
-        approvedCount: approvedBy.length,
-        viewedCount: viewedBy.length,
-        disCount: disBy.length,
-        isApproved: approvedBy.length >= 3, // 假设需要3票通过
-        rawData: sheet,
-      };
-    },
-    "getSheetDetails",
-    {
-      id: sheetId,
-      title: "",
-      sequenceId: "",
-      approvedBy: [],
-      viewedBy: [],
-      disBy: [],
-      approvedCount: 0,
-      viewedCount: 0,
-      disCount: 0,
-      isApproved: false,
-      rawData: null,
-    }
-  );
-}
-
-/**
- * 获取待审核作品列表
- * @param {string} auditorId - 审核员ID
- * @param {number} limit - 返回数量限制
- * @returns {Promise<Array>} 待审核作品列表
- */
-export async function getPendingSheets(auditorId, limit = 50) {
-  return safeExecute(
-    async () => {
-      const isAuditor = await isUserAuditor(auditorId);
-      if (!isAuditor) {
-        return [];
-      }
-
-      const results = await wixData
-        .query(COLLECTIONS.ENTER_CONTEST_034)
-        .limit(limit)
-        .find();
-
-      // 过滤出该审核员尚未审核的作品
-      const pendingSheets = results.items.filter((sheet) => {
-        const approvedBy = safeJsonParse(sheet.approvedByString, []);
-        const disBy = safeJsonParse(sheet.disByString, []);
-
-        // 如果审核员既没有批准也没有拒绝这个作品
-        return !approvedBy.includes(auditorId) && !disBy.includes(auditorId);
-      });
-
-      return pendingSheets.map((sheet) => ({
-        id: sheet._id,
-        title: sheet.firstName || "",
-        sequenceId: sheet.sequenceId || "",
-        submittedDate: sheet._createdDate,
-        approvedCount: safeJsonParse(sheet.approvedByString, []).length,
-        rejectedCount: safeJsonParse(sheet.disByString, []).length,
-      }));
-    },
-    "getPendingSheets",
-    []
-  );
-}
-
-/**
- * 获取审核统计信息
- * @returns {Promise<Object>} 审核统计数据
- */
-export async function getAuditStatistics() {
-  return safeExecute(
-    async () => {
-      const results = await wixData
-        .query(COLLECTIONS.ENTER_CONTEST_034)
-        .limit(1000)
-        .find();
-
-      let totalSheets = results.items.length;
-      let approvedSheets = 0;
-      let rejectedSheets = 0;
-      let pendingSheets = 0;
-
-      results.items.forEach((sheet) => {
-        const approvedCount = safeJsonParse(sheet.approvedByString, []).length;
-        const rejectedCount = safeJsonParse(sheet.disByString, []).length;
-
-        if (approvedCount >= 3) {
-          approvedSheets++;
-        } else if (rejectedCount >= 2) {
-          rejectedSheets++;
-        } else {
-          pendingSheets++;
-        }
-      });
-
-      return {
-        totalSheets,
-        approvedSheets,
-        rejectedSheets,
-        pendingSheets,
-        approvalRate:
-          totalSheets > 0
-            ? ((approvedSheets / totalSheets) * 100).toFixed(1)
-            : 0,
-      };
-    },
-    "getAuditStatistics",
-    {
-      totalSheets: 0,
-      approvedSheets: 0,
-      rejectedSheets: 0,
-      pendingSheets: 0,
-      approvalRate: 0,
-    }
-  );
-}
 
 /**
  * 删除不合规评论
@@ -397,21 +218,6 @@ export async function deleteComment(
       deletedComment: null,
       deleteRecordId: null,
     }
-  );
-}
-
-/**
- * 获取当前用户角色
- * @returns {Promise<Array>} 角色列表
- */
-export async function getCurrentUserRoles() {
-  return safeExecute(
-    async () => {
-      const roles = await currentMember.getRoles();
-      return roles || [];
-    },
-    "getCurrentUserRoles",
-    []
   );
 }
 

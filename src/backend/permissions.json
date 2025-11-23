@@ -225,17 +225,6 @@
       }
     },
     "auditorManagement.jsw": {
-      "logMemberData": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
       "getCurrentMemberRoles": {
         "siteOwner": {
           "invoke": true
@@ -269,28 +258,6 @@
           "invoke": false
         }
       },
-      "getAllAuditors": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "getSheetDetails": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": true
-        }
-      },
       "approveSheet": {
         "siteOwner": {
           "invoke": true
@@ -319,28 +286,6 @@
         },
         "siteMember": {
           "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "getPendingSheets": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "getAuditStatistics": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
         },
         "anonymous": {
           "invoke": false
@@ -532,39 +477,6 @@
         },
         "siteMember": {
           "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "syncAllUserRatings": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "updateAllWorkRatingCounts": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "getSystemStats": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
         },
         "anonymous": {
           "invoke": false
