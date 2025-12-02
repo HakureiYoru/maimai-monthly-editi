@@ -314,10 +314,12 @@ export async function uploadChartToMajnet(chartData) {
       // 1. 确保已登录
       const loginResult = await loginToMajnet();
       if (!loginResult.success) {
+        const majnetUploadMessage = `❌ 登录Majnet失败\n错误信息: ${loginResult.message}\n失败时间: ${new Date().toLocaleString('zh-CN')}`;
         return {
           success: false,
           message: "登录失败",
           error: loginResult.message,
+          majnetUploadMessage: majnetUploadMessage,
         };
       }
 
@@ -391,10 +393,12 @@ export async function uploadChartToMajnet(chartData) {
         }
       } catch (error) {
         logError("uploadChartToMajnet", `文件准备失败: ${error.message}`);
+        const majnetUploadMessage = `❌ 文件准备失败\n错误信息: ${error.message}\n失败时间: ${new Date().toLocaleString('zh-CN')}`;
         return {
           success: false,
           message: "文件准备失败",
           error: error.message,
+          majnetUploadMessage: majnetUploadMessage,
         };
       }
 
@@ -405,6 +409,7 @@ export async function uploadChartToMajnet(chartData) {
     {
       success: false,
       message: "上传异常",
+      majnetUploadMessage: `❌ 上传过程中发生异常\n失败时间: ${new Date().toLocaleString('zh-CN')}`,
     }
   );
 }
@@ -468,11 +473,19 @@ async function uploadWithRetry(files, chartTitle) {
               "uploadWithRetry",
               `✅ 上传成功: ${chartTitle}${retryInfo} - 响应: ${responseText.substring(0, 200)}`
             );
+            
+            // 构建详细的上传消息
+            let majnetUploadMessage = `✅ 上传成功${retryInfo}\n`;
+            majnetUploadMessage += `服务器响应: ${responseText}\n`;
+            majnetUploadMessage += `状态码: ${response.status}\n`;
+            majnetUploadMessage += `上传时间: ${new Date().toLocaleString('zh-CN')}`;
+            
             return {
               success: true,
               message: `上传成功${retryInfo}`,
               statusCode: response.status,
               response: responseText,
+              majnetUploadMessage: majnetUploadMessage,
             };
           }
 
@@ -481,14 +494,23 @@ async function uploadWithRetry(files, chartTitle) {
             const errorMsg = `状态码${response.status} | 响应: ${responseText.substring(0, 300)} | 作品: ${chartTitle} | 文件数: ${files.length}`;
             logError("uploadWithRetry", `❌ 服务器拒绝: ${errorMsg}`);
 
+            // 构建详细的错误消息
+            let majnetUploadMessage = `❌ 服务器拒绝上传\n`;
+            majnetUploadMessage += `状态码: ${response.status}\n`;
+            majnetUploadMessage += `服务器响应: ${responseText.substring(0, 500)}\n`;
+            
             // 如果是400错误，额外记录请求详情
             if (response.status === 400) {
               const fileList = files.map((f) => f.filename).join(", ");
+              majnetUploadMessage += `文件列表: ${fileList}\n`;
+              majnetUploadMessage += `总大小: ${totalSizeMB}MB\n`;
               logError(
                 "uploadWithRetry - 400详情",
                 `文件列表: [${fileList}] | 大小: ${totalSizeMB}MB`
               );
             }
+            
+            majnetUploadMessage += `失败时间: ${new Date().toLocaleString('zh-CN')}`;
 
             return {
               success: false,
@@ -496,6 +518,7 @@ async function uploadWithRetry(files, chartTitle) {
               statusCode: response.status,
               error: responseText,
               details: errorMsg,
+              majnetUploadMessage: majnetUploadMessage,
             };
           }
 
@@ -549,22 +572,28 @@ async function uploadWithRetry(files, chartTitle) {
 
       // 所有重试都失败
       if (lastErrorType === "timeout") {
+        const majnetUploadMessage = `❌ 网络超时\n错误信息: ${lastError}\n已重试次数: ${MAJNET_CONFIG.MAX_RETRIES}\n失败时间: ${new Date().toLocaleString('zh-CN')}`;
         return {
           success: false,
           message: `❌ 网络超时: ${lastError} (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次)`,
           error: lastError,
+          majnetUploadMessage: majnetUploadMessage,
         };
       } else if (lastErrorType === "connection") {
+        const majnetUploadMessage = `❌ 连接错误\n错误信息: ${lastError}\n已重试次数: ${MAJNET_CONFIG.MAX_RETRIES}\n失败时间: ${new Date().toLocaleString('zh-CN')}`;
         return {
           success: false,
           message: `❌ 连接错误: ${lastError} (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次)`,
           error: lastError,
+          majnetUploadMessage: majnetUploadMessage,
         };
       } else {
+        const majnetUploadMessage = `❌ 上传失败\n错误信息: ${lastError}\n失败时间: ${new Date().toLocaleString('zh-CN')}`;
         return {
           success: false,
           message: `❌ 上传失败: ${lastError}`,
           error: lastError,
+          majnetUploadMessage: majnetUploadMessage,
         };
       }
     },
@@ -572,6 +601,7 @@ async function uploadWithRetry(files, chartTitle) {
     {
       success: false,
       message: "上传异常",
+      majnetUploadMessage: `❌ 上传请求过程中发生异常\n失败时间: ${new Date().toLocaleString('zh-CN')}`,
     }
   );
 }
@@ -607,6 +637,7 @@ export async function uploadContestItemToMajnet(contestItem) {
     {
       success: false,
       message: "上传失败",
+      majnetUploadMessage: `❌ 上传数据集项目时发生异常\n失败时间: ${new Date().toLocaleString('zh-CN')}`,
     }
   );
 }
