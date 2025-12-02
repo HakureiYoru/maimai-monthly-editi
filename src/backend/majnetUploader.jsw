@@ -20,6 +20,16 @@ const MAJNET_CONFIG = {
   USERNAME: "mmfc_bot",
   FALLBACK_DESIGNER: "mmfc",
   UPLOAD_DELAY: 2000, // 上传间隔（毫秒）
+  
+  // 重试和超时配置
+  MAX_RETRIES: 3, // 最大重试次数
+  BASE_TIMEOUT: 30000, // 基础超时（毫秒）
+  MAX_TIMEOUT: 120000, // 最大超时（毫秒）
+  RETRY_DELAY: 2000, // 重试等待时间（毫秒）
+  CONNECTION_RETRY_DELAY: 3000, // 连接错误重试等待时间（毫秒）
+  
+  // 模拟真实浏览器的 User-Agent，避免触发 Cloudflare 检查
+  USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
 
 // 全局会话状态
@@ -34,7 +44,27 @@ const SESSION_TIMEOUT = 30 * 60 * 1000; // 30分钟
 const PASSWORD_MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f";
 
 /**
- * 登录Majnet
+ * 获取通用请求头（模拟真实浏览器）
+ * 避免触发 Cloudflare 的浏览器完整性检查
+ */
+function getCommonHeaders() {
+  return {
+    'User-Agent': MAJNET_CONFIG.USER_AGENT,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Cache-Control': 'max-age=0',
+    'Referer': 'https://majdata.net/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+  };
+}
+
+/**
+ * 登录Majnet（带重试机制）
  */
 async function loginToMajnet() {
   return safeExecute(
@@ -49,41 +79,73 @@ async function loginToMajnet() {
         return { success: true, message: "使用缓存会话" };
       }
 
-      const response = await fetch(MAJNET_CONFIG.LOGIN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `username=${MAJNET_CONFIG.USERNAME}&password=${PASSWORD_MD5}`,
-      });
+      // 带重试的登录
+      let lastError = null;
+      for (let attempt = 1; attempt <= MAJNET_CONFIG.MAX_RETRIES; attempt++) {
+        try {
+          logInfo("loginToMajnet", `登录尝试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES}`);
+          
+          const response = await fetch(MAJNET_CONFIG.LOGIN_URL, {
+            method: "POST",
+            headers: {
+              ...getCommonHeaders(),
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: `username=${MAJNET_CONFIG.USERNAME}&password=${PASSWORD_MD5}`,
+          });
 
-      if (response.status === 200) {
-        // 保存会话cookies
-        const cookies = response.headers.get("set-cookie");
-        if (cookies) {
-          sessionCookies = cookies;
-          lastLoginTime = Date.now();
+          if (response.status === 200) {
+            // 保存会话cookies
+            const cookies = response.headers.get("set-cookie");
+            if (cookies) {
+              sessionCookies = cookies;
+              lastLoginTime = Date.now();
+            }
+
+            const retryInfo = attempt > 1 ? ` (重试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES} 次后成功)` : "";
+            logInfo("loginToMajnet", `✅ 登录成功${retryInfo}`);
+            return {
+              success: true,
+              message: `登录成功${retryInfo}`,
+              statusCode: response.status,
+            };
+          }
+
+          // 服务器拒绝，不重试
+          if (response.status >= 400 && response.status < 600) {
+            sessionCookies = null;
+            lastLoginTime = null;
+            const errorText = await response.text();
+            logError("loginToMajnet", `❌ 服务器拒绝登录: ${response.status} - ${errorText.substring(0, 200)}`);
+            return {
+              success: false,
+              message: `登录失败: ${response.status}`,
+              statusCode: response.status,
+              error: errorText,
+            };
+          }
+
+          lastError = `状态码 ${response.status}`;
+        } catch (error) {
+          lastError = error.message;
+          logWarning("loginToMajnet", `尝试 ${attempt} 失败: ${error.message}`);
+          
+          // 如果不是最后一次尝试，等待后重试
+          if (attempt < MAJNET_CONFIG.MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, MAJNET_CONFIG.CONNECTION_RETRY_DELAY));
+          }
         }
-
-        logInfo("loginToMajnet", "登录成功");
-        return {
-          success: true,
-          message: "登录成功",
-          statusCode: response.status,
-        };
       }
 
+      // 所有重试都失败
       sessionCookies = null;
       lastLoginTime = null;
-
-      const errorText = await response.text();
-      logError("loginToMajnet", `登录失败: ${response.status} - ${errorText}`);
-
+      logError("loginToMajnet", `❌ 登录失败 (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次): ${lastError}`);
+      
       return {
         success: false,
-        message: `登录失败: ${response.status}`,
-        statusCode: response.status,
-        error: errorText,
+        message: `登录失败 (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次)`,
+        error: lastError,
       };
     },
     "loginToMajnet",
@@ -151,6 +213,43 @@ async function getFileBinary(fileUrl) {
 }
 
 /**
+ * 计算文件总大小（字节）
+ */
+function calculateTotalSize(files) {
+  let totalSize = 0;
+  for (const file of files) {
+    if (typeof file.content === "string") {
+      totalSize += Buffer.byteLength(file.content, "utf8");
+    } else if (Buffer.isBuffer(file.content)) {
+      totalSize += file.content.length;
+    }
+  }
+  return totalSize;
+}
+
+/**
+ * 根据文件大小计算动态超时时间
+ * @param {number} totalSizeBytes - 文件总大小（字节）
+ * @returns {number} 超时时间（毫秒）
+ */
+function calculateDynamicTimeout(totalSizeBytes) {
+  const sizeMB = totalSizeBytes / (1024 * 1024);
+  // 每10MB增加15秒
+  const extraTimeout = Math.floor(sizeMB / 10) * 15000;
+  const calculatedTimeout = MAJNET_CONFIG.BASE_TIMEOUT + extraTimeout;
+  
+  // 限制在最大超时范围内
+  const finalTimeout = Math.min(calculatedTimeout, MAJNET_CONFIG.MAX_TIMEOUT);
+  
+  logInfo(
+    "calculateDynamicTimeout",
+    `文件大小: ${sizeMB.toFixed(1)}MB, 超时: ${finalTimeout / 1000}秒`
+  );
+  
+  return finalTimeout;
+}
+
+/**
  * 构建multipart/form-data请求体
  */
 function buildMultipartFormData(files) {
@@ -190,6 +289,7 @@ function buildMultipartFormData(files) {
   return {
     body: body,
     boundary,
+    totalSize: body.length,
   };
 }
 
@@ -298,76 +398,177 @@ export async function uploadChartToMajnet(chartData) {
         };
       }
 
-      // 3. 构建并发送上传请求
-      try {
-        logInfo("uploadChartToMajnet", `准备上传 ${files.length} 个文件...`);
-        const formData = buildMultipartFormData(files);
-        logInfo(
-          "uploadChartToMajnet",
-          `请求体构建完成，大小: ${formData.body.length} 字节`
-        );
+      // 3. 构建并发送上传请求（带重试）
+      return await uploadWithRetry(files, chartTitle);
+    },
+    "uploadChartToMajnet",
+    {
+      success: false,
+      message: "上传异常",
+    }
+  );
+}
 
-        const headers = {
-          "Content-Type": `multipart/form-data; boundary=${formData.boundary}`,
-        };
+/**
+ * 带重试机制的上传函数
+ * @param {Array} files - 文件数组
+ * @param {string} chartTitle - 谱面标题
+ * @returns {Promise<Object>} 上传结果
+ */
+async function uploadWithRetry(files, chartTitle) {
+  return safeExecute(
+    async () => {
+      logInfo("uploadWithRetry", `准备上传 ${files.length} 个文件...`);
+      
+      // 构建请求体
+      const formData = buildMultipartFormData(files);
+      const totalSizeMB = (formData.totalSize / (1024 * 1024)).toFixed(1);
+      logInfo(
+        "uploadWithRetry",
+        `请求体构建完成，大小: ${totalSizeMB}MB`
+      );
 
-        if (sessionCookies) {
-          headers["Cookie"] = sessionCookies;
-        }
-
-        logInfo("uploadChartToMajnet", "发送上传请求到Majnet...");
-        const response = await fetch(MAJNET_CONFIG.UPLOAD_URL, {
-          method: "POST",
-          headers,
-          body: formData.body,
-        });
-
-        const responseText = await response.text();
-        logInfo("uploadChartToMajnet", `收到响应，状态码: ${response.status}`);
-
-        if (response.status === 200) {
+      // 计算动态超时
+      let currentTimeout = calculateDynamicTimeout(formData.totalSize);
+      
+      // 开始重试循环
+      let lastError = null;
+      let lastErrorType = null;
+      
+      for (let attempt = 1; attempt <= MAJNET_CONFIG.MAX_RETRIES; attempt++) {
+        try {
           logInfo(
-            "uploadChartToMajnet",
-            `上传成功: ${chartTitle} - 响应: ${responseText.substring(0, 200)}`
+            "uploadWithRetry",
+            `尝试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES}: ${chartTitle} (超时: ${currentTimeout / 1000}秒)`
           );
-          return {
-            success: true,
-            message: "上传成功",
-            statusCode: response.status,
-            response: responseText,
-          };
-        } else {
-          // 详细记录失败信息，特别是400错误
-          const errorMsg = `状态码${response.status} | 响应: ${responseText} | 作品: ${chartTitle} | 文件数: ${files.length}`;
-          logError("uploadChartToMajnet", errorMsg);
 
-          // 如果是400错误，额外记录请求详情
-          if (response.status === 400) {
-            const fileList = files.map((f) => f.filename).join(", ");
-            logError(
-              "uploadChartToMajnet - 400详情",
-              `文件列表: [${fileList}] | boundary: ${formData.boundary}`
-            );
+          const headers = {
+            ...getCommonHeaders(),
+            "Content-Type": `multipart/form-data; boundary=${formData.boundary}`,
+          };
+
+          if (sessionCookies) {
+            headers["Cookie"] = sessionCookies;
           }
 
-          return {
-            success: false,
-            message: `上传失败: ${response.status}`,
-            statusCode: response.status,
-            error: responseText,
-            details: errorMsg,
-          };
+          // 发送上传请求
+          const response = await fetch(MAJNET_CONFIG.UPLOAD_URL, {
+            method: "POST",
+            headers,
+            body: formData.body,
+          });
+
+          const responseText = await response.text();
+          logInfo("uploadWithRetry", `收到响应，状态码: ${response.status}`);
+
+          // 成功
+          if (response.status === 200) {
+            const retryInfo = attempt > 1 ? ` (重试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES} 次后成功)` : "";
+            logInfo(
+              "uploadWithRetry",
+              `✅ 上传成功: ${chartTitle}${retryInfo} - 响应: ${responseText.substring(0, 200)}`
+            );
+            return {
+              success: true,
+              message: `上传成功${retryInfo}`,
+              statusCode: response.status,
+              response: responseText,
+            };
+          }
+
+          // 服务器拒绝（4xx/5xx），不重试
+          if (response.status >= 400 && response.status < 600) {
+            const errorMsg = `状态码${response.status} | 响应: ${responseText.substring(0, 300)} | 作品: ${chartTitle} | 文件数: ${files.length}`;
+            logError("uploadWithRetry", `❌ 服务器拒绝: ${errorMsg}`);
+
+            // 如果是400错误，额外记录请求详情
+            if (response.status === 400) {
+              const fileList = files.map((f) => f.filename).join(", ");
+              logError(
+                "uploadWithRetry - 400详情",
+                `文件列表: [${fileList}] | 大小: ${totalSizeMB}MB`
+              );
+            }
+
+            return {
+              success: false,
+              message: `❌ 服务器拒绝，状态码 ${response.status}`,
+              statusCode: response.status,
+              error: responseText,
+              details: errorMsg,
+            };
+          }
+
+          // 其他状态码，记录并重试
+          lastError = `状态码 ${response.status}`;
+          lastErrorType = "http_error";
+          
+        } catch (error) {
+          // 判断错误类型
+          const errorMsg = error.message || String(error);
+          
+          if (errorMsg.includes("timeout") || errorMsg.includes("ETIMEDOUT")) {
+            lastErrorType = "timeout";
+            lastError = `请求超过 ${currentTimeout / 1000} 秒未响应`;
+            logWarning(
+              "uploadWithRetry",
+              `⏱️ 超时: ${chartTitle} - 尝试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES}`
+            );
+            
+            // 超时后增加下次的超时时间
+            if (attempt < MAJNET_CONFIG.MAX_RETRIES) {
+              currentTimeout = Math.min(currentTimeout * 1.5, MAJNET_CONFIG.MAX_TIMEOUT);
+              await new Promise(resolve => setTimeout(resolve, MAJNET_CONFIG.RETRY_DELAY));
+            }
+          } else if (
+            errorMsg.includes("ECONNREFUSED") ||
+            errorMsg.includes("ENOTFOUND") ||
+            errorMsg.includes("ECONNRESET") ||
+            errorMsg.includes("connect")
+          ) {
+            lastErrorType = "connection";
+            lastError = "无法连接到服务器";
+            logWarning(
+              "uploadWithRetry",
+              `🔌 连接错误: ${chartTitle} - 尝试 ${attempt}/${MAJNET_CONFIG.MAX_RETRIES}`
+            );
+            
+            // 连接错误等待更长时间
+            if (attempt < MAJNET_CONFIG.MAX_RETRIES) {
+              await new Promise(resolve => setTimeout(resolve, MAJNET_CONFIG.CONNECTION_RETRY_DELAY));
+            }
+          } else {
+            // 未知错误，不重试
+            lastErrorType = "unknown";
+            lastError = errorMsg;
+            logError("uploadWithRetry", `❌ 未知错误: ${errorMsg}`);
+            break;
+          }
         }
-      } catch (error) {
-        logError("uploadChartToMajnet", `上传请求失败: ${error.message}`);
+      }
+
+      // 所有重试都失败
+      if (lastErrorType === "timeout") {
         return {
           success: false,
-          message: "上传请求失败",
-          error: error.message,
+          message: `❌ 网络超时: ${lastError} (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次)`,
+          error: lastError,
+        };
+      } else if (lastErrorType === "connection") {
+        return {
+          success: false,
+          message: `❌ 连接错误: ${lastError} (已重试 ${MAJNET_CONFIG.MAX_RETRIES} 次)`,
+          error: lastError,
+        };
+      } else {
+        return {
+          success: false,
+          message: `❌ 上传失败: ${lastError}`,
+          error: lastError,
         };
       }
     },
-    "uploadChartToMajnet",
+    "uploadWithRetry",
     {
       success: false,
       message: "上传异常",
