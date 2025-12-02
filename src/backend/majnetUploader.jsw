@@ -37,6 +37,115 @@ let sessionCookies = null;
 let lastLoginTime = null;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30分钟
 
+// ========== 请求队列管理 ==========
+class UploadQueue {
+  constructor() {
+    this.queue = []; // 待处理的任务队列
+    this.isProcessing = false; // 是否正在处理任务
+    this.currentTask = null; // 当前正在执行的任务
+    this.lastUploadTime = 0; // 上次上传完成时间
+  }
+
+  /**
+   * 添加上传任务到队列
+   * @param {Function} uploadTask - 上传任务函数
+   * @param {string} taskId - 任务ID（用于日志）
+   * @returns {Promise} 返回上传结果的Promise
+   */
+  async enqueue(uploadTask, taskId) {
+    return new Promise((resolve, reject) => {
+      const task = {
+        id: taskId,
+        execute: uploadTask,
+        resolve,
+        reject,
+        addedAt: Date.now(),
+      };
+
+      this.queue.push(task);
+      logInfo(
+        "UploadQueue",
+        `任务已加入队列: ${taskId} | 队列长度: ${this.queue.length}`
+      );
+
+      // 如果没有正在处理，立即开始处理
+      if (!this.isProcessing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  /**
+   * 处理队列中的任务
+   */
+  async processQueue() {
+    if (this.isProcessing || this.queue.length === 0) {
+      return;
+    }
+
+    this.isProcessing = true;
+
+    while (this.queue.length > 0) {
+      const task = this.queue.shift();
+      this.currentTask = task;
+
+      try {
+        // 确保两次上传之间有足够的间隔
+        const timeSinceLastUpload = Date.now() - this.lastUploadTime;
+        if (timeSinceLastUpload < MAJNET_CONFIG.UPLOAD_DELAY) {
+          const waitTime = MAJNET_CONFIG.UPLOAD_DELAY - timeSinceLastUpload;
+          logInfo(
+            "UploadQueue",
+            `等待 ${waitTime}ms 后执行任务: ${task.id}`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        }
+
+        const waitTime = Date.now() - task.addedAt;
+        logInfo(
+          "UploadQueue",
+          `开始执行任务: ${task.id} | 等待时长: ${(waitTime / 1000).toFixed(1)}秒 | 剩余队列: ${this.queue.length}`
+        );
+
+        // 执行上传任务
+        const result = await task.execute();
+        this.lastUploadTime = Date.now();
+
+        // 返回结果给调用者
+        task.resolve(result);
+
+        logInfo(
+          "UploadQueue",
+          `任务完成: ${task.id} | 成功: ${result.success}`
+        );
+      } catch (error) {
+        logError("UploadQueue", `任务执行失败: ${task.id} - ${error.message}`);
+        task.reject(error);
+      } finally {
+        this.currentTask = null;
+      }
+    }
+
+    this.isProcessing = false;
+    logInfo("UploadQueue", "队列处理完成");
+  }
+
+  /**
+   * 获取队列状态
+   */
+  getStatus() {
+    return {
+      queueLength: this.queue.length,
+      isProcessing: this.isProcessing,
+      currentTask: this.currentTask ? this.currentTask.id : null,
+      lastUploadTime: this.lastUploadTime,
+    };
+  }
+}
+
+// 全局上传队列实例
+const uploadQueue = new UploadQueue();
+
 /**
  * 预计算的密码MD5值
  * "redwhite7687" 的 MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f"
@@ -294,11 +403,40 @@ function buildMultipartFormData(files) {
 }
 
 /**
- * 上传谱面到Majnet
+ * 上传谱面到Majnet（带队列管理）
+ * @param {Object} chartData - 包含文件URL的谱面数据
+ * @param {boolean} skipQueue - 是否跳过队列（批量上传时使用）
+ * @returns {Promise<Object>} 上传结果
+ */
+export async function uploadChartToMajnet(chartData, skipQueue = false) {
+  const chartTitle = chartData.chartTitle || "未命名";
+  const taskId = `${chartTitle}_${Date.now()}`;
+
+  // 如果不跳过队列，则加入队列等待执行
+  if (!skipQueue) {
+    logInfo("uploadChartToMajnet", `任务加入队列: ${chartTitle}`);
+    const queueStatus = uploadQueue.getStatus();
+    logInfo(
+      "uploadChartToMajnet",
+      `当前队列状态: 队列长度=${queueStatus.queueLength}, 正在处理=${queueStatus.isProcessing}`
+    );
+
+    return uploadQueue.enqueue(
+      () => uploadChartToMajnetInternal(chartData),
+      taskId
+    );
+  }
+
+  // 批量上传时直接执行（已在批量函数中控制延迟）
+  return uploadChartToMajnetInternal(chartData);
+}
+
+/**
+ * 上传谱面到Majnet的内部实现
  * @param {Object} chartData - 包含文件URL的谱面数据
  * @returns {Promise<Object>} 上传结果
  */
-export async function uploadChartToMajnet(chartData) {
+async function uploadChartToMajnetInternal(chartData) {
   return safeExecute(
     async () => {
       const {
@@ -609,9 +747,10 @@ async function uploadWithRetry(files, chartTitle) {
 /**
  * 从wix数据集项上传到Majnet
  * @param {Object} contestItem - enterContest034数据集项
+ * @param {boolean} skipQueue - 是否跳过队列（批量上传时使用）
  * @returns {Promise<Object>} 上传结果
  */
-export async function uploadContestItemToMajnet(contestItem) {
+export async function uploadContestItemToMajnet(contestItem, skipQueue = false) {
   return safeExecute(
     async () => {
       // 映射字段名（根据http-functions.js中的字段映射）
@@ -631,7 +770,7 @@ export async function uploadContestItemToMajnet(contestItem) {
         }`
       );
 
-      return await uploadChartToMajnet(chartData);
+      return await uploadChartToMajnet(chartData, skipQueue);
     },
     "uploadContestItemToMajnet",
     {
@@ -644,6 +783,7 @@ export async function uploadContestItemToMajnet(contestItem) {
 
 /**
  * 批量上传多个谱面（带延迟）
+ * 批量上传会跳过队列，因为已经在函数内部控制了执行顺序和延迟
  * @param {Array} contestItems - 数据集项数组
  * @returns {Promise<Array>} 上传结果数组
  */
@@ -651,6 +791,11 @@ export async function batchUploadToMajnet(contestItems) {
   return safeExecute(
     async () => {
       const results = [];
+
+      logInfo(
+        "batchUploadToMajnet",
+        `开始批量上传 ${contestItems.length} 个谱面（跳过队列，直接顺序执行）`
+      );
 
       for (let i = 0; i < contestItems.length; i++) {
         const item = contestItems[i];
@@ -660,7 +805,8 @@ export async function batchUploadToMajnet(contestItems) {
           `上传进度: ${i + 1}/${contestItems.length}`
         );
 
-        const result = await uploadContestItemToMajnet(item);
+        // 批量上传时跳过队列（skipQueue = true）
+        const result = await uploadContestItemToMajnet(item, true);
         results.push({
           ...result,
           itemId: item._id,
@@ -685,5 +831,36 @@ export async function batchUploadToMajnet(contestItems) {
     },
     "batchUploadToMajnet",
     []
+  );
+}
+
+/**
+ * 获取上传队列状态（供前端查询）
+ * @returns {Object} 队列状态信息
+ */
+export function getUploadQueueStatus() {
+  return safeExecute(
+    () => {
+      const status = uploadQueue.getStatus();
+      return {
+        success: true,
+        queueLength: status.queueLength,
+        isProcessing: status.isProcessing,
+        currentTask: status.currentTask,
+        lastUploadTime: status.lastUploadTime,
+        message: status.isProcessing
+          ? `正在处理上传任务，队列中还有 ${status.queueLength} 个任务等待`
+          : status.queueLength > 0
+          ? `队列中有 ${status.queueLength} 个任务等待处理`
+          : "队列空闲",
+      };
+    },
+    "getUploadQueueStatus",
+    {
+      success: false,
+      message: "获取队列状态失败",
+      queueLength: 0,
+      isProcessing: false,
+    }
   );
 }

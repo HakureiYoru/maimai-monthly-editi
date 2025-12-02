@@ -110,7 +110,7 @@ export function enterContest034_afterInsert(item, context) {
             `作品 "${item.firstName}" 已自动上传到Majnet`
           );
 
-          // 更新majnetUploaded字段为true
+          // 更新majnetUploaded字段为true和上传消息
           // 重要：先获取完整数据，再更新特定字段，避免覆盖其他字段
           try {
             // 先获取当前完整数据
@@ -124,10 +124,11 @@ export function enterContest034_afterInsert(item, context) {
               ...currentItem, // 保留所有现有字段
               majnetUploaded: true,
               majnetUploadTime: new Date(),
+              majnetUploadMessage: result.majnetUploadMessage || "上传成功，但未返回详细消息",
             });
             logInfo(
               "enterContest034_afterInsert",
-              `已标记作品 "${item.firstName}" 的上传状态`
+              `已标记作品 "${item.firstName}" 的上传状态和消息`
             );
           } catch (updateError) {
             logError(
@@ -140,6 +141,7 @@ export function enterContest034_afterInsert(item, context) {
             );
           }
         } else {
+          // 上传失败，也保存错误消息
           logError(
             "enterContest034_afterInsert - Majnet上传失败",
             result.error || result.message,
@@ -148,6 +150,34 @@ export function enterContest034_afterInsert(item, context) {
               itemTitle: item.firstName,
             }
           );
+
+          // 保存失败消息到数据库
+          try {
+            const currentItem = await wixData.get(
+              COLLECTIONS.ENTER_CONTEST_034,
+              item._id
+            );
+
+            await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+              ...currentItem,
+              majnetUploaded: false,
+              majnetUploadTime: new Date(),
+              majnetUploadMessage: result.majnetUploadMessage || result.message || "上传失败，未知错误",
+            });
+            logInfo(
+              "enterContest034_afterInsert",
+              `已保存作品 "${item.firstName}" 的失败消息`
+            );
+          } catch (updateError) {
+            logError(
+              "enterContest034_afterInsert - 保存失败消息出错",
+              updateError,
+              {
+                itemId: item._id,
+                itemTitle: item.firstName,
+              }
+            );
+          }
         }
       })
       .catch((error) => {
@@ -155,6 +185,32 @@ export function enterContest034_afterInsert(item, context) {
           itemId: item._id,
           itemTitle: item.firstName,
         });
+
+        // 保存异常消息到数据库
+        setTimeout(async () => {
+          try {
+            const currentItem = await wixData.get(
+              COLLECTIONS.ENTER_CONTEST_034,
+              item._id
+            );
+
+            await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+              ...currentItem,
+              majnetUploaded: false,
+              majnetUploadTime: new Date(),
+              majnetUploadMessage: `❌ 上传过程发生异常\n错误: ${error.message || String(error)}\n时间: ${new Date().toLocaleString('zh-CN')}`,
+            });
+          } catch (updateError) {
+            logError(
+              "enterContest034_afterInsert - 保存异常消息出错",
+              updateError,
+              {
+                itemId: item._id,
+                itemTitle: item.firstName,
+              }
+            );
+          }
+        }, 100);
       });
   }, 0); // 延迟0ms，推迟到下一个事件循环
 
