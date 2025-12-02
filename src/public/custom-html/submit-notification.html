@@ -43,6 +43,7 @@
             margin-bottom: 25px;
             padding-bottom: 15px;
             border-bottom: 2px solid #555;
+            position: relative;
         }
 
         .header h2 {
@@ -54,6 +55,65 @@
         .header .subtitle {
             font-size: 14px;
             color: #999;
+        }
+
+        .lang-switch-container {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .lang-switch-container span {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .lang-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .lang-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .lang-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .lang-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .lang-slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .lang-slider:before {
+            transform: translateX(26px);
         }
 
         .section-box {
@@ -146,37 +206,95 @@
 <body>
     <div class="container">
         <div class="header">
-            <h2>提交须知</h2>
-            <div class="subtitle">请仔细阅读以下内容</div>
+            <div class="lang-switch-container">
+                <span id="langLabel">中文</span>
+                <label class="lang-switch">
+                    <input type="checkbox" id="langToggle">
+                    <span class="lang-slider"></span>
+                </label>
+            </div>
+            <h2 data-zh="提交须知" data-en="Submission Notice">提交须知</h2>
+            <div class="subtitle" data-zh="请仔细阅读以下内容" data-en="Please read the following carefully">请仔细阅读以下内容</div>
         </div>
 
         <div class="section-box">
-            <div class="title">公开性声明</div>
-            <p>你的谱面在整个会场、整个比赛流程的谱面文件可以被下载，其他比赛成员能在过程中拿到谱面文件进行私下游玩。</p>
-            <p>提交到MMFC赛场的谱面至少会在赛程中作为公共资源使用。</p>
+            <div class="title" data-zh="公开性声明" data-en="Publicity Statement">公开性声明</div>
+            <p data-zh="你的谱面在整个会场、整个比赛流程的谱面文件可以被下载，其他比赛成员能在过程中拿到谱面文件进行私下游玩。" 
+               data-en="Your chart files can be downloaded throughout the venue and the entire competition process. Other participants will be able to access the chart files for private play during this period.">
+                你的谱面在整个会场、整个比赛流程的谱面文件可以被下载，其他比赛成员能在过程中拿到谱面文件进行私下游玩。
+            </p>
+            <p data-zh="提交到MMFC赛场的谱面至少会在赛程中作为公共资源使用。" 
+               data-en="Charts submitted to the MMFC competition will be used as public resources at least during the competition period.">
+                提交到MMFC赛场的谱面至少会在赛程中作为公共资源使用。
+            </p>
         </div>
 
         <div class="section-box">
-            <div class="title">对于本系统，请您务必做到</div>
-            <p><strong>不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。</strong></p>
+            <div class="title" data-zh="对于本系统，请您务必做到" data-en="Important Requirement">对于本系统，请您务必做到</div>
+            <p data-zh="不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。" 
+               data-en="Do not leave any real charter information in your chart: maidata field → designer.">
+                <strong data-zh="不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。" 
+                        data-en="Do not leave any real charter information in your chart: maidata field → designer.">
+                    不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。
+                </strong>
+            </p>
         </div>
 
         <div class="section-box">
-            <p>本次海选系统同时由 <strong>majdata</strong> 开发者支持并更新了在线预览页面。您可以在net上的"mmfc_bot"账号查询到实时同步的作品。</p>
+            <p data-zh="本次海选系统同时由 majdata 开发者支持并更新了在线预览页面。您可以在net上的"mmfc_bot"账号查询到实时同步的作品。" 
+               data-en="This selection system is also supported by the majdata developer with an updated online preview page. You can find real-time synchronized works on the net under the "mmfc_bot" account.">
+                本次海选系统同时由 <strong>majdata</strong> 开发者支持并更新了在线预览页面。您可以在net上的"mmfc_bot"账号查询到实时同步的作品。
+            </p>
         </div>
 
         <div class="link-box">
-            <a href="https://majdata.net/" target="_blank" rel="noopener noreferrer">
+            <a href="https://majdata.net/" target="_blank" rel="noopener noreferrer" 
+               data-zh="访问 Majdata.net" 
+               data-en="Visit Majdata.net">
                 访问 Majdata.net
             </a>
         </div>
 
         <div class="button-container">
-            <button class="close-btn" id="closeBtn">我已了解</button>
+            <button class="close-btn" id="closeBtn" data-zh="我已了解" data-en="I Understand">我已了解</button>
         </div>
     </div>
 
     <script>
+        // 语言切换功能
+        const langToggle = document.getElementById('langToggle');
+        const langLabel = document.getElementById('langLabel');
+        let currentLang = 'zh'; // 默认中文
+
+        // 从localStorage读取保存的语言设置
+        const savedLang = localStorage.getItem('mmfc-lang');
+        if (savedLang === 'en') {
+            currentLang = 'en';
+            langToggle.checked = true;
+            switchLanguage('en');
+        }
+
+        langToggle.addEventListener('change', function() {
+            currentLang = this.checked ? 'en' : 'zh';
+            switchLanguage(currentLang);
+            // 保存语言设置
+            localStorage.setItem('mmfc-lang', currentLang);
+        });
+
+        function switchLanguage(lang) {
+            // 更新标签文本
+            langLabel.textContent = lang === 'zh' ? '中文' : 'EN';
+            
+            // 更新所有带有 data-zh 和 data-en 属性的元素
+            const elements = document.querySelectorAll('[data-zh][data-en]');
+            elements.forEach(element => {
+                const text = lang === 'zh' ? element.getAttribute('data-zh') : element.getAttribute('data-en');
+                if (text) {
+                    element.textContent = text;
+                }
+            });
+        }
+
         // 关闭按钮
         document.getElementById('closeBtn').addEventListener('click', () => {
             // 通知 Wix 页面关闭
