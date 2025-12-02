@@ -223,10 +223,9 @@ export function button1_click(event) {
         .then((saveResult) => {
             console.log("数据保存成功，作品将自动上传到Majnet");
             
-            // 显示成功提示
-            if ($w("#text14")) {
-                $w("#text14").text = "✅ 提交成功！作品正在后台上传到Majnet...";
-            }
+            // 禁用按钮并更新标签为"已上传"
+            $w("#button1").disable();
+            $w("#button1").label = "已上传";
             
             // 可选：2秒后跳转到其他页面
             setTimeout(() => {
@@ -236,13 +235,8 @@ export function button1_click(event) {
         .catch((error) => {
             console.error("数据保存失败:", error);
             
-            // 显示错误提示
-            if ($w("#text14")) {
-                $w("#text14").text = "❌ 提交失败，请检查所有必填字段";
-            }
-            
-            // 重新启用按钮
+            // 重新启用按钮并显示错误
             $w("#button1").enable();
-            $w("#button1").label = "提交作品";
+            $w("#button1").label = "提交失败，请重试";
         });
 }
