@@ -722,19 +722,10 @@
         const card = document.createElement('div');
         card.className = 'current-task';
 
-        let weightLabel = '';
-        if (task.weight >= 80) {
-          weightLabel = ' (非常紧急)';
-        } else if (task.weight >= 60) {
-          weightLabel = ' (紧急)';
-        } else if (index === 0) {
-          weightLabel = ' (优先)';
-        }
-
-        const taskTypeLabel = hasCompletedTarget ? '冷门作品' : '需要关注的作品';
+        const taskTypeLabel = hasCompletedTarget ? '冷门作品' : '任务作品';
 
         card.innerHTML = `
-          <div class="task-label">${taskTypeLabel}${weightLabel}</div>
+          <div class="task-label">${taskTypeLabel}</div>
           <div class="task-work-info">
             <div class="work-number-container">
               <div class="work-number-label">作品编号</div>
@@ -745,9 +736,6 @@
           <div class="task-meta">
             <div class="meta-item">
               <span>${task.currentRatings} 个评分</span>
-            </div>
-            <div class="meta-item">
-              <span>期望: 20 个评分</span>
             </div>
           </div>
           <button class="action-button" data-work="${task.workNumber}">

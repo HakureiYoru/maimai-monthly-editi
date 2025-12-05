@@ -21,7 +21,7 @@ const COLLECTIONS = {
   REGISTRATIONS: "jobApplication089",
 };
 
-const TARGET_RATING_COUNT = 20; // 目标评分数
+const TARGET_RATING_COUNT = 15; // 目标评分数（压缩到15评）
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
 const TASK_REFRESH_HOURS = 24; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
 
@@ -224,7 +224,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     // console.log(`[任务分配] ⭐ 权重TOP10作品 (个性化权重):`);
     // top10.forEach((w, i) => {
     //   const ratingInfo = workRatings[w.workNumber] || {};
-    //   console.log(`  ${i + 1}. #${w.workNumber} 权重:${w.weight} | 评分:${w.currentRatings}/20 | 高低:${ratingInfo.highWeightCount || 0}:${ratingInfo.lowWeightCount || 0}`);
+    //   console.log(`  ${i + 1}. #${w.workNumber} 权重:${w.weight} | 评分:${w.currentRatings}/15 | 高低:${ratingInfo.highWeightCount || 0}:${ratingInfo.lowWeightCount || 0}`);
     // });
 
     // 返回可用的任务数量，不强制凑齐 limit 个
@@ -266,17 +266,17 @@ function calculateColdnessWeightOptimized(
     return 0;
   }
 
-  // 计算期望评分数（15天达到20评分的三段式模型）
+  // 计算期望评分数（15天达到15评分的三段式模型）
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
-    // 早期快速增长：1.4评分/天，5天达到7个
-    expectedRatings = Math.floor(daysSinceSubmission * 1.4);
+    // 早期：约1评分/天，5天≈5评
+    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
   } else if (daysSinceSubmission <= 10) {
-    // 中期稳定增长：1.3评分/天，10天达到13.5个
-    expectedRatings = 7 + Math.floor((daysSinceSubmission - 5) * 1.3);
+    // 中期：约1评分/天，10天≈10评
+    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 1.0);
   } else if (daysSinceSubmission <= 15) {
-    // 后期冲刺：1.3评分/天，15天达到20个
-    expectedRatings = 13 + Math.floor((daysSinceSubmission - 10) * 1.4);
+    // 后期：约1评分/天，15天达到15评
+    expectedRatings = 10 + Math.floor((daysSinceSubmission - 10) * 1.0);
   } else {
     // 超过15天，期望达标
     expectedRatings = TARGET_RATING_COUNT;
@@ -287,7 +287,7 @@ function calculateColdnessWeightOptimized(
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60;
 
-  // 时间紧迫度加成（15天达标，10级阶梯，使用Math.max取最大值）
+  // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
   let urgencyBonus = 0;
   if (daysSinceSubmission >= 2 && currentRatings < 2) {
     urgencyBonus = Math.max(urgencyBonus, 10); // 2天：早期冷启动1
@@ -298,25 +298,25 @@ function calculateColdnessWeightOptimized(
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
     urgencyBonus = Math.max(urgencyBonus, 25); // 5天：早期关注
   }
-  if (daysSinceSubmission >= 6 && currentRatings < 7) {
+  if (daysSinceSubmission >= 6 && currentRatings < 6) {
     urgencyBonus = Math.max(urgencyBonus, 35); // 6天：中期关注1
   }
-  if (daysSinceSubmission >= 8 && currentRatings < 10) {
+  if (daysSinceSubmission >= 8 && currentRatings < 8) {
     urgencyBonus = Math.max(urgencyBonus, 50); // 8天：中期关注2
   }
-  if (daysSinceSubmission >= 10 && currentRatings < 13) {
+  if (daysSinceSubmission >= 10 && currentRatings < 10) {
     urgencyBonus = Math.max(urgencyBonus, 65); // 10天：中期紧急
   }
-  if (daysSinceSubmission >= 12 && currentRatings < 16) {
-    urgencyBonus = Math.max(urgencyBonus, 80); // 12天：后期紧急1
+  if (daysSinceSubmission >= 11 && currentRatings < 11) {
+    urgencyBonus = Math.max(urgencyBonus, 80); // 11天：后期紧急1
   }
-  if (daysSinceSubmission >= 13 && currentRatings < 18) {
+  if (daysSinceSubmission >= 13 && currentRatings < 13) {
     urgencyBonus = Math.max(urgencyBonus, 90); // 13天：后期紧急2
   }
-  if (daysSinceSubmission >= 14 && currentRatings < 19) {
+  if (daysSinceSubmission >= 14 && currentRatings < 14) {
     urgencyBonus = Math.max(urgencyBonus, 100); // 14天：即将超期
   }
-  if (daysSinceSubmission >= 15 && currentRatings < 20) {
+  if (daysSinceSubmission >= 15 && currentRatings < 15) {
     urgencyBonus = Math.max(urgencyBonus, 110); // 15天：超期最高优先级
   }
 
@@ -1211,17 +1211,17 @@ function calculateBaseColdnessWeightSync(work) {
     return 0;
   }
 
-  // 与异步版本保持一致的期望评分模型（15天达标）
+  // 与异步版本保持一致的期望评分模型（15天达标15评）
   let expectedRatings = 0;
   if (daysSinceSubmission <= 5) {
-    // 早期快速增长：1.4评分/天，5天达到7个
-    expectedRatings = Math.floor(daysSinceSubmission * 1.4);
+    // 早期：约1评分/天，5天≈5评
+    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
   } else if (daysSinceSubmission <= 10) {
-    // 中期稳定增长：1.3评分/天，10天达到13.5个
-    expectedRatings = 7 + Math.floor((daysSinceSubmission - 5) * 1.3);
+    // 中期：约1评分/天，10天≈10评
+    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 1.0);
   } else if (daysSinceSubmission <= 15) {
-    // 后期冲刺：1.4评分/天，15天达到20个
-    expectedRatings = 13 + Math.floor((daysSinceSubmission - 10) * 1.4);
+    // 后期：约1评分/天，15天达到15评
+    expectedRatings = 10 + Math.floor((daysSinceSubmission - 10) * 1.0);
   } else {
     // 超过15天，期望达标
     expectedRatings = TARGET_RATING_COUNT;
@@ -1231,7 +1231,7 @@ function calculateBaseColdnessWeightSync(work) {
   const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
   const baseWeight = deficitRatio * 60; // 与主函数保持一致
 
-  // 时间紧迫度加成（15天达标，10级阶梯，使用Math.max取最大值）
+  // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
   let urgencyBonus = 0;
   if (daysSinceSubmission >= 2 && currentRatings < 2) {
     urgencyBonus = Math.max(urgencyBonus, 10); // 2天：早期冷启动1
@@ -1242,25 +1242,25 @@ function calculateBaseColdnessWeightSync(work) {
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
     urgencyBonus = Math.max(urgencyBonus, 25); // 5天：早期关注
   }
-  if (daysSinceSubmission >= 6 && currentRatings < 7) {
+  if (daysSinceSubmission >= 6 && currentRatings < 6) {
     urgencyBonus = Math.max(urgencyBonus, 35); // 6天：中期关注1
   }
-  if (daysSinceSubmission >= 8 && currentRatings < 10) {
+  if (daysSinceSubmission >= 8 && currentRatings < 8) {
     urgencyBonus = Math.max(urgencyBonus, 50); // 8天：中期关注2
   }
-  if (daysSinceSubmission >= 10 && currentRatings < 13) {
+  if (daysSinceSubmission >= 10 && currentRatings < 10) {
     urgencyBonus = Math.max(urgencyBonus, 65); // 10天：中期紧急
   }
-  if (daysSinceSubmission >= 12 && currentRatings < 16) {
-    urgencyBonus = Math.max(urgencyBonus, 80); // 12天：后期紧急1
+  if (daysSinceSubmission >= 11 && currentRatings < 11) {
+    urgencyBonus = Math.max(urgencyBonus, 80); // 11天：后期紧急1
   }
-  if (daysSinceSubmission >= 13 && currentRatings < 18) {
+  if (daysSinceSubmission >= 13 && currentRatings < 13) {
     urgencyBonus = Math.max(urgencyBonus, 90); // 13天：后期紧急2
   }
-  if (daysSinceSubmission >= 14 && currentRatings < 19) {
+  if (daysSinceSubmission >= 14 && currentRatings < 14) {
     urgencyBonus = Math.max(urgencyBonus, 100); // 14天：即将超期
   }
-  if (daysSinceSubmission >= 15 && currentRatings < 20) {
+  if (daysSinceSubmission >= 15 && currentRatings < 15) {
     urgencyBonus = Math.max(urgencyBonus, 110); // 15天：超期最高优先级
   }
 

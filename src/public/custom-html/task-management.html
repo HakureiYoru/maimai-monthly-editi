@@ -759,36 +759,36 @@
             <div class="formula-box">
                 <div class="formula-title">🔬 权重计算方法</div>
                 <div class="formula-item">
-                    <strong>期望评分模型</strong> (三段式增长曲线)
-                    <br>• 早期快速期 (0-5天): 每天1个评分，达到5个
-                    <br>• 中期稳定期 (6-14天): 每天0.78个，从5个增至12个
-                    <br>• 后期缓慢期 (15-30天): 每天0.5个，从12个增至20个
-                    <br>• 超期作品 (>30天): 期望达标20个评分
+                    <strong>期望评分模型</strong> (15天内拉满15评)
+                    <br>• 0-5天: 每天≈1评，5天期望≈5评
+                    <br>• 6-10天: 每天≈1评，10天期望≈10评
+                    <br>• 11-15天: 每天≈1评，15天期望=15评
+                    <br>• &gt;15天: 期望保持15评
                 </div>
                 <div class="formula-item">
                     <strong>基础冷门权重</strong> = 评分缺口比例 × 60 + 时间紧迫度加成
                     <br>• 评分缺口比例 = (期望评分 - 当前评分) / 期望评分
                     <br>• 时间加成 (取满足条件的最大值):
-                    <br>&nbsp;&nbsp;3天&lt;2评 +15，5天&lt;5评 +20，7天&lt;10评 +30
-                    <br>&nbsp;&nbsp;14天&lt;15评 +45，21天&lt;18评 +65，30天&lt;20评 +80
+                    <br>&nbsp;&nbsp;≥2天且&lt;2评 +10，≥3天且&lt;3评 +15，≥5天且&lt;5评 +25
+                    <br>&nbsp;&nbsp;≥6天且&lt;6评 +35，≥8天且&lt;8评 +50，≥10天且&lt;10评 +65
+                    <br>&nbsp;&nbsp;≥11天且&lt;11评 +80，≥13天且&lt;13评 +90，≥14天且&lt;14评 +100，≥15天且&lt;15评 +110
                 </div>
                 <div class="formula-item">
                     <strong>均衡因子</strong> = 根据作品当前高低权重比例动态调整
-                    <br>• 目标比例: <span class="formula-highlight">高:低 = 1:2 (33.3%占比)</span>
-                    <br>• 均衡区间: <span class="formula-highlight">28%-45%</span> 高权重占比
-                    <br>• 高权重过多 (>45%) → Qualified用户 ×0.7，普通用户 ×1.3
-                    <br>• 高权重不足 (&lt;28%) → Qualified用户 ×1.3，普通用户 ×0.7
-                    <br>• 比例均衡 (28%-45%) → 所有用户 ×1.0
-                    <br>• 应用时机: 作品有≥1个评分即开始应用均衡因子
+                    <br>• 目标比例: <span class="formula-highlight">高:低 = 1:3 (约25%占比)</span>
+                    <br>• 均衡区间: <span class="formula-highlight">20%-30%</span> 高权重占比
+                    <br>• 高权重过多 (&gt;30%) → Qualified用户 ×0.7，普通用户 ×1.3
+                    <br>• 高权重不足 (&lt;20%) → Qualified用户 ×1.3，普通用户 ×0.7
+                    <br>• 比例均衡 (20%-30%) → 所有用户 ×1.0
+                    <br>• 应用时机: 有≥1个评分才参与均衡，0评分时不调整
                 </div>
                 <div class="formula-item">
                     <strong>最终任务权重</strong> = <span class="formula-highlight">基础冷门权重 × 均衡因子</span>
-                    <br>• 最终权重决定作品在用户任务列表中的排序位置
+                    <br>• 先算评分缺口×60+时间加成，再按用户类型套均衡系数
                     <br>• 权重越高，越容易被分配为任务
-                    <br>• 理论最大权重: ~182 (100%缺口×60+80加成×1.3均衡)
-                    <br>• 评分≥20的作品权重为0，不再出现在任务列表
+                    <br>• 理论峰值: 基础最高170分，可在均衡×1.3时达到约221
+                    <br>• 评分≥15的作品权重为0，不再出现在任务列表
                     <br>• <span style="color: #FFD700;">⭐ 同一作品对不同用户权重不同！</span>
-                    <br>• 权重无上限，真实反映作品冷门程度
                 </div>
             </div>
 
@@ -1056,7 +1056,7 @@
                         </div>
                         <div class="weight-detail-item">
                             <span class="weight-label">当前评分:</span>
-                            <span class="weight-value">${task.currentRatings} 个 (目标20)</span>
+                            <span class="weight-value">${task.currentRatings} 个 (目标15)</span>
                         </div>
                         <div class="weight-detail-item">
                             <span class="weight-label">提交天数:</span>
@@ -1138,7 +1138,7 @@
                     <td><span class="work-id">#${work.sequenceId}</span></td>
                     <td><span class="work-title" title="${work.title}">${work.title}</span></td>
                     <td>${work.daysSinceSubmission}天</td>
-                    <td>${work.currentRatings}/20</td>
+                    <td>${work.currentRatings}/15</td>
                     <td>${work.highWeightCount}/${work.lowWeightCount}</td>
                     <td><span class="ratio-status ${ratioStatusClass}">${work.ratioStatus}</span></td>
                     <td>${work.baseWeight}</td>
