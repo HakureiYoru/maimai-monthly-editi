@@ -5,6 +5,9 @@ import { getUserInfoBySlug, getUserPublicInfo } from 'backend/getUserPublicInfo.
 import { getFileDownloadUrlAndContent } from 'backend/mediaManagement.jsw'; // 确保导入函数
 import { fetch } from 'wix-fetch';
 
+const MAX_UPLOAD_SIZE_MB = 20;
+const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+
 async function isAdmin() {
     if (wixUsers.currentUser.loggedIn) {
         const userRoles = await getCurrentMemberRoles();
@@ -51,12 +54,43 @@ function closeSubmitNotification() {
     }
 }
 
+// 限制上传文件体积，超出后重置选择
+function initUploadButtonSizeGuard() {
+    try {
+        const uploadButton = $w("#uploadButton1");
+        const defaultLabel = uploadButton.buttonLabel;
+
+        uploadButton.onChange(() => {
+            const files = uploadButton.value || [];
+            const oversizedFile = files.find(file => (file?.size || 0) > MAX_UPLOAD_SIZE_BYTES);
+
+            if (oversizedFile) {
+                const sizeInMB = (oversizedFile.size / (1024 * 1024)).toFixed(1);
+                uploadButton.reset(); // 清除超限文件，阻止上传
+                uploadButton.buttonLabel = `文件需小于${MAX_UPLOAD_SIZE_MB}MB`;
+                console.warn(`文件过大已阻止上传: ${oversizedFile.name || oversizedFile.fileName || "unknown"} (${sizeInMB}MB)`);
+
+                setTimeout(() => {
+                    uploadButton.buttonLabel = defaultLabel;
+                }, 3000);
+            } else {
+                uploadButton.buttonLabel = defaultLabel;
+            }
+        });
+    } catch (error) {
+        console.warn("未找到 #uploadButton1，跳过文件大小限制", error);
+    }
+}
+
 $w.onReady(async function () {
     const isUserAdmin = await isAdmin(); 
     const currentUserId = wixUsers.currentUser.id;
     
     // 初始化提交须知通知面板
     initSubmitNotification();
+
+    // 限制 #uploadButton1 上传文件体积
+    initUploadButtonSizeGuard();
     
     // 页面加载时自动显示通知
     setTimeout(() => {
