@@ -148,31 +148,56 @@ $w.onReady(async function () {
         }
     }
 
-    $w("#uploadButton2").onChange(() => {
-  $w("#uploadButton2").uploadFiles()
-    .then((uploadedFiles) => {
-      if (uploadedFiles.length > 0) {
-        const uploadedFile = uploadedFiles[0];
-        const fileUrl = uploadedFile.fileUrl;  // 获取文件的 URL
-
-        // 调用后端函数获取文件内容
-        getFileDownloadUrlAndContent(fileUrl)
-          .then(({ downloadUrl, fileContent }) => {
-            const descriptionMatch = fileContent.match(/&des=([^&\n\r]+)/);
-            let formattedText;
-             if (descriptionMatch && descriptionMatch[1]) {
-              const description = descriptionMatch[1];
-              formattedText = `<span style="font-weight:bold; color:red; font-size:31px; text-align:center;">作者信息：${description}</span><br><span style="font-weight:bold; color:red; font-size:31px; text-align:center;">请确认这不是一个真实ID</span>`;
-            } else {
-              formattedText = `<span style="font-size:31px; text-align:center;">留空</span>`;
+    $w("#uploadButton2").onChange(async () => {
+        // 检查是否已提交过作品（非管理员需要检测）
+        if (!isUserAdmin) {
+            try {
+                const submissionResults = await wixData.query("enterContest034")
+                    .eq("_owner", currentUserId)
+                    .limit(1)
+                    .find();
+                
+                if (submissionResults.items.length > 0) {
+                    // 已提交过，阻止上传
+                    $w("#uploadButton2").reset();
+                    console.warn("检测到重复提交，已阻止上传");
+                    
+                    // 显示提示信息
+                    $w("#button1").disable();
+                    $w("#button1").label = "禁止重复提交";
+                    
+                    return; // 终止上传流程
+                }
+            } catch (err) {
+                console.error("检查提交状态失败：", err);
             }
-            $w("#text14").html = formattedText; // 使用 .html 来设置富文本
-          })
-          .catch(error => console.log("读取文件内容失败", error));
-      }
-    })
-    .catch(error => console.log("文件上传失败", error));
-});
+        }
+        
+        // 继续正常的上传流程
+        $w("#uploadButton2").uploadFiles()
+            .then((uploadedFiles) => {
+                if (uploadedFiles.length > 0) {
+                    const uploadedFile = uploadedFiles[0];
+                    const fileUrl = uploadedFile.fileUrl;  // 获取文件的 URL
+
+                    // 调用后端函数获取文件内容
+                    getFileDownloadUrlAndContent(fileUrl)
+                        .then(({ downloadUrl, fileContent }) => {
+                            const descriptionMatch = fileContent.match(/&des=([^&\n\r]+)/);
+                            let formattedText;
+                            if (descriptionMatch && descriptionMatch[1]) {
+                                const description = descriptionMatch[1];
+                                formattedText = `<span style="font-weight:bold; color:red; font-size:31px; text-align:center;">作者信息：${description}</span><br><span style="font-weight:bold; color:red; font-size:31px; text-align:center;">请确认这不是一个真实ID</span>`;
+                            } else {
+                                formattedText = `<span style="font-size:31px; text-align:center;">留空</span>`;
+                            }
+                            $w("#text14").html = formattedText; // 使用 .html 来设置富文本
+                        })
+                        .catch(error => console.log("读取文件内容失败", error));
+                }
+            })
+            .catch(error => console.log("文件上传失败", error));
+    });
 
 });
 
