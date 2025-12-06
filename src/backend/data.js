@@ -12,7 +12,7 @@ import {
   calculateTotalPp,
   getMaxSequenceId,
 } from "backend/utils";
-import { COLLECTIONS } from "backend/constants.js";
+import { COLLECTIONS, FEATURE_FLAGS } from "backend/constants.js";
 import { logError, logInfo } from "backend/errorHandler.js";
 
 /**
@@ -93,6 +93,47 @@ export async function enterContest034_beforeInsert(item, context) {
  * 3. 确保不会干扰 Wix 的数据保存流程
  */
 export function enterContest034_afterInsert(item, context) {
+  // 检查Majnet自动上传功能是否启用
+  if (!FEATURE_FLAGS.MAJNET_AUTO_UPLOAD) {
+    logInfo(
+      "enterContest034_afterInsert",
+      `新作品创建: ${item.firstName || "未命名"} (Majnet自动上传已禁用)`
+    );
+    
+    // 记录禁用状态到数据库
+    setTimeout(async () => {
+      try {
+        const currentItem = await wixData.get(
+          COLLECTIONS.ENTER_CONTEST_034,
+          item._id
+        );
+        
+        await wixData.update(COLLECTIONS.ENTER_CONTEST_034, {
+          ...currentItem,
+          majnetUploaded: false,
+          majnetUploadTime: new Date(),
+          majnetUploadMessage: `ℹ️ Majnet自动上传功能已禁用\n\n管理员已暂时关闭自动上传功能。\n作品已成功保存到系统中。\n\n时间: ${new Date().toLocaleString('zh-CN')}`,
+        });
+        
+        logInfo(
+          "enterContest034_afterInsert",
+          `已记录作品 "${item.firstName}" 的禁用状态`
+        );
+      } catch (updateError) {
+        logError(
+          "enterContest034_afterInsert - 记录禁用状态失败",
+          updateError,
+          {
+            itemId: item._id,
+            itemTitle: item.firstName,
+          }
+        );
+      }
+    }, 100);
+    
+    return; // 功能禁用时直接返回，不执行上传
+  }
+
   // 记录日志（同步操作，安全）
   logInfo(
     "enterContest034_afterInsert",

@@ -130,3 +130,8 @@ export const TIME_CONFIG = {
   RANKING_UPDATE_INTERVAL: 60000, // 排名更新间隔(毫秒)
   COUNTDOWN_INTERVAL: 1000, // 倒计时更新间隔(毫秒)
 };
+
+// 功能开关
+export const FEATURE_FLAGS = {
+  MAJNET_AUTO_UPLOAD: false, // Majnet自动上传功能开关（true=启用，false=禁用）
+};
