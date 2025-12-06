@@ -28,8 +28,8 @@ const MAJNET_CONFIG = {
   RETRY_DELAY: 2000, // 重试等待时间（毫秒）
   CONNECTION_RETRY_DELAY: 3000, // 连接错误重试等待时间（毫秒）
   
-  // 模拟真实浏览器的 User-Agent，避免触发 Cloudflare 检查
-  USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  // 模拟 MajdataPlay 客户端的 User-Agent，避免被 Cloudflare 屏蔽
+  USER_AGENT: "MajdataPlay/0.1.0-upload (Windows NT 10.0; Win64; x64)",
 };
 
 // 全局会话状态
