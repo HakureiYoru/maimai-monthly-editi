@@ -133,5 +133,5 @@ export const TIME_CONFIG = {
 
 // 功能开关
 export const FEATURE_FLAGS = {
-  MAJNET_AUTO_UPLOAD: true, // Majnet自动上传功能开关（true=启用，false=禁用）
+  MAJNET_AUTO_UPLOAD: false, // Majnet自动上传功能开关（true=启用，false=禁用）
 };

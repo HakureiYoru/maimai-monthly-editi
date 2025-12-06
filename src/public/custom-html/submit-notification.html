@@ -207,7 +207,7 @@
     <div class="container">
         <div class="header">
             <div class="lang-switch-container">
-                <span id="langLabel">中文</span>
+                <span id="langLabel">to EN</span>
                 <label class="lang-switch">
                     <input type="checkbox" id="langToggle">
                     <span class="lang-slider"></span>
@@ -237,6 +237,10 @@
                         data-en="Do not leave any real charter information in your chart: maidata field → designer.">
                     不要在你的谱面：maidata栏位 → designer中，留下任何真实的谱师信息。
                 </strong>
+            </p>
+            <p data-zh="提交的视频需要小于20MB，否则会被自动清理让您重新提交。在本页提交时候如果大于20MB了会提示。" 
+               data-en="The submitted video must be less than 20MB, otherwise it will be automatically removed and you will need to resubmit. If the video is larger than 20MB when submitting on this page, you will be notified.">
+                提交的视频需要小于20MB，否则会被自动清理让您重新提交。在本页提交时候如果大于20MB了会提示。
             </p>
         </div>
 
@@ -283,7 +287,7 @@
 
         function switchLanguage(lang) {
             // 更新标签文本
-            langLabel.textContent = lang === 'zh' ? '中文' : 'EN';
+            langLabel.textContent = lang === 'zh' ? 'to EN' : 'to CN';
             
             // 更新所有带有 data-zh 和 data-en 属性的元素
             const elements = document.querySelectorAll('[data-zh][data-en]');

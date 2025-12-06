@@ -189,7 +189,7 @@ $w.onReady(async function () {
                                 const description = descriptionMatch[1];
                                 formattedText = `<span style="font-weight:bold; color:red; font-size:31px; text-align:center;">作者信息：${description}</span><br><span style="font-weight:bold; color:red; font-size:31px; text-align:center;">请确认这不是一个真实ID</span>`;
                             } else {
-                                formattedText = `<span style="font-size:31px; text-align:center;">留空</span>`;
+                                formattedText = `<span style="font-size:31px; text-align:center;">留空，建议填写占位符</span>`;
                             }
                             $w("#text14").html = formattedText; // 使用 .html 来设置富文本
                         })
