@@ -64,23 +64,22 @@ export async function getUserTaskData(userId) {
 
     // 3. 检查是否需要刷新任务（基于时间）
     const needsRefresh = shouldRefreshTasks(taskRecord);
-    if (needsRefresh) {
-      // console.log(`用户 ${userId} 任务已超时，将刷新任务列表`);
-      // 清空当前任务，强制重新生成
-      taskRecord.currentTasks = [];
-      taskRecord.lastRefreshTime = new Date();
-    }
-
-    // 4. 生成当前任务列表（最多3条）
-    const currentTasks = await generateUserTasks(userId, taskRecord, 3);
-
-    // 4. 更新任务列表和刷新时间到数据库
-    if (currentTasks.length > 0 || needsRefresh) {
+    
+    // 4. 【修复】只有在需要刷新或任务列表为空时，才重新生成任务
+    let currentTasks = taskRecord.currentTasks || [];
+    
+    if (needsRefresh || currentTasks.length === 0) {
+      // console.log(`用户 ${userId} 任务需要刷新或为空，重新生成任务列表`);
+      
+      // 生成新的任务列表（最多3条）
+      currentTasks = await generateUserTasks(userId, taskRecord, 3);
+      
+      // 更新任务列表和刷新时间到数据库
       taskRecord.currentTasks = currentTasks;
-      if (needsRefresh || !taskRecord.lastRefreshTime) {
-        taskRecord.lastRefreshTime = new Date();
-      }
+      taskRecord.lastRefreshTime = new Date();
       await wixData.update(COLLECTIONS.USER_TASKS, taskRecord);
+    } else {
+      // console.log(`用户 ${userId} 任务未到刷新时间，使用缓存的任务列表`);
     }
 
     // 5. 获取用户所有评分记录，计算自主评论的作品
