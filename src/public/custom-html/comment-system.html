@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -384,28 +384,36 @@
     }
 
     .comment-content.has-overflow::after {
-      content: '点击展开';
+      content: '▼ 点击展开';
       position: absolute;
       bottom: 0;
       right: 0;
       left: 0;
-      background: linear-gradient(to top, rgba(255, 255, 255, 0.9), transparent);
-      padding: 12px 8px 8px;
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.6) 60%, rgba(255, 255, 255, 0.4) 80%, transparent);
+      padding: 20px 8px 8px;
       text-align: center;
       font-size: 13px;
-      color: rgba(0, 0, 0, 0.8);
+      color: rgba(0, 0, 0, 0.85);
       font-weight: 700;
       cursor: pointer;
       z-index: 10;
       border-radius: 0 0 12px 12px;
+      pointer-events: auto;
+    }
+
+    .comment-content.has-overflow:hover::after {
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.75) 60%, rgba(255, 255, 255, 0.5) 80%, transparent);
+      color: rgba(0, 0, 0, 1);
     }
 
     .comment-content.expanded::after {
-      content: '点击收起';
+      content: '▲ 点击收起';
       position: relative;
       background: rgba(255, 255, 255, 0.3);
       margin-top: 10px;
       display: block;
+      padding: 8px;
+      border-radius: 8px;
     }
 
     .comment-content.short {
@@ -1803,11 +1811,22 @@
       // 检查评论内容是否需要展开功能
       const commentContent = div.querySelector('.comment-content');
       if (commentContent) {
+        // 【新增】设置 ResizeObserver 监控内容高度变化
+        setupResizeObserver(commentContent);
+        
         // 检查是否有图片，如果有则等待图片加载完成后再检查高度
         const images = commentContent.querySelectorAll('img');
         if (images.length > 0) {
           let loadedImages = 0;
           const totalImages = images.length;
+          let hasChecked = false; // 防止重复检查
+          
+          const performCheck = () => {
+            if (!hasChecked) {
+              hasChecked = true;
+              checkContentOverflow(commentContent);
+            }
+          };
           
           // 为每个图片添加加载事件监听
           images.forEach(img => {
@@ -1815,14 +1834,14 @@
             if (img.complete) {
               loadedImages++;
               if (loadedImages === totalImages) {
-                checkContentOverflow(commentContent);
+                performCheck();
               }
             } else {
               // 监听图片加载完成事件
               img.addEventListener('load', () => {
                 loadedImages++;
                 if (loadedImages === totalImages) {
-                  checkContentOverflow(commentContent);
+                  performCheck();
                 }
               });
               
@@ -1830,22 +1849,32 @@
               img.addEventListener('error', () => {
                 loadedImages++;
                 if (loadedImages === totalImages) {
-                  checkContentOverflow(commentContent);
+                  performCheck();
                 }
               });
-              
-              // 设置超时保护，防止图片加载卡住
-              setTimeout(() => {
-                if (loadedImages < totalImages) {
-                  console.warn('[评论系统] 图片加载超时，强制检查内容高度');
-                  checkContentOverflow(commentContent);
-                }
-              }, 3000);
             }
           });
+          
+          // 设置超时保护，防止图片加载卡住（减少到2秒）
+          setTimeout(() => {
+            if (!hasChecked) {
+              console.warn('[评论系统] 图片加载超时，强制检查内容高度');
+              performCheck();
+            }
+          }, 2000);
+          
+          // 【新增】额外的延迟检查机制，确保在复杂情况下也能正确检测
+          setTimeout(() => {
+            checkContentOverflow(commentContent);
+          }, 2500);
         } else {
-          // 没有图片，直接检查高度
+          // 没有图片，立即检查高度
           checkContentOverflow(commentContent);
+          
+          // 【新增】延迟再次检查，确保复杂Markdown渲染完成
+          setTimeout(() => {
+            checkContentOverflow(commentContent);
+          }, 100);
         }
       }
 
@@ -1919,17 +1948,27 @@
             return;
           }
           
-          // 点击"点击展开/收起"提示区域时触发展开/收起
-          if (e.target === commentContent && commentContent.classList.contains('has-overflow')) {
-            commentContent.classList.toggle('expanded');
-            console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
+          // 如果是短内容（无需展开），直接返回
+          if (commentContent.classList.contains('short')) {
             return;
           }
           
-          // 只有溢出的评论才能展开
+          // 检查是否点击了展开/收起按钮区域（::after 伪元素区域）
+          const rect = commentContent.getBoundingClientRect();
+          const clickY = e.clientY;
+          const bottomThreshold = rect.bottom - 40; // 底部40px区域视为展开按钮区域
+          
+          // 只有有溢出的评论才能展开/收起
           if (commentContent.classList.contains('has-overflow') || commentContent.classList.contains('expanded')) {
             commentContent.classList.toggle('expanded');
             console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
+            
+            // 如果是展开操作，滚动到评论位置以便查看完整内容
+            if (commentContent.classList.contains('expanded')) {
+              setTimeout(() => {
+                commentContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }, 100);
+            }
           }
         });
       }
@@ -1997,14 +2036,57 @@
      * @param {HTMLElement} commentContent - 评论内容元素
      */
     function checkContentOverflow(commentContent) {
-      // 检查内容是否溢出（超过120px高度）
-      if (commentContent.scrollHeight > commentContent.clientHeight) {
-        commentContent.classList.add('has-overflow');
-        console.log('[评论系统] 检测到内容溢出，添加展开功能');
-      } else {
-        commentContent.classList.add('short');
-        console.log('[评论系统] 内容较短，无需展开');
+      // 如果已经展开，不重新检查
+      if (commentContent.classList.contains('expanded')) {
+        return;
       }
+      
+      // 移除之前的类（防止重复检查时的状态冲突）
+      commentContent.classList.remove('has-overflow', 'short');
+      
+      // 使用 requestAnimationFrame 确保 DOM 完全渲染后再检查
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // 检查内容是否溢出（超过120px高度，添加5px容差）
+          const hasOverflow = commentContent.scrollHeight > (commentContent.clientHeight + 5);
+          
+          if (hasOverflow) {
+            commentContent.classList.add('has-overflow');
+            console.log('[评论系统] 检测到内容溢出，添加展开功能', {
+              scrollHeight: commentContent.scrollHeight,
+              clientHeight: commentContent.clientHeight
+            });
+          } else {
+            commentContent.classList.add('short');
+            console.log('[评论系统] 内容较短，无需展开', {
+              scrollHeight: commentContent.scrollHeight,
+              clientHeight: commentContent.clientHeight
+            });
+          }
+        });
+      });
+    }
+    
+    /**
+     * 使用 ResizeObserver 监控评论内容高度变化
+     * @param {HTMLElement} commentContent - 评论内容元素
+     */
+    function setupResizeObserver(commentContent) {
+      // 检查浏览器是否支持 ResizeObserver
+      if (!window.ResizeObserver) {
+        return;
+      }
+      
+      // 创建 ResizeObserver 实例
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          // 内容尺寸变化时重新检查溢出状态
+          checkContentOverflow(entry.target);
+        }
+      });
+      
+      // 开始观察
+      resizeObserver.observe(commentContent);
     }
 
     /**
