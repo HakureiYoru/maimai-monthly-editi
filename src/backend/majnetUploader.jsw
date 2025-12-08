@@ -9,7 +9,6 @@ import { getFileDownloadUrlAndContent } from "backend/mediaManagement.jsw";
 import {
   logInfo,
   logError,
-  logWarning,
   safeExecute,
 } from "backend/errorHandler";
 
@@ -294,21 +293,6 @@ async function getFileBinary(fileUrl) {
     "getFileBinary",
     null
   );
-}
-
-/**
- * 计算文件总大小（字节）
- */
-function calculateTotalSize(files) {
-  let totalSize = 0;
-  for (const file of files) {
-    if (typeof file.content === "string") {
-      totalSize += Buffer.byteLength(file.content, "utf8");
-    } else if (Buffer.isBuffer(file.content)) {
-      totalSize += file.content.length;
-    }
-  }
-  return totalSize;
 }
 
 /**
@@ -723,86 +707,3 @@ export async function uploadContestItemToMajnet(contestItem, skipQueue = false) 
   );
 }
 
-/**
- * 批量上传多个谱面（带延迟）
- * 批量上传会跳过队列，因为已经在函数内部控制了执行顺序和延迟
- * @param {Array} contestItems - 数据集项数组
- * @returns {Promise<Array>} 上传结果数组
- */
-export async function batchUploadToMajnet(contestItems) {
-  return safeExecute(
-    async () => {
-      const results = [];
-
-      logInfo(
-        "batchUploadToMajnet",
-        `开始批量上传 ${contestItems.length} 个谱面（跳过队列，直接顺序执行）`
-      );
-
-      for (let i = 0; i < contestItems.length; i++) {
-        const item = contestItems[i];
-
-        logInfo(
-          "batchUploadToMajnet",
-          `上传进度: ${i + 1}/${contestItems.length}`
-        );
-
-        // 批量上传时跳过队列（skipQueue = true）
-        const result = await uploadContestItemToMajnet(item, true);
-        results.push({
-          ...result,
-          itemId: item._id,
-          chartTitle: item.firstName,
-        });
-
-        // 上传间隔延迟
-        if (i < contestItems.length - 1 && MAJNET_CONFIG.UPLOAD_DELAY > 0) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, MAJNET_CONFIG.UPLOAD_DELAY)
-          );
-        }
-      }
-
-      const successCount = results.filter((r) => r.success).length;
-      logInfo(
-        "batchUploadToMajnet",
-        `批量上传完成: ${successCount}/${contestItems.length} 成功`
-      );
-
-      return results;
-    },
-    "batchUploadToMajnet",
-    []
-  );
-}
-
-/**
- * 获取上传队列状态（供前端查询）
- * @returns {Object} 队列状态信息
- */
-export function getUploadQueueStatus() {
-  return safeExecute(
-    () => {
-      const status = uploadQueue.getStatus();
-      return {
-        success: true,
-        queueLength: status.queueLength,
-        isProcessing: status.isProcessing,
-        currentTask: status.currentTask,
-        lastUploadTime: status.lastUploadTime,
-        message: status.isProcessing
-          ? `正在处理上传任务，队列中还有 ${status.queueLength} 个任务等待`
-          : status.queueLength > 0
-          ? `队列中有 ${status.queueLength} 个任务等待处理`
-          : "队列空闲",
-      };
-    },
-    "getUploadQueueStatus",
-    {
-      success: false,
-      message: "获取队列状态失败",
-      queueLength: 0,
-      isProcessing: false,
-    }
-  );
-}

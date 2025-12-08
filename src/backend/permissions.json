@@ -538,17 +538,6 @@
         "anonymous": {
           "invoke": false
         }
-      },
-      "batchUploadToMajnet": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
       }
     },
     "contestManagement.jsw": {
