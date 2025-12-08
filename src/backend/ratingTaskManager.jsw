@@ -294,9 +294,10 @@ function calculateColdnessWeightOptimized(
     expectedRatings = TARGET_RATING_COUNT;
   }
 
-  // 计算评分缺口
-  const deficit = Math.max(0, expectedRatings - currentRatings);
-  const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
+  // 计算评分缺口（按目标15评做分母，避免前期少量评分直接归零）
+  const baselineExpected = Math.max(expectedRatings, TARGET_RATING_COUNT);
+  const deficit = Math.max(0, baselineExpected - currentRatings);
+  const deficitRatio = baselineExpected > 0 ? deficit / baselineExpected : 0;
   const baseWeight = deficitRatio * 60;
 
   // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
@@ -1150,8 +1151,14 @@ export async function getAllUsersTaskManagementData() {
           isHighQuality
         );
 
-        // 最终权重 = 基础权重 × 均衡因子
-        const finalWeight = Math.round(baseWeight * balanceFactor);
+        // 最终权重使用与实际分配一致的算法（含均衡因子一次性取整）
+        const finalWeight = calculateColdnessWeightOptimized(
+          workInfo,
+          weightData.numRatings,
+          weightData.highWeightCount,
+          weightData.lowWeightCount,
+          isHighQuality
+        );
 
         tasksWithDetails.push({
           workNumber: task.workNumber,
@@ -1239,8 +1246,10 @@ function calculateBaseColdnessWeightSync(work) {
     expectedRatings = TARGET_RATING_COUNT;
   }
 
-  const deficit = Math.max(0, expectedRatings - currentRatings);
-  const deficitRatio = expectedRatings > 0 ? deficit / expectedRatings : 0;
+  // 与实时权重一致：按目标15评做分母，避免前期少量评分即清零
+  const baselineExpected = Math.max(expectedRatings, TARGET_RATING_COUNT);
+  const deficit = Math.max(0, baselineExpected - currentRatings);
+  const deficitRatio = baselineExpected > 0 ? deficit / baselineExpected : 0;
   const baseWeight = deficitRatio * 60; // 与主函数保持一致
 
   // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
