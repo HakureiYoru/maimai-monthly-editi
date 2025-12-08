@@ -929,8 +929,42 @@ async function getUserTaskRecord(userId) {
         lastRefreshTime: new Date(), // 初始化刷新时间
       };
 
-      const inserted = await wixData.insert(COLLECTIONS.USER_TASKS, newRecord);
-      return inserted;
+      try {
+        const inserted = await wixData.insert(COLLECTIONS.USER_TASKS, newRecord);
+        return inserted;
+      } catch (insertError) {
+        // 插入失败可能是因为并发创建，重新查询
+        // console.log(`插入记录失败，重新查询: ${userId}`);
+        const retryResults = await wixData
+          .query(COLLECTIONS.USER_TASKS)
+          .eq("userId", userId)
+          .find();
+        
+        if (retryResults.items.length > 0) {
+          return retryResults.items[0];
+        }
+        
+        // 如果还是没有，抛出原始错误
+        throw insertError;
+      }
+    }
+
+    // 【修复】如果查询到多个重复记录，自动清理多余的
+    if (results.items.length > 1) {
+      console.warn(`用户 ${userId} 有 ${results.items.length} 个重复的任务记录，正在自动清理...`);
+      
+      // 保留第一条记录（通常是最早创建的），删除其他重复记录
+      const recordToKeep = results.items[0];
+      for (let i = 1; i < results.items.length; i++) {
+        try {
+          await wixData.remove(COLLECTIONS.USER_TASKS, results.items[i]._id);
+          console.log(`已删除用户 ${userId} 的重复记录 ${i}/${results.items.length - 1}`);
+        } catch (removeError) {
+          console.error(`删除重复记录失败:`, removeError);
+        }
+      }
+      
+      return recordToKeep;
     }
 
     return results.items[0];
