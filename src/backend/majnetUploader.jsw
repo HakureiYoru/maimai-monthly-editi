@@ -166,7 +166,7 @@ function getCommonHeaders() {
 }
 
 /**
- * 登录Majnet（带重试机制）
+ * 登录Majnet
  */
 async function loginToMajnet() {
   return safeExecute(
@@ -528,12 +528,12 @@ async function uploadChartToMajnetInternal(chartData) {
 }
 
 /**
- * 带重试机制的上传函数
+ * 上传文件到Majnet
  * @param {Array} files - 文件数组
  * @param {string} chartTitle - 谱面标题
  * @returns {Promise<Object>} 上传结果
  */
-async function uploadWithRetry(files, chartTitle) {
+async function uploadToMajnet(files, chartTitle) {
   return safeExecute(
     async () => {
       logInfo("uploadToMajnet", `准备上传 ${files.length} 个文件...`);
