@@ -227,6 +227,10 @@ function handleFilter(filterType, value) {
       filteredUsersData = allUsersData.filter(u => u.completedCount < u.targetCompletion);
     } else if (value === "has-tasks") {
       filteredUsersData = allUsersData.filter(u => u.currentTasks && u.currentTasks.length > 0);
+    } else if (value === "low-weight-tasks") {
+      filteredUsersData = allUsersData.filter(u => 
+        u.currentTasks && u.currentTasks.some(task => task.finalWeight < 30)
+      );
     }
   } else if (filterType === "search") {
     const searchTerm = value.toLowerCase();

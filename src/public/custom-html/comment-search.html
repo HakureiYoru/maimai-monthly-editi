@@ -506,6 +506,9 @@
                     <option value="id">按ID排序</option>
                     <option value="comments">按评论数排序</option>
                 </select>
+                <select id="userFilter" style="display: none;">
+                    <option value="">全部用户</option>
+                </select>
                 <div class="view-switch">
                     <span class="view-switch-label">按用户视图</span>
                     <label class="switch">
@@ -540,6 +543,8 @@
         let userIdToNumberMap = {}; // 用户ID到编号的映射
         let nextUserNumber = 1; // 下一个分配的用户编号
         let isUserView = false; // 当前是否为用户视图
+        let selectedUserId = ''; // 当前选中的用户ID（用于用户视图筛选）
+        let isLoading = false; // 是否正在加载数据
         
         // 【新增】分页状态
         let currentPage = 1;
@@ -547,8 +552,42 @@
         let totalWorks = 0;
         let worksPerPage = 10;
 
+        // 【新增】显示加载状态
+        function showLoading() {
+            isLoading = true;
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载中...</div>';
+            
+            // 禁用分页控件
+            const paginationButtons = document.querySelectorAll('.pagination-button, .page-number');
+            paginationButtons.forEach(btn => {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+            });
+        }
+
+        // 【新增】隐藏加载状态
+        function hideLoading() {
+            isLoading = false;
+            
+            // 启用分页控件
+            const paginationButtons = document.querySelectorAll('.pagination-button, .page-number');
+            paginationButtons.forEach(btn => {
+                btn.style.opacity = '1';
+            });
+            
+            // 更新分页按钮的禁用状态
+            updatePagination();
+        }
+
         // 【新增】通知后端已准备就绪
         window.addEventListener('load', () => {
+            // 初始化控件状态
+            updateControlsState();
+            
+            // 显示加载状态
+            showLoading();
+            
             window.parent.postMessage({
                 action: 'ready'
             }, '*');
@@ -562,6 +601,10 @@
                 // 【废弃】旧的初始化方式
                 allWorks = data.works || [];
                 await displayCurrentView();
+                hideLoading();
+            } else if (data.action === 'loading') {
+                // 【新增】显示加载状态
+                showLoading();
             } else if (data.action === 'updateData') {
                 // 【新增】分页数据更新
                 allWorks = data.works || [];
@@ -573,10 +616,17 @@
                     worksPerPage = data.pagination.worksPerPage;
                 }
                 
+                // 如果是用户视图，更新用户筛选下拉框
+                if (isUserView && data.userList) {
+                    updateUserFilterOptions(data.userList);
+                }
+                
                 await displayCurrentView();
                 updatePagination();
+                hideLoading(); // 数据加载完成，隐藏loading
             } else if (data.action === 'error') {
                 // 【新增】错误处理
+                hideLoading(); // 出错也要隐藏loading
                 showError(data.message);
             }
         });
@@ -593,6 +643,62 @@
             nextUserNumber++;
             
             return `选手${String(userIdToNumberMap[userId]).padStart(3, '0')}`;
+        }
+
+        // 【新增】更新用户筛选下拉框选项
+        function updateUserFilterOptions(userList) {
+            const userFilter = document.getElementById('userFilter');
+            
+            // 保存当前选中的值
+            const currentValue = userFilter.value;
+            
+            // 清空现有选项
+            userFilter.innerHTML = '<option value="">全部用户</option>';
+            
+            // 添加用户选项
+            userList.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.userId;
+                option.textContent = getEncryptedUserName(user.userId) + ` (${user.commentCount}条评论)`;
+                userFilter.appendChild(option);
+            });
+            
+            // 恢复之前的选中值
+            if (currentValue) {
+                userFilter.value = currentValue;
+            }
+        }
+
+        // 【新增】更新控件状态（启用/禁用）
+        function updateControlsState() {
+            const searchInput = document.getElementById('searchInput');
+            const sortBy = document.getElementById('sortBy');
+            const userFilter = document.getElementById('userFilter');
+            
+            if (isUserView) {
+                // 用户视图：禁用搜索和排序，启用用户筛选
+                searchInput.disabled = true;
+                searchInput.style.opacity = '0.5';
+                searchInput.style.cursor = 'not-allowed';
+                
+                sortBy.disabled = true;
+                sortBy.style.opacity = '0.5';
+                sortBy.style.cursor = 'not-allowed';
+                
+                userFilter.style.display = 'block';
+                userFilter.disabled = false;
+            } else {
+                // 作品视图：启用搜索和排序，隐藏用户筛选
+                searchInput.disabled = false;
+                searchInput.style.opacity = '1';
+                searchInput.style.cursor = 'text';
+                
+                sortBy.disabled = false;
+                sortBy.style.opacity = '1';
+                sortBy.style.cursor = 'pointer';
+                
+                userFilter.style.display = 'none';
+            }
         }
 
         // 显示当前视图
@@ -621,9 +727,14 @@
                         };
                     }
                     
+                    // 【修复】从rater对象中获取作品ID和标题（用户视图专用）
+                    // rater.workId 和 rater.workTitle 是后端专门为用户视图准备的
+                    const workId = rater.workId || work.sequenceId;
+                    const workTitle = rater.workTitle || work.title;
+                    
                     userCommentsMap[userId].comments.push({
-                        workId: work.sequenceId,
-                        workTitle: work.title,
+                        workId: workId,
+                        workTitle: workTitle,
                         score: rater.score,
                         comment: rater.comment,
                         createdDate: rater.createdDate
@@ -637,7 +748,12 @@
                 const userData = userCommentsMap[userId];
                 
                 // 按作品ID排序
-                userData.comments.sort((a, b) => a.workId - b.workId);
+                userData.comments.sort((a, b) => {
+                    // 确保按数字排序
+                    const aId = typeof a.workId === 'number' ? a.workId : parseInt(a.workId) || 0;
+                    const bId = typeof b.workId === 'number' ? b.workId : parseInt(b.workId) || 0;
+                    return aId - bId;
+                });
                 
                 usersData.push({
                     userId: userId,
@@ -660,7 +776,12 @@
         // 显示按用户视图
         async function displayUserView() {
             const content = document.getElementById('content');
-            const usersData = groupByUser();
+            let usersData = groupByUser();
+            
+            // 应用用户筛选
+            if (selectedUserId) {
+                usersData = usersData.filter(user => user.userId === selectedUserId);
+            }
             
             if (usersData.length === 0) {
                 content.innerHTML = '<div class="no-data">暂无评论数据</div>';
@@ -693,11 +814,17 @@
                 const needsExpand = commentText.length > 100;
                 const timeStr = formatDate(comment.createdDate);
                 
+                // 确保作品标题不为空
+                let workTitle = comment.workTitle || '';
+                if (!workTitle || workTitle.trim() === '') {
+                    workTitle = `作品#${comment.workId}`;
+                }
+                
                 return `
                     <div class="comment-item">
                         <div class="comment-header">
                             <div class="comment-user">
-                                <span>#${comment.workId} - ${escapeHtml(comment.workTitle)}</span>
+                                <span>#${comment.workId} - ${escapeHtml(workTitle)}</span>
                                 ${timeStr ? `<span class="comment-time">${timeStr}</span>` : ''}
                             </div>
                             <div class="comment-score">${comment.score} 分</div>
@@ -754,6 +881,12 @@
             const card = document.createElement('div');
             card.className = 'work-card';
 
+            // 确保作品标题不为空
+            let workTitle = work.title || '';
+            if (!workTitle || workTitle.trim() === '') {
+                workTitle = `作品#${work.sequenceId}`;
+            }
+
             // 权重统计
             const highPercent = work.numRatings > 0 
                 ? (work.highWeightCount / work.numRatings * 100).toFixed(1)
@@ -801,7 +934,7 @@
                 <div class="work-header">
                     <div class="work-title">
                         <span class="work-id">#${work.sequenceId}</span>
-                        <span>${escapeHtml(work.title)}</span>
+                        <span>${escapeHtml(workTitle)}</span>
                     </div>
                     <div class="comment-count">${work.numRatings} 条评论</div>
                 </div>
@@ -858,24 +991,39 @@
 
 
         // 视图切换
-        document.getElementById('viewToggle').addEventListener('change', (e) => {
+        document.getElementById('viewToggle').addEventListener('change', async (e) => {
             isUserView = e.target.checked;
-            displayCurrentView();
+            
+            // 显示加载状态
+            showLoading();
+            
+            // 更新控件状态
+            updateControlsState();
+            
+            // 重置筛选和分页状态
+            selectedUserId = '';
+            
+            // 通知后端切换视图
+            window.parent.postMessage({
+                action: 'switchView',
+                viewMode: isUserView ? 'user' : 'work'
+            }, '*');
         });
 
         // 【优化】搜索功能 - 改为向后端请求
         let searchTimeout;
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchValue = e.target.value.trim();
-            
             // 搜索功能在用户视图下暂不支持
-            if (isUserView) {
+            if (isUserView || document.getElementById('searchInput').disabled) {
                 return;
             }
+            
+            const searchValue = e.target.value.trim();
             
             // 防抖：延迟500ms后执行搜索
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
+                showLoading(); // 显示加载状态
                 window.parent.postMessage({
                     action: 'search',
                     searchValue: searchValue
@@ -892,10 +1040,25 @@
                 return;
             }
             
+            showLoading(); // 显示加载状态
             window.parent.postMessage({
                 action: 'sort',
                 sortBy: sortBy
             }, '*');
+        });
+
+        // 【新增】用户筛选功能
+        document.getElementById('userFilter').addEventListener('change', (e) => {
+            selectedUserId = e.target.value;
+            
+            // 在用户视图下应用筛选
+            if (isUserView) {
+                showLoading(); // 显示加载状态
+                window.parent.postMessage({
+                    action: 'filterUser',
+                    userId: selectedUserId
+                }, '*');
+            }
         });
 
         // 【新增】分页控件事件监听
@@ -930,13 +1093,21 @@
             }
             
             // 显示加载状态
-            document.getElementById('content').innerHTML = '<div class="loading">加载中...</div>';
+            showLoading();
             
             // 向后端请求数据
-            window.parent.postMessage({
+            const message = {
                 action: 'changePage',
-                page: page
-            }, '*');
+                page: page,
+                viewMode: isUserView ? 'user' : 'work'
+            };
+            
+            // 如果是用户视图且有筛选，附加筛选条件
+            if (isUserView && selectedUserId) {
+                message.userId = selectedUserId;
+            }
+            
+            window.parent.postMessage(message, '*');
             
             // 滚动到顶部
             document.querySelector('.content').scrollTop = 0;
