@@ -826,14 +826,25 @@
 
     <script>
         let allData = null;
+        let cachedWorksComparison = null; // 缓存作品对比数据
 
         // 监听来自Wix页面的消息
         window.addEventListener('message', (event) => {
             if (event.data.type === 'data') {
                 allData = event.data.data;
                 renderUsers(allData.users);
-                updateStats(allData.stats);
-                renderWorksComparison(allData.worksComparison);
+                
+                // 只有stats有内容时才更新（避免空对象覆盖）
+                if (allData.stats && Object.keys(allData.stats).length > 0) {
+                    updateStats(allData.stats);
+                }
+                
+                // 只有worksComparison不为null时才更新并缓存
+                if (allData.worksComparison !== null && allData.worksComparison !== undefined) {
+                    cachedWorksComparison = allData.worksComparison;
+                    renderWorksComparison(allData.worksComparison);
+                }
+                // 否则使用缓存的数据（不重新渲染）
             } else if (event.data.type === 'loading') {
                 showLoading(event.data.message);
             } else if (event.data.type === 'error') {
