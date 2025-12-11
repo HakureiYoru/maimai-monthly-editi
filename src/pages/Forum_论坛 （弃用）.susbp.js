@@ -117,15 +117,15 @@ async function displayTopUsers() {
         if (index === 0) {
             //$w('#firstPlaceUser').text = userInfo.name;
             $w('#firstPlaceImage').src = userInfo.profileImageUrl;
-            $w('#firstPlaceImage').link = `https://www.maimaimfc.ink/profile/${userInfo.slug}/profile`;
+            $w('#firstPlaceImage').link = `https://mmfc.majdata.net/profile/${userInfo.slug}/profile`;
         } else if (index === 1) {
             //$w('#secondPlaceUser').text = userInfo.name;
             $w('#secondPlaceImage').src = userInfo.profileImageUrl;
-            $w('#secondPlaceImage').link = `https://www.maimaimfc.ink/profile/${userInfo.slug}/profile`;
+            $w('#secondPlaceImage').link = `https://mmfc.majdata.net/profile/${userInfo.slug}/profile`;
         } else if (index === 2) {
             //$w('#thirdPlaceUser').text = userInfo.name;
             $w('#thirdPlaceImage').src = userInfo.profileImageUrl;
-            $w('#thirdPlaceImage').link = `https://www.maimaimfc.ink/profile/${userInfo.slug}/profile`;
+            $w('#thirdPlaceImage').link = `https://mmfc.majdata.net/profile/${userInfo.slug}/profile`;
         }
     });
 }

@@ -58,7 +58,7 @@ async function updateMemberUI(member) {
     $w("#button8").link = member["custom_pu-mian-fa-bu-wang-zhi"];
 
     // 构建用户的个人链接
-    const memberLink = `https://www.maimaimfc.ink/profile/${member.slug}/profile`;
+    const memberLink = `https://mmfc.majdata.net/profile/${member.slug}/profile`;
 
     // 检查链接是否存在于Team数据集中，并获取排名
     const rank = await getMemberRank(memberLink, member._id);

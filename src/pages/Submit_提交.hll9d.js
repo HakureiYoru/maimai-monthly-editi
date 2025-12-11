@@ -260,7 +260,7 @@ $w.onReady(async function () {
 async function loadCurrentUserLink() {
     const user = await getUserPublicInfo(wixUsers.currentUser.id);
     if (user && user.userslug) {
-        return `https://www.maimaimfc.ink/profile/${user.userslug}/profile`;
+        return `https://mmfc.majdata.net/profile/${user.userslug}/profile`;
     } else {
         // 处理没有找到用户slug的情况
         console.error("未找到用户的slug");
