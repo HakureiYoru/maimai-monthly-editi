@@ -249,14 +249,14 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
     }
 
     // 【优化】权重近似时随机化排序，减少用户间任务重合
-    // 当两个作品权重相差在5%以内时，随机决定它们的顺序
+    // 当两个作品权重相差在20%以内时，随机决定它们的顺序
     candidateWorks.sort((a, b) => {
       const weightDiff = Math.abs(a.weight - b.weight);
       const avgWeight = (a.weight + b.weight) / 2;
       const diffPercentage = avgWeight > 0 ? weightDiff / avgWeight : 0;
 
-      // 如果权重差异小于5%，随机排序
-      if (diffPercentage < 0.05) {
+      // 如果权重差异小于20%，随机排序
+      if (diffPercentage < 0.20) {
         return Math.random() - 0.5; // 随机返回正负值
       }
 
