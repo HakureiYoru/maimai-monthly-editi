@@ -110,6 +110,7 @@ export const get_contestList = asyncErrorHandler(async (request) => {
       approvedBy: approvedCount,
       viewedBy: viewedCount,
       IsApproved: isApproved,
+      submissionTime: item.submissionTime,
     };
   });
 
