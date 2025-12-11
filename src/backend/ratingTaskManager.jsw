@@ -91,7 +91,9 @@ export async function getUserTaskData(userId) {
     }
 
     // 2. 获取或创建用户任务记录
-    let taskRecord = await getUserTaskRecord(userId);
+    let taskRecord = await getUserTaskRecord(userId, {
+      requireSubmittedWork: true,
+    });
 
     // 3. 检查是否需要刷新任务（基于时间）
     const needsRefresh = shouldRefreshTasks(taskRecord);
@@ -388,7 +390,17 @@ function calculateColdnessWeightOptimized(
  */
 export async function checkIfWorkInTaskList(userId, workNumber) {
   try {
-    const taskRecord = await getUserTaskRecord(userId);
+    const taskRecord = await getUserTaskRecord(userId, {
+      createIfMissing: false,
+      requireSubmittedWork: true,
+    });
+
+    if (!taskRecord) {
+      return {
+        inTaskList: false,
+        alreadyCompleted: false,
+      };
+    }
 
     // console.log(`[检查] 作品 #${workNumber}, 已完成: [${taskRecord.completedTasks.join(', ')}]`);
 
@@ -434,7 +446,21 @@ export async function markTaskCompleted(userId, workNumber) {
   try {
     // console.log(`\n========== 标记任务: 用户 ${userId}, 作品 #${workNumber} ==========`);
 
-    const taskRecord = await getUserTaskRecord(userId);
+    const taskRecord = await getUserTaskRecord(userId, {
+      requireSubmittedWork: true,
+    });
+
+    if (!taskRecord) {
+      return {
+        success: false,
+        taskCompleted: false,
+        isInTaskList: false,
+        alreadyCompleted: false,
+        completedCount: 0,
+        hasCompletedTarget: false,
+        message: "用户未提交作品或无任务记录，未创建空记录",
+      };
+    }
     // console.log(`[标记] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
 
     // 检查用户是否已完成任务目标
@@ -517,7 +543,18 @@ export async function unmarkTaskCompleted(userId, workNumber) {
   try {
     // console.log(`\n========== 取消任务完成: 用户 ${userId}, 作品 #${workNumber} ==========`);
 
-    const taskRecord = await getUserTaskRecord(userId);
+    const taskRecord = await getUserTaskRecord(userId, {
+      requireSubmittedWork: true,
+      createIfMissing: false,
+    });
+
+    if (!taskRecord) {
+      return {
+        success: false,
+        wasInCompletedList: false,
+        message: "用户未提交作品或无任务记录，未创建空记录",
+      };
+    }
     // console.log(`[取消] 当前已完成: [${taskRecord.completedTasks.join(', ')}], 总数: ${taskRecord.totalCompleted}`);
 
     // 检查作品是否在已完成列表中
@@ -935,7 +972,10 @@ function getNextRefreshTime(lastRefreshTime) {
  * @param {string} userId - 用户ID
  * @returns {Promise<Object>} 任务记录
  */
-async function getUserTaskRecord(userId) {
+async function getUserTaskRecord(
+  userId,
+  { createIfMissing = true, requireSubmittedWork = false } = {}
+) {
   try {
     const results = await wixData
       .query(COLLECTIONS.USER_TASKS)
@@ -943,6 +983,19 @@ async function getUserTaskRecord(userId) {
       .find();
 
     if (results.items.length === 0) {
+      // 没有记录时，根据配置决定是否创建
+      if (!createIfMissing) {
+        return null;
+      }
+
+      // 需要提交作品才创建记录时，先检查资格
+      if (requireSubmittedWork) {
+        const hasSubmittedWork = await checkUserHasSubmittedWork(userId);
+        if (!hasSubmittedWork) {
+          return null;
+        }
+      }
+
       // 创建新记录
       const newRecord = {
         userId: userId,
@@ -1117,11 +1170,20 @@ export async function getAllUsersTaskManagementData() {
 
     // 4. 构建评论映射（按作品分组）
     const commentsMap = {};
+    // 【性能优化】同时构建用户→已评分作品的映射，避免后续逐个用户查询
+    const userRatedWorksMap = {};
+
     allComments.forEach((comment) => {
       if (!commentsMap[comment.workNumber]) {
         commentsMap[comment.workNumber] = [];
       }
       commentsMap[comment.workNumber].push(comment);
+
+      // 记录用户已评分作品
+      if (!userRatedWorksMap[comment._owner]) {
+        userRatedWorksMap[comment._owner] = new Set();
+      }
+      userRatedWorksMap[comment._owner].add(comment.workNumber);
     });
 
     // 5. 预计算所有涉及作品的权重数据（批量处理）
@@ -1229,10 +1291,13 @@ export async function getAllUsersTaskManagementData() {
       }
 
       // 获取用户所有评论的作品
-      const allUserRatings = await getUserCompletedRatings(userId);
-      const completedTasks = taskRecord.completedTasks || [];
+      const completedTasks = [...(taskRecord.completedTasks || [])];
+      const completedSet = new Set(completedTasks);
+      const allUserRatings = userRatedWorksMap[userId]
+        ? Array.from(userRatedWorksMap[userId])
+        : [];
       const freeRatings = allUserRatings.filter(
-        (workNum) => !completedTasks.includes(workNum)
+        (workNum) => !completedSet.has(workNum)
       );
 
       usersTaskData.push({
@@ -1382,7 +1447,16 @@ export async function forceRefreshUserTasks(userId) {
     // console.log(`\n========== 强制刷新用户任务: ${userId} ==========`);
 
     // 获取用户任务记录
-    const taskRecord = await getUserTaskRecord(userId);
+    const taskRecord = await getUserTaskRecord(userId, {
+      requireSubmittedWork: true,
+    });
+
+    if (!taskRecord) {
+      return {
+        success: false,
+        message: "用户未提交作品或无任务记录，未创建空记录",
+      };
+    }
     // console.log(`原任务列表:`, taskRecord.currentTasks?.map(t => `#${t.workNumber}(${t.weight})`).join(', '));
 
     // 清空当前任务，强制重新生成
