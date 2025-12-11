@@ -833,6 +833,12 @@
         let allData = null;
         let cachedWorksComparison = null; // 缓存作品对比数据
         let currentSortMode = 'base'; // 'base', 'qualified', 'low'
+        let savedFilterStates = {
+            search: '',
+            quality: 'all',
+            completion: 'all',
+            sortBy: 'completion'
+        }; // 保存筛选器状态
 
         // 监听来自Wix页面的消息
         window.addEventListener('message', (event) => {
@@ -901,6 +907,17 @@
 
             content.innerHTML = '';
             content.appendChild(grid);
+            
+            // 恢复筛选器UI状态
+            restoreFilterStates();
+        }
+        
+        // 恢复筛选器UI状态
+        function restoreFilterStates() {
+            document.getElementById('searchInput').value = savedFilterStates.search;
+            document.getElementById('qualityFilter').value = savedFilterStates.quality;
+            document.getElementById('completionFilter').value = savedFilterStates.completion;
+            document.getElementById('sortBy').value = savedFilterStates.sortBy;
         }
 
         // 创建用户卡片
@@ -1310,6 +1327,7 @@
 
         // 搜索功能
         document.getElementById('searchInput').addEventListener('input', (e) => {
+            savedFilterStates.search = e.target.value;
             window.parent.postMessage({
                 action: 'filter',
                 filterType: 'search',
@@ -1319,6 +1337,7 @@
 
         // 用户质量筛选
         document.getElementById('qualityFilter').addEventListener('change', (e) => {
+            savedFilterStates.quality = e.target.value;
             window.parent.postMessage({
                 action: 'filter',
                 filterType: 'quality',
@@ -1328,6 +1347,7 @@
 
         // 完成度筛选
         document.getElementById('completionFilter').addEventListener('change', (e) => {
+            savedFilterStates.completion = e.target.value;
             window.parent.postMessage({
                 action: 'filter',
                 filterType: 'completion',
@@ -1337,6 +1357,7 @@
 
         // 排序
         document.getElementById('sortBy').addEventListener('change', (e) => {
+            savedFilterStates.sortBy = e.target.value;
             window.parent.postMessage({
                 action: 'sort',
                 sortBy: e.target.value

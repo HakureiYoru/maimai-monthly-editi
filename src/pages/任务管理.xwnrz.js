@@ -13,6 +13,12 @@ let allUsersData = [];
 let filteredUsersData = [];
 let userInfoCache = {}; // 缓存用户公开信息
 let worksWeightComparisonData = null; // 作品权重对比数据
+let currentFilters = {
+  quality: 'all',
+  completion: 'all',
+  search: ''
+}; // 保存当前的筛选状态
+let currentSortBy = 'completion'; // 保存当前的排序方式
 
 $w.onReady(async function () {
   // 权限检查
@@ -122,17 +128,33 @@ async function loadAllUsersTaskData() {
       timeoutPromise
     ]);
     
-    // 先用userId创建初始数据，立即显示列表
-    allUsersData = taskManagementData.users.map(userData => ({
-      ...userData,
-      userName: userData.userId, // 临时使用userId
-      userSlug: "",
-      profileImageUrl: ""
-    }));
+    // 创建初始数据，优先使用缓存的用户信息
+    allUsersData = taskManagementData.users.map(userData => {
+      const cachedUserInfo = userInfoCache[userData.userId];
+      if (cachedUserInfo) {
+        // 如果缓存中有用户信息，直接使用
+        return {
+          ...userData,
+          userName: cachedUserInfo.name,
+          userSlug: cachedUserInfo.slug,
+          profileImageUrl: cachedUserInfo.profileImageUrl
+        };
+      } else {
+        // 如果没有缓存，临时使用userId
+        return {
+          ...userData,
+          userName: userData.userId,
+          userSlug: "",
+          profileImageUrl: ""
+        };
+      }
+    });
     
-    filteredUsersData = [...allUsersData];
+    // 重新应用筛选器和排序
+    applyFilters();
+    applySorting();
     
-    // 立即发送初始数据，让用户看到列表（即使没有用户名）
+    // 立即发送初始数据
     sendDataToHTML({
       users: filteredUsersData,
       stats: taskManagementData.stats,
@@ -141,48 +163,54 @@ async function loadAllUsersTaskData() {
     
     // 异步分批加载用户信息，每批完成后更新UI
     const userIds = taskManagementData.users.map(u => u.userId);
+    const uncachedUserIds = userIds.filter(userId => !userInfoCache[userId]);
     
-    $w("#htmlTask").postMessage({
-      type: "loading",
-      message: `正在加载用户信息 (0/${userIds.length})...`,
-    });
-    
-    // 分批加载，每批15个用户
-    await batchLoadUserInfo(userIds, 15, async (loadedCount, totalCount) => {
-      // 更新进度提示
+    // 只有在有未缓存的用户时才显示加载提示和进行加载
+    if (uncachedUserIds.length > 0) {
       $w("#htmlTask").postMessage({
         type: "loading",
-        message: `正在加载用户信息 (${loadedCount}/${totalCount})...`,
+        message: `正在加载用户信息 (0/${uncachedUserIds.length})...`,
       });
       
-      // 更新allUsersData中已加载的用户信息
-      allUsersData = taskManagementData.users.map(userData => {
-        const userInfo = userInfoCache[userData.userId];
-        if (userInfo) {
+      // 分批加载，每批15个用户
+      await batchLoadUserInfo(userIds, 15, async (loadedCount, totalCount) => {
+        // 更新进度提示
+        $w("#htmlTask").postMessage({
+          type: "loading",
+          message: `正在加载用户信息 (${loadedCount}/${totalCount})...`,
+        });
+        
+        // 更新allUsersData中已加载的用户信息
+        allUsersData = taskManagementData.users.map(userData => {
+          const userInfo = userInfoCache[userData.userId];
+          if (userInfo) {
+            return {
+              ...userData,
+              userName: userInfo.name,
+              userSlug: userInfo.slug,
+              profileImageUrl: userInfo.profileImageUrl
+            };
+          }
           return {
             ...userData,
-            userName: userInfo.name,
-            userSlug: userInfo.slug,
-            profileImageUrl: userInfo.profileImageUrl
+            userName: userData.userId,
+            userSlug: "",
+            profileImageUrl: ""
           };
-        }
-        return {
-          ...userData,
-          userName: userData.userId,
-          userSlug: "",
-          profileImageUrl: ""
-        };
+        });
+        
+        // 重新应用筛选器和排序
+        applyFilters();
+        applySorting();
+        
+        // 每批完成后更新UI（不重新发送作品对比数据）
+        sendDataToHTML({
+          users: filteredUsersData,
+          stats: taskManagementData.stats,
+          worksComparison: worksWeightComparisonData
+        });
       });
-      
-      filteredUsersData = [...allUsersData];
-      
-      // 每批完成后更新UI（不重新发送作品对比数据）
-      sendDataToHTML({
-        users: filteredUsersData,
-        stats: taskManagementData.stats,
-        worksComparison: worksWeightComparisonData
-      });
-    });
+    }
     
     // 最后异步加载作品权重对比数据（可选功能，失败也不影响主功能）
     loadWorksComparisonDataAsync();
@@ -315,56 +343,17 @@ async function handleRefreshUserTask(userId) {
  * 处理筛选（优化版 - 只发送必要数据）
  */
 function handleFilter(filterType, value) {
+  // 保存当前的筛选状态
   if (filterType === "quality") {
-    if (value === "all") {
-      filteredUsersData = [...allUsersData];
-    } else if (value === "high") {
-      filteredUsersData = allUsersData.filter(u => u.isHighQuality);
-    } else if (value === "low") {
-      filteredUsersData = allUsersData.filter(u => !u.isHighQuality);
-    }
+    currentFilters.quality = value;
   } else if (filterType === "completion") {
-    if (value === "all") {
-      filteredUsersData = [...allUsersData];
-    } else if (value === "completed") {
-      filteredUsersData = allUsersData.filter(u => u.completedCount >= u.targetCompletion);
-    } else if (value === "incomplete") {
-      filteredUsersData = allUsersData.filter(u => u.completedCount < u.targetCompletion);
-    } else if (value === "has-tasks") {
-      filteredUsersData = allUsersData.filter(u => u.currentTasks && u.currentTasks.length > 0);
-    } else if (value === "low-weight-tasks") {
-      // 筛选：有低权重任务 且 还没完成这些低权重任务的用户
-      filteredUsersData = allUsersData.filter(u => {
-        if (!u.currentTasks || u.currentTasks.length === 0) {
-          return false; // 没有任务，不显示
-        }
-        
-        // 获取用户所有已评论的作品（completedTasks + freeRatings）
-        const allRatedWorks = [
-          ...(u.completedTasks || []),
-          ...(u.freeRatings || [])
-        ];
-        
-        // 检查是否存在"低权重 且 还没完成"的任务
-        const hasUncompletedLowWeightTask = u.currentTasks.some(task => {
-          // 1. 任务权重低于30
-          const isLowWeight = task.finalWeight < 30;
-          // 2. 用户还没有评论这个作品
-          const isNotCompleted = !allRatedWorks.includes(task.workNumber);
-          
-          return isLowWeight && isNotCompleted;
-        });
-        
-        return hasUncompletedLowWeightTask;
-      });
-    }
+    currentFilters.completion = value;
   } else if (filterType === "search") {
-    const searchTerm = value.toLowerCase();
-    filteredUsersData = allUsersData.filter(u =>
-      u.userName.toLowerCase().includes(searchTerm) ||
-      u.userId.toLowerCase().includes(searchTerm)
-    );
+    currentFilters.search = value;
   }
+  
+  // 重新应用所有筛选器
+  applyFilters();
   
   // 只发送用户数据，不重复发送worksComparison（节省传输）
   sendDataToHTML({
@@ -375,18 +364,73 @@ function handleFilter(filterType, value) {
 }
 
 /**
+ * 应用所有筛选器
+ */
+function applyFilters() {
+  let result = [...allUsersData];
+  
+  // 应用质量筛选
+  if (currentFilters.quality === "high") {
+    result = result.filter(u => u.isHighQuality);
+  } else if (currentFilters.quality === "low") {
+    result = result.filter(u => !u.isHighQuality);
+  }
+  
+  // 应用完成度筛选
+  if (currentFilters.completion === "completed") {
+    result = result.filter(u => u.completedCount >= u.targetCompletion);
+  } else if (currentFilters.completion === "incomplete") {
+    result = result.filter(u => u.completedCount < u.targetCompletion);
+  } else if (currentFilters.completion === "has-tasks") {
+    result = result.filter(u => u.currentTasks && u.currentTasks.length > 0);
+  } else if (currentFilters.completion === "low-weight-tasks") {
+    // 筛选：有低权重任务 且 还没完成这些低权重任务的用户
+    result = result.filter(u => {
+      if (!u.currentTasks || u.currentTasks.length === 0) {
+        return false; // 没有任务，不显示
+      }
+      
+      // 获取用户所有已评论的作品（completedTasks + freeRatings）
+      const allRatedWorks = [
+        ...(u.completedTasks || []),
+        ...(u.freeRatings || [])
+      ];
+      
+      // 检查是否存在"低权重 且 还没完成"的任务
+      const hasUncompletedLowWeightTask = u.currentTasks.some(task => {
+        // 1. 任务权重低于30
+        const isLowWeight = task.finalWeight < 30;
+        // 2. 用户还没有评论这个作品
+        const isNotCompleted = !allRatedWorks.includes(task.workNumber);
+        
+        return isLowWeight && isNotCompleted;
+      });
+      
+      return hasUncompletedLowWeightTask;
+    });
+  }
+  
+  // 应用搜索筛选
+  if (currentFilters.search && currentFilters.search.trim() !== '') {
+    const searchTerm = currentFilters.search.toLowerCase();
+    result = result.filter(u =>
+      u.userName.toLowerCase().includes(searchTerm) ||
+      u.userId.toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  filteredUsersData = result;
+}
+
+/**
  * 处理排序（优化版 - 只发送必要数据）
  */
 function handleSort(sortBy) {
-  if (sortBy === "completion") {
-    filteredUsersData.sort((a, b) => b.completedCount - a.completedCount);
-  } else if (sortBy === "tasks") {
-    filteredUsersData.sort((a, b) => (b.currentTasks?.length || 0) - (a.currentTasks?.length || 0));
-  } else if (sortBy === "name") {
-    filteredUsersData.sort((a, b) => a.userName.localeCompare(b.userName));
-  } else if (sortBy === "quality") {
-    filteredUsersData.sort((a, b) => (b.isHighQuality ? 1 : 0) - (a.isHighQuality ? 1 : 0));
-  }
+  // 保存当前的排序方式
+  currentSortBy = sortBy;
+  
+  // 应用排序
+  applySorting();
   
   // 只发送用户数据，不重复发送worksComparison（节省传输）
   sendDataToHTML({
@@ -394,4 +438,19 @@ function handleSort(sortBy) {
     stats: {},
     worksComparison: null  // 不重新发送作品对比数据
   });
+}
+
+/**
+ * 应用排序
+ */
+function applySorting() {
+  if (currentSortBy === "completion") {
+    filteredUsersData.sort((a, b) => b.completedCount - a.completedCount);
+  } else if (currentSortBy === "tasks") {
+    filteredUsersData.sort((a, b) => (b.currentTasks?.length || 0) - (a.currentTasks?.length || 0));
+  } else if (currentSortBy === "name") {
+    filteredUsersData.sort((a, b) => a.userName.localeCompare(b.userName));
+  } else if (currentSortBy === "quality") {
+    filteredUsersData.sort((a, b) => (b.isHighQuality ? 1 : 0) - (a.isHighQuality ? 1 : 0));
+  }
 }
