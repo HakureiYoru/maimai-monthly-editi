@@ -110,6 +110,11 @@
       background: rgba(255, 215, 0, 0.08);
     }
 
+    tbody tr.active-row {
+      outline: 2px solid #FFA500;
+      background: rgba(255, 165, 0, 0.12);
+    }
+
     .work-id {
       font-weight: 800;
       color: #fff;
@@ -206,6 +211,7 @@
 
   <script>
     let summaryData = null;
+    let activeWorkNumber = null;
 
     window.addEventListener('message', (event) => {
       if (event.data.type === 'summary') {
@@ -280,9 +286,10 @@
         const ratings = item.currentRatings || 0;
         const baseWeight = item.baseWeight || 0;
         const days = item.daysSinceSubmission || 0;
+        const isActive = activeWorkNumber === item.workNumber;
 
         return `
-          <tr class="${highlight}">
+          <tr class="${highlight} ${isActive ? 'active-row' : ''}" data-work="${item.workNumber}">
             <td><span class="work-id">#${item.workNumber}</span></td>
             <td><span class="title" title="${title}">${title}</span></td>
             <td><span class="badge">${item.assignedCount} 人</span></td>
@@ -313,8 +320,48 @@
         </div>
       `;
 
-      document.getElementById('content').innerHTML = tableHtml;
+      const contentEl = document.getElementById('content');
+      contentEl.innerHTML = tableHtml;
+
+      // 绑定行点击事件 -> 发送筛选请求
+      const rows = contentEl.querySelectorAll('tr[data-work]');
+      rows.forEach((row) => {
+        row.addEventListener('click', () => {
+          const workNumber = Number(row.getAttribute('data-work'));
+          const target = activeWorkNumber === workNumber ? null : workNumber;
+          activeWorkNumber = target;
+          window.parent.postMessage(
+            {
+              action: 'filterByWork',
+              workNumber: target,
+            },
+            '*'
+          );
+          // 立即本地高亮
+          rows.forEach((r) => r.classList.remove('active-row'));
+          if (target !== null) {
+            row.classList.add('active-row');
+          }
+        });
+      });
     }
+
+    // 接收来自父级的激活作品通知（保持高亮同步）
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'activeWork') {
+        activeWorkNumber = event.data.workNumber || null;
+        // 重新高亮
+        const rows = document.querySelectorAll('tr[data-work]');
+        rows.forEach((row) => {
+          const num = Number(row.getAttribute('data-work'));
+          if (activeWorkNumber !== null && num === activeWorkNumber) {
+            row.classList.add('active-row');
+          } else {
+            row.classList.remove('active-row');
+          }
+        });
+      }
+    });
 
     function showLoading(message) {
       document.getElementById('content').innerHTML = `

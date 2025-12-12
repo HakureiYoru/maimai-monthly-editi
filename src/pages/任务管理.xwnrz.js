@@ -21,7 +21,8 @@ let taskSummaryData = null; // 作品任务占用统计
 let currentFilters = {
   quality: 'all',
   completion: 'all',
-  search: ''
+  search: '',
+  workNumber: null, // 按作品筛选持有任务的用户
 }; // 保存当前的筛选状态
 let currentSortBy = 'completion'; // 保存当前的排序方式
 
@@ -340,12 +341,39 @@ function setupEventListeners() {
     if (event.data.action === "ready") {
       if (taskSummaryData) {
         sendTaskSummaryToHtml(taskSummaryData);
+        safePostToTasksum({
+          type: "activeWork",
+          workNumber: currentFilters.workNumber,
+        });
       } else {
         safePostToTasksum({
           type: "loading",
           message: "正在汇总作品任务分配情况...",
         });
       }
+    } else if (event.data.action === "filterByWork") {
+      // 点击汇总表触发按作品过滤；重复点击同一作品清除过滤
+      currentFilters.workNumber =
+        currentFilters.workNumber === event.data.workNumber
+          ? null
+          : event.data.workNumber;
+      applyFilters();
+      applySorting();
+      sendDataToHTML({
+        users: filteredUsersData,
+        stats: {},
+        worksComparison: null,
+      });
+      // 通知汇总组件当前激活的作品
+      safePostToTasksum({
+        type: "activeWork",
+        workNumber: currentFilters.workNumber,
+      });
+      // 通知任务组件当前的作品过滤（HTML端可选择响应）
+      $w("#htmlTask").postMessage({
+        type: "workFilter",
+        workNumber: currentFilters.workNumber,
+      });
     }
   });
 }
@@ -463,13 +491,31 @@ function applyFilters() {
       return hasUncompletedLowWeightTask;
     });
   }
-  
+
+  // 按作品筛选：仅保留当前持有该作品任务的用户
+  if (currentFilters.workNumber !== null) {
+    result = result.filter((u) =>
+      (u.currentTasks || []).some(
+        (task) => task && task.workNumber === currentFilters.workNumber
+      )
+    );
+  }
+
   // 应用搜索筛选
   if (currentFilters.search && currentFilters.search.trim() !== '') {
     const searchTerm = currentFilters.search.toLowerCase();
     result = result.filter(u =>
       u.userName.toLowerCase().includes(searchTerm) ||
       u.userId.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  // 按作品筛选：仅保留当前持有该作品任务的用户
+  if (currentFilters.workNumber !== null) {
+    result = result.filter((u) =>
+      (u.currentTasks || []).some(
+        (task) => task && task.workNumber === currentFilters.workNumber
+      )
     );
   }
   
