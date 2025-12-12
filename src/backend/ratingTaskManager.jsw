@@ -23,7 +23,7 @@ const COLLECTIONS = {
 
 const TARGET_RATING_COUNT = 15; // 目标评分数（压缩到15评）
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
-const TASK_REFRESH_HOURS = 24; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
+const TASK_REFRESH_HOURS = 8; // 任务刷新间隔（小时），1/30小时=2分钟（调试用） 1=1小时
 
 // 高权重评分系统配置
 const TARGET_HIGH_LOW_RATIO = 0.333; // 目标高低权重比例 1:3 = 0.333
