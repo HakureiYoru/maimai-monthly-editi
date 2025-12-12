@@ -7,12 +7,17 @@ import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
-import { getAllUsersTaskManagementData, forceRefreshUserTasks, getAllWorksWeightComparison } from "backend/ratingTaskManager.jsw";
+import {
+  getAllUsersTaskManagementData,
+  forceRefreshUserTasks,
+  getAllWorksWeightComparison,
+} from "backend/ratingTaskManager.jsw";
 
 let allUsersData = [];
 let filteredUsersData = [];
 let userInfoCache = {}; // 缓存用户公开信息
 let worksWeightComparisonData = null; // 作品权重对比数据
+let taskSummaryData = null; // 作品任务占用统计
 let currentFilters = {
   quality: 'all',
   completion: 'all',
@@ -24,10 +29,12 @@ $w.onReady(async function () {
   // 权限检查
   const hasPermission = await checkIsSeaSelectionMember();
   if (!hasPermission) {
-    $w("#htmlTask").postMessage({
+    const errorPayload = {
       type: "error",
       message: "您没有权限访问此页面",
-    });
+    };
+    $w("#htmlTask").postMessage(errorPayload);
+    safePostToTasksum(errorPayload);
     return;
   }
 
@@ -117,6 +124,10 @@ async function loadAllUsersTaskData() {
       type: "loading",
       message: "正在加载任务数据...",
     });
+    safePostToTasksum({
+      type: "loading",
+      message: "正在汇总作品任务分配情况...",
+    });
     
     // 设置30秒超时，防止无限等待
     const timeoutPromise = new Promise((_, reject) => 
@@ -153,6 +164,10 @@ async function loadAllUsersTaskData() {
     // 重新应用筛选器和排序
     applyFilters();
     applySorting();
+
+    // 计算作品任务占用统计并发送到汇总面板
+    taskSummaryData = computeTaskAssignmentSummary(taskManagementData.users || []);
+    sendTaskSummaryToHtml(taskSummaryData);
     
     // 立即发送初始数据
     sendDataToHTML({
@@ -221,6 +236,10 @@ async function loadAllUsersTaskData() {
       type: "error",
       message: "数据加载失败: " + error.message + "。请尝试刷新页面。",
     });
+    safePostToTasksum({
+      type: "error",
+      message: "汇总数据加载失败: " + error.message,
+    });
   }
 }
 
@@ -269,6 +288,27 @@ function sendDataToHTML(data) {
 }
 
 /**
+ * 发送任务汇总数据到 HTML 元件
+ */
+function sendTaskSummaryToHtml(summary) {
+  safePostToTasksum({
+    type: "summary",
+    data: summary,
+  });
+}
+
+/**
+ * 向任务汇总 HTML 元件安全发送消息（元件不存在时静默）
+ */
+function safePostToTasksum(payload) {
+  try {
+    $w("#htmlTasksum").postMessage(payload);
+  } catch (err) {
+    // 元件缺失时忽略，避免阻断主流程
+  }
+}
+
+/**
  * 设置事件监听器
  */
 function setupEventListeners() {
@@ -292,6 +332,20 @@ function setupEventListeners() {
     } else if (event.data.action === "refreshUserTask") {
       // 刷新单个用户的任务
       await handleRefreshUserTask(event.data.userId);
+    }
+  });
+
+  // 监听任务汇总 HTML 元件
+  $w("#htmlTasksum").onMessage((event) => {
+    if (event.data.action === "ready") {
+      if (taskSummaryData) {
+        sendTaskSummaryToHtml(taskSummaryData);
+      } else {
+        safePostToTasksum({
+          type: "loading",
+          message: "正在汇总作品任务分配情况...",
+        });
+      }
     }
   });
 }
@@ -453,4 +507,66 @@ function applySorting() {
   } else if (currentSortBy === "quality") {
     filteredUsersData.sort((a, b) => (b.isHighQuality ? 1 : 0) - (a.isHighQuality ? 1 : 0));
   }
+}
+
+/**
+ * 计算每个作品当前被多少用户持有为任务，并按数量排序
+ * @param {Array<Object>} usersData
+ * @returns {{items: Array, totals: {totalAssignments: number, uniqueWorks: number}}}
+ */
+function computeTaskAssignmentSummary(usersData) {
+  const summaryMap = new Map();
+  let totalAssignments = 0;
+
+  usersData.forEach((user) => {
+    (user.currentTasks || []).forEach((task) => {
+      if (!task || task.workNumber === undefined || task.workNumber === null) {
+        return;
+      }
+
+      totalAssignments += 1;
+      const existing = summaryMap.get(task.workNumber);
+
+      if (existing) {
+        existing.assignedCount += 1;
+        // 仅在数据缺失时补充字段，避免覆盖已有值
+        if (!existing.workTitle && task.workTitle) {
+          existing.workTitle = task.workTitle;
+        }
+        if (!existing.currentRatings && task.currentRatings) {
+          existing.currentRatings = task.currentRatings;
+        }
+        if (!existing.baseWeight && task.baseWeight) {
+          existing.baseWeight = task.baseWeight;
+        }
+        if (!existing.daysSinceSubmission && task.daysSinceSubmission) {
+          existing.daysSinceSubmission = task.daysSinceSubmission;
+        }
+      } else {
+        summaryMap.set(task.workNumber, {
+          workNumber: task.workNumber,
+          workTitle: task.workTitle || "未命名作品",
+          assignedCount: 1,
+          currentRatings: task.currentRatings || 0,
+          baseWeight: task.baseWeight || 0,
+          daysSinceSubmission: task.daysSinceSubmission || 0,
+        });
+      }
+    });
+  });
+
+  const items = Array.from(summaryMap.values()).sort((a, b) => {
+    if (b.assignedCount !== a.assignedCount) {
+      return b.assignedCount - a.assignedCount;
+    }
+    return a.workNumber - b.workNumber;
+  });
+
+  return {
+    items,
+    totals: {
+      totalAssignments,
+      uniqueWorks: items.length,
+    },
+  };
 }

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务分配汇总</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: rgba(0, 0, 0, 0);
+      color: #f2f2f2;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header .sub {
+      color: #c7c7c7;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      padding: 18px;
+    }
+
+    .stat-label {
+      color: #a5a5a5;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .stat-extra {
+      color: #888;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .table-wrap {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      background: #555;
+      color: #fff;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #444;
+      text-align: left;
+    }
+
+    tbody tr:hover {
+      background: #353535;
+    }
+
+    tbody tr.top-row {
+      background: rgba(255, 215, 0, 0.08);
+    }
+
+    .work-id {
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+      background: #1f6feb;
+      color: #fff;
+    }
+
+    .badge.muted {
+      background: #666;
+      color: #f7f7f7;
+    }
+
+    .title {
+      color: #d6d6d6;
+      max-width: 420px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+      font-size: 14px;
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+    }
+
+    .state {
+      padding: 60px 20px;
+      text-align: center;
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      color: #d1d1d1;
+      font-size: 16px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #444;
+      border-top: 4px solid #ccc;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 768px) {
+      th, td {
+        padding: 10px 8px;
+        font-size: 12px;
+      }
+
+      .title {
+        max-width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📦 作品任务分配汇总</h1>
+      <div class="sub">按作品统计当前有多少用户同时持有该作品作为任务，便于发现被频繁推送的作品。</div>
+    </div>
+
+    <div id="stats" class="stats" style="display:none;"></div>
+
+    <div id="content">
+      <div class="state">
+        <div class="spinner"></div>
+        正在等待数据...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let summaryData = null;
+
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'summary') {
+        renderSummary(event.data.data);
+      } else if (event.data.type === 'loading') {
+        showLoading(event.data.message);
+      } else if (event.data.type === 'error') {
+        showError(event.data.message);
+      }
+    });
+
+    window.onload = () => {
+      window.parent.postMessage({ action: 'ready' }, '*');
+    };
+
+    function renderSummary(data) {
+      summaryData = data;
+      const items = (data && data.items) ? data.items : [];
+
+      if (!items.length) {
+        document.getElementById('stats').style.display = 'none';
+        document.getElementById('content').innerHTML = '<div class="empty">当前没有作品被分配到任务</div>';
+        return;
+      }
+
+      updateStats(data.totals || {}, items);
+      renderTable(items);
+    }
+
+    function updateStats(totals, items) {
+      const totalAssignments = totals.totalAssignments || 0;
+      const uniqueWorks = totals.uniqueWorks || 0;
+      const avg = uniqueWorks > 0 ? (totalAssignments / uniqueWorks).toFixed(1) : '0.0';
+      const topItem = items[0] || null;
+
+      const statsHtml = `
+        <div class="stat-card">
+          <div class="stat-label">总持有人次</div>
+          <div class="stat-value">${totalAssignments}</div>
+          <div class="stat-extra">当前所有任务槽位的占用数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">涉及作品数</div>
+          <div class="stat-value">${uniqueWorks}</div>
+          <div class="stat-extra">至少被一个用户持有的作品数量</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均每作持有人</div>
+          <div class="stat-value">${avg}</div>
+          <div class="stat-extra">总持有人次 / 作品数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最高占用作品</div>
+          <div class="stat-value" style="font-size:22px;">
+            ${topItem ? '#' + topItem.workNumber : '-'}
+          </div>
+          <div class="stat-extra">
+            ${topItem ? escapeHtml(topItem.workTitle || '未命名作品') + ' · ' + topItem.assignedCount + ' 人持有' : '暂无数据'}
+          </div>
+        </div>
+      `;
+
+      const statsEl = document.getElementById('stats');
+      statsEl.innerHTML = statsHtml;
+      statsEl.style.display = 'grid';
+    }
+
+    function renderTable(items) {
+      const tbodyHtml = items.map((item, index) => {
+        const highlight = index < 3 ? 'top-row' : '';
+        const title = escapeHtml(item.workTitle || '未命名作品');
+        const ratings = item.currentRatings || 0;
+        const baseWeight = item.baseWeight || 0;
+        const days = item.daysSinceSubmission || 0;
+
+        return `
+          <tr class="${highlight}">
+            <td><span class="work-id">#${item.workNumber}</span></td>
+            <td><span class="title" title="${title}">${title}</span></td>
+            <td><span class="badge">${item.assignedCount} 人</span></td>
+            <td>${ratings}/15</td>
+            <td>${days} 天</td>
+            <td><span class="badge muted">${baseWeight}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      const tableHtml = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>作品ID</th>
+                <th>作品标题</th>
+                <th>当前持有人数</th>
+                <th>当前评分</th>
+                <th>提交天数</th>
+                <th>基础冷门权重</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tbodyHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('content').innerHTML = tableHtml;
+    }
+
+    function showLoading(message) {
+      document.getElementById('content').innerHTML = `
+        <div class="state">
+          <div class="spinner"></div>
+          ${message || '正在加载...'}
+        </div>
+      `;
+    }
+
+    function showError(message) {
+      document.getElementById('content').innerHTML = `
+        <div class="state" style="color:#f87171;">
+          ❌ ${message || '加载失败'}
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
