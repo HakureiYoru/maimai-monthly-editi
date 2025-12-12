@@ -31,11 +31,12 @@ const RATIO_TOLERANCE = 0.15; // 容忍度 ±5% → 0.20到0.30可接受
 const BALANCE_FACTOR_ADJUSTMENT = 0.1; // 权重调整幅度 30%
 
 // 任务拥挤度控制（避免同一作品被过多人同时领取）
-const MIN_PARALLEL_TASKS_PER_WORK = 5; // 每个作品同时持有的任务至少允许的基准值
-const PARALLEL_TASKS_BUFFER = 2; // 缺口（剩余评分数）额外允许的并发缓冲
-const PARALLEL_TASKS_EXTRA_TOLERANCE = 5; // 超过软上限后允许的额外并发，超过则直接跳过
-const TASK_SATURATION_PENALTY_STEP = 0.15; // 超出软上限每个并发带来的权重折减比例
+const MIN_PARALLEL_TASKS_PER_WORK = 3; // 每个作品并发基准（收紧）
+const PARALLEL_TASKS_BUFFER = 1; // 缺口附加并发（收紧）
+const PARALLEL_TASKS_EXTRA_TOLERANCE = 1; // 软上限后仅多放1个
+const TASK_SATURATION_PENALTY_STEP = 0.25; // 超限降权更陡
 const TASK_SATURATION_FALLBACK_PENALTY = 0.5; // 只有饱和任务可选时的降权系数
+const MAX_PARALLEL_TASKS_PER_WORK = 8; // 并发硬封顶
 
 // 用户权重缓存
 let userQualityCache = {};
@@ -241,11 +242,29 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
        // 根据当前被持有的数量做拥挤度控制，降低重复推送
       const currentAssignments = activeTaskCounts[work.sequenceId] || 0;
       const remainingNeeded = Math.max(0, TARGET_RATING_COUNT - validRatingCount);
-      const softAssignmentCap = Math.max(
+
+      // 收紧并发：以缺口为基准，带小缓冲，整体封顶
+      const baseSoftCap = Math.max(
         MIN_PARALLEL_TASKS_PER_WORK,
         remainingNeeded + PARALLEL_TASKS_BUFFER
       );
-      const hardAssignmentCap = softAssignmentCap + PARALLEL_TASKS_EXTRA_TOLERANCE;
+      const softAssignmentCap = Math.min(
+        MAX_PARALLEL_TASKS_PER_WORK,
+        baseSoftCap + (remainingNeeded <= 2 ? 1 : 0) // 尾盘额外给1个名额
+      );
+
+      let hardAssignmentCap = Math.min(
+        MAX_PARALLEL_TASKS_PER_WORK,
+        softAssignmentCap + PARALLEL_TASKS_EXTRA_TOLERANCE
+      );
+
+      // 确保硬上限至少比软上限高1
+      if (hardAssignmentCap <= softAssignmentCap) {
+        hardAssignmentCap = Math.min(
+          MAX_PARALLEL_TASKS_PER_WORK,
+          softAssignmentCap + 1
+        );
+      }
 
       // 超过硬上限：直接跳过（避免“太多人已经拥有”）
       if (currentAssignments >= hardAssignmentCap) {
@@ -280,19 +299,7 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
       });
     }
 
-    // 如果所有可选作品都因为拥挤被跳过，则用降权后的饱和候选兜底，避免返回空列表
-    if (candidateWorks.length === 0 && saturatedCandidates.length > 0) {
-      saturatedCandidates.forEach((task) => {
-        const penalizedWeight = Math.max(
-          1,
-          Math.round(task.weight * TASK_SATURATION_FALLBACK_PENALTY)
-        );
-        candidateWorks.push({
-          ...task,
-          weight: penalizedWeight,
-        });
-      });
-    }
+    // 去掉饱和兜底，避免“过多人推到同一个任务”的回流
 
     // console.log(`[任务分配] 候选作品统计 - 总数:${allWorksResult.items.length}, 排除:${excludedCount}, 权重为0:${zeroWeightCount}, 可分配:${candidateWorks.length}`);
 
