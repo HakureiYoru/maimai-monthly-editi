@@ -401,34 +401,34 @@ function calculateColdnessWeightOptimized(
   // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
   let urgencyBonus = 0;
   if (daysSinceSubmission >= 2 && currentRatings < 2) {
-    urgencyBonus = Math.max(urgencyBonus, 10); // 2天：早期冷启动1
+    urgencyBonus = Math.max(urgencyBonus, 5); // 2天：早期冷启动1
   }
   if (daysSinceSubmission >= 3 && currentRatings < 3) {
-    urgencyBonus = Math.max(urgencyBonus, 15); // 3天：早期冷启动2
+    urgencyBonus = Math.max(urgencyBonus, 10); // 3天：早期冷启动2
   }
   if (daysSinceSubmission >= 5 && currentRatings < 5) {
-    urgencyBonus = Math.max(urgencyBonus, 25); // 5天：早期关注
+    urgencyBonus = Math.max(urgencyBonus, 15); // 5天：早期关注
   }
   if (daysSinceSubmission >= 6 && currentRatings < 6) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 6天：中期关注1
+    urgencyBonus = Math.max(urgencyBonus, 20); // 6天：中期关注1
   }
   if (daysSinceSubmission >= 8 && currentRatings < 8) {
-    urgencyBonus = Math.max(urgencyBonus, 50); // 8天：中期关注2
+    urgencyBonus = Math.max(urgencyBonus, 25); // 8天：中期关注2
   }
   if (daysSinceSubmission >= 10 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 65); // 10天：中期紧急
+    urgencyBonus = Math.max(urgencyBonus, 30); // 10天：中期紧急
   }
   if (daysSinceSubmission >= 11 && currentRatings < 11) {
-    urgencyBonus = Math.max(urgencyBonus, 80); // 11天：后期紧急1
+    urgencyBonus = Math.max(urgencyBonus, 35); // 11天：后期紧急1
   }
   if (daysSinceSubmission >= 13 && currentRatings < 13) {
-    urgencyBonus = Math.max(urgencyBonus, 90); // 13天：后期紧急2
+    urgencyBonus = Math.max(urgencyBonus, 35); // 13天：后期紧急2
   }
   if (daysSinceSubmission >= 14 && currentRatings < 14) {
-    urgencyBonus = Math.max(urgencyBonus, 100); // 14天：即将超期
+    urgencyBonus = Math.max(urgencyBonus, 35); // 14天：即将超期
   }
   if (daysSinceSubmission >= 15 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 110); // 15天：超期最高优先级
+    urgencyBonus = Math.max(urgencyBonus, 35); // 15天：超期最高优先级
   }
 
   let totalWeight = baseWeight + urgencyBonus;
