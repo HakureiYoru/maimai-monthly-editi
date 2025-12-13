@@ -353,23 +353,13 @@ async function generateUserTasks(userId, taskRecord, limit = 3) {
 }
 
 /**
- * 计算作品的冷门权重（优化版，使用预加载数据）
+ * 计算基础冷门权重（不含均衡因子）
  * @param {Object} work - 作品对象
- * @param {number} validRatingCount - 有效评分数
- * @param {number} highWeightCount - 高权重评分数
- * @param {number} lowWeightCount - 低权重评分数
- * @param {boolean} isUserHighQuality - 用户是否是高权重
- * @returns {number} 冷门权重
+ * @param {number} currentRatings - 当前评分数
+ * @returns {number} 基础权重
  */
-function calculateColdnessWeightOptimized(
-  work,
-  validRatingCount,
-  highWeightCount,
-  lowWeightCount,
-  isUserHighQuality
-) {
+function calculateBaseColdnessWeight(work, currentRatings) {
   const daysSinceSubmission = getDaysSinceSubmission(work);
-  const currentRatings = validRatingCount;
 
   // 已达标，权重为0
   if (currentRatings >= TARGET_RATING_COUNT) {
@@ -416,25 +406,50 @@ function calculateColdnessWeightOptimized(
     urgencyBonus = Math.max(urgencyBonus, 25); // 8天：中期关注2
   }
   if (daysSinceSubmission >= 10 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 30); // 10天：中期紧急
+    urgencyBonus = Math.max(urgencyBonus, 25); // 10天：中期紧急
   }
-  if (daysSinceSubmission >= 11 && currentRatings < 11) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 11天：后期紧急1
-  }
-  if (daysSinceSubmission >= 13 && currentRatings < 13) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 13天：后期紧急2
-  }
-  if (daysSinceSubmission >= 14 && currentRatings < 14) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 14天：即将超期
-  }
-  if (daysSinceSubmission >= 15 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 15天：超期最高优先级
-  }
+  // if (daysSinceSubmission >= 11 && currentRatings < 11) {
+  //   urgencyBonus = Math.max(urgencyBonus, 35); // 11天：后期紧急1
+  // }
+  // if (daysSinceSubmission >= 13 && currentRatings < 13) {
+  //   urgencyBonus = Math.max(urgencyBonus, 35); // 13天：后期紧急2
+  // }
+  // if (daysSinceSubmission >= 14 && currentRatings < 14) {
+  //   urgencyBonus = Math.max(urgencyBonus, 35); // 14天：即将超期
+  // }
+  // if (daysSinceSubmission >= 15 && currentRatings < 15) {
+  //   urgencyBonus = Math.max(urgencyBonus, 35); // 15天：超期最高优先级
+  // }
 
-  let totalWeight = baseWeight + urgencyBonus;
+  return Math.round(baseWeight + urgencyBonus);
+}
+
+/**
+ * 计算作品的冷门权重（优化版，使用预加载数据）
+ * @param {Object} work - 作品对象
+ * @param {number} validRatingCount - 有效评分数
+ * @param {number} highWeightCount - 高权重评分数
+ * @param {number} lowWeightCount - 低权重评分数
+ * @param {boolean} isUserHighQuality - 用户是否是高权重
+ * @returns {number} 冷门权重
+ */
+function calculateColdnessWeightOptimized(
+  work,
+  validRatingCount,
+  highWeightCount,
+  lowWeightCount,
+  isUserHighQuality
+) {
+  // 先计算基础权重
+  let totalWeight = calculateBaseColdnessWeight(work, validRatingCount);
+
+  // 如果基础权重为0，直接返回
+  if (totalWeight === 0) {
+    return 0;
+  }
 
   // 应用均衡因子（评分>=1时）
-  if (currentRatings >= 1) {
+  if (validRatingCount >= 1) {
     const balanceFactor = calculateBalanceFactor(
       highWeightCount,
       lowWeightCount,
@@ -1362,7 +1377,7 @@ export async function getAllUsersTaskManagementData() {
         workInfo.currentRatingCount = weightData.numRatings;
 
         // 计算基础冷门权重（不含均衡因子）
-        const baseWeight = calculateBaseColdnessWeightSync(workInfo);
+        const baseWeight = calculateBaseColdnessWeight(workInfo, weightData.numRatings);
 
         // 计算均衡因子
         const balanceFactor = calculateBalanceFactor(
@@ -1440,76 +1455,6 @@ export async function getAllUsersTaskManagementData() {
   }
 }
 
-/**
- * 计算基础冷门权重（不含均衡因子）- 同步版本
- * @param {Object} work - 作品对象
- * @returns {number} 基础权重
- */
-function calculateBaseColdnessWeightSync(work) {
-  const daysSinceSubmission = getDaysSinceSubmission(work);
-  const currentRatings = work.currentRatingCount || 0;
-
-  if (currentRatings >= TARGET_RATING_COUNT) {
-    return 0;
-  }
-
-  // 与异步版本保持一致的期望评分模型（15天达标15评）
-  let expectedRatings = 0;
-  if (daysSinceSubmission <= 5) {
-    // 早期：约1评分/天，5天≈5评
-    expectedRatings = Math.floor(daysSinceSubmission * 1.0);
-  } else if (daysSinceSubmission <= 10) {
-    // 中期：约1评分/天，10天≈10评
-    expectedRatings = 5 + Math.floor((daysSinceSubmission - 5) * 1.0);
-  } else if (daysSinceSubmission <= 15) {
-    // 后期：约1评分/天，15天达到15评
-    expectedRatings = 10 + Math.floor((daysSinceSubmission - 10) * 1.0);
-  } else {
-    // 超过15天，期望达标
-    expectedRatings = TARGET_RATING_COUNT;
-  }
-
-  // 与实时权重一致：按目标15评做分母，避免前期少量评分即清零
-  const baselineExpected = Math.max(expectedRatings, TARGET_RATING_COUNT);
-  const deficit = Math.max(0, baselineExpected - currentRatings);
-  const deficitRatio = baselineExpected > 0 ? deficit / baselineExpected : 0;
-  const baseWeight = deficitRatio * 60; // 与主函数保持一致
-
-  // 时间紧迫度加成（15天达标，按缺口阶梯提升，使用Math.max取最大值）
-  let urgencyBonus = 0;
-  if (daysSinceSubmission >= 2 && currentRatings < 2) {
-    urgencyBonus = Math.max(urgencyBonus, 5); // 2天：早期冷启动1
-  }
-  if (daysSinceSubmission >= 3 && currentRatings < 3) {
-    urgencyBonus = Math.max(urgencyBonus, 10); // 3天：早期冷启动2
-  }
-  if (daysSinceSubmission >= 5 && currentRatings < 5) {
-    urgencyBonus = Math.max(urgencyBonus, 15); // 5天：早期关注
-  }
-  if (daysSinceSubmission >= 6 && currentRatings < 6) {
-    urgencyBonus = Math.max(urgencyBonus, 20); // 6天：中期关注1
-  }
-  if (daysSinceSubmission >= 8 && currentRatings < 8) {
-    urgencyBonus = Math.max(urgencyBonus, 25); // 8天：中期关注2
-  }
-  if (daysSinceSubmission >= 10 && currentRatings < 10) {
-    urgencyBonus = Math.max(urgencyBonus, 30); // 10天：中期紧急
-  }
-  if (daysSinceSubmission >= 11 && currentRatings < 11) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 11天：后期紧急1
-  }
-  if (daysSinceSubmission >= 13 && currentRatings < 13) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 13天：后期紧急2
-  }
-  if (daysSinceSubmission >= 14 && currentRatings < 14) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 14天：即将超期
-  }
-  if (daysSinceSubmission >= 15 && currentRatings < 15) {
-    urgencyBonus = Math.max(urgencyBonus, 35); // 15天：超期最高优先级
-  }
-
-  return Math.round(baseWeight + urgencyBonus);
-}
 
 /**
  * 获取比例状态描述
@@ -1678,7 +1623,7 @@ export async function getAllWorksWeightComparison() {
       );
 
       // 计算基础权重（不含均衡因子，仅用于显示）
-      const baseWeight = calculateBaseColdnessWeightSync(work);
+      const baseWeight = calculateBaseColdnessWeight(work, validRatings.length);
 
       // 计算均衡因子（仅用于显示）
       const balanceFactorHigh =
