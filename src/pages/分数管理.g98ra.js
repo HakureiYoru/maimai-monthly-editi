@@ -7,7 +7,11 @@ import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
-import { getWorkWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import {
+  fetchAllMainComments,
+  fetchAllWorks,
+  getWorkWeightedRatingData,
+} from "backend/ratingTaskManager.jsw";
 import { RATING_CONFIG } from "public/constants.js";
 import { getTierFromPercentile } from "public/tierUtils.js";
 
@@ -45,16 +49,21 @@ $w.onReady(async function () {
 async function batchLoadUserInfo(userIds) {
   const uniqueIds = [...new Set(userIds)];
 
-  // 批量查询用户的高权重状态
-  const registrations = await wixData
-    .query("jobApplication089")
-    .hasSome("_owner", uniqueIds)
-    .find();
-
   const highQualityMap = {};
-  registrations.items.forEach((reg) => {
-    highQualityMap[reg._owner] = reg.isHighQuality === true;
-  });
+  const CHUNK_SIZE = 50; // hasSome 入参过多会报错，分批查询更稳
+
+  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+    const batchIds = uniqueIds.slice(i, i + CHUNK_SIZE);
+    const registrations = await wixData
+      .query("jobApplication089")
+      .hasSome("_owner", batchIds)
+      .limit(1000)
+      .find();
+
+    registrations.items.forEach((reg) => {
+      highQualityMap[reg._owner] = reg.isHighQuality === true;
+    });
+  }
 
   for (const userId of uniqueIds) {
     if (!userInfoCache[userId]) {
@@ -94,27 +103,20 @@ async function batchLoadUserInfo(userIds) {
 async function loadAllWorksData() {
   try {
     // 1. 获取所有作品
-    const worksResult = await wixData
-      .query("enterContest034")
-      .limit(1000)
-      .find();
+    const worksResult = await fetchAllWorks();
 
     // 2. 获取所有评论
-    const commentsResult = await wixData
-      .query("BOFcomment")
-      .isEmpty("replyTo")
-      .limit(1000)
-      .find();
+    const commentsResult = await fetchAllMainComments();
 
     // 3. 批量获取所有评论者的用户信息（包括高权重标记）
     const uniqueUserIds = [
-      ...new Set(commentsResult.items.map((c) => c._owner)),
+      ...new Set(commentsResult.map((c) => c._owner)),
     ];
     await batchLoadUserInfo(uniqueUserIds);
 
     // 4. 构建作品-评论映射
     const workCommentsMap = {};
-    commentsResult.items.forEach((comment) => {
+    commentsResult.forEach((comment) => {
       if (!workCommentsMap[comment.workNumber]) {
         workCommentsMap[comment.workNumber] = [];
       }
@@ -123,7 +125,7 @@ async function loadAllWorksData() {
 
     // 5. 计算每个作品的评分数据
     const worksWithRatings = [];
-    for (const work of worksResult.items) {
+    for (const work of worksResult) {
       const comments = workCommentsMap[work.sequenceId] || [];
 
       // 排除作者自评，只计算正式评分

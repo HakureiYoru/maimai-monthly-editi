@@ -41,6 +41,53 @@ const MAX_PARALLEL_TASKS_PER_WORK = 6; // 并发硬封顶
 // 用户权重缓存
 let userQualityCache = {};
 
+const DEFAULT_PAGE_SIZE = 500;
+
+/**
+ * 基于 _createdDate 游标的全量分页查询，绕过 1000 条总上限
+ * @param {() => wixData.WixDataQuery} buildQuery - 返回带好过滤条件的 query 构造函数
+ * @param {number} [pageSize=DEFAULT_PAGE_SIZE] - 每页条数（上限 1000）
+ * @returns {Promise<Array>} 全量结果
+ */
+async function queryAllByCreatedDate(buildQuery, pageSize = DEFAULT_PAGE_SIZE) {
+  const allItems = [];
+  let lastDate = null;
+  let lastId = null;
+
+  while (true) {
+    let pageQuery = buildQuery().ascending("_createdDate");
+
+    // 追加游标，避免 skip+limit>1000 的限制，同时处理相同时间戳的并发插入
+    if (lastDate) {
+      const afterDateQuery = buildQuery().gt("_createdDate", lastDate);
+      const sameDateAfterIdQuery = buildQuery()
+        .eq("_createdDate", lastDate)
+        .gt("_id", lastId);
+      pageQuery = afterDateQuery.or(sameDateAfterIdQuery).ascending("_createdDate");
+    }
+
+    const result = await pageQuery.limit(pageSize).find();
+    const items = result.items || [];
+    if (items.length === 0) {
+      break;
+    }
+
+    allItems.push(...items);
+
+    // 记录游标
+    const lastItem = items[items.length - 1];
+    lastDate = lastItem._createdDate;
+    lastId = lastItem._id;
+
+    // 不足一页，提前结束
+    if (items.length < pageSize) {
+      break;
+    }
+  }
+
+  return allItems;
+}
+
 /**
  * 获取所有主评论（分页，避免 1000 条上限）
  * @param {Object} options - 过滤选项
@@ -48,28 +95,43 @@ let userQualityCache = {};
  * @param {string} [options.ownerId] - 可选，按作者ID筛选
  * @returns {Promise<Array>} 主评论数组
  */
-async function fetchAllMainComments(options = {}) {
+export async function fetchAllMainComments(options = {}) {
   const { workNumber, ownerId } = options;
-  const pageSize = 100; // 按 100 条分页拉取，确保大数据量完整获取
-  let query = wixData.query(COLLECTIONS.COMMENTS).isEmpty("replyTo");
 
-  if (workNumber !== undefined && workNumber !== null) {
-    query = query.eq("workNumber", workNumber);
-  }
+  const buildQuery = () => {
+    let query = wixData.query(COLLECTIONS.COMMENTS).isEmpty("replyTo");
 
-  if (ownerId) {
-    query = query.eq("_owner", ownerId);
-  }
+    if (workNumber !== undefined && workNumber !== null) {
+      query = query.eq("workNumber", workNumber);
+    }
 
-  let results = await query.limit(pageSize).find();
-  const allComments = [...results.items];
+    if (ownerId) {
+      query = query.eq("_owner", ownerId);
+    }
 
-  while (results.hasNext()) {
-    results = await results.next();
-    allComments.push(...results.items);
-  }
+    return query;
+  };
 
-  return allComments;
+  return queryAllByCreatedDate(buildQuery);
+}
+
+/**
+ * 全量拉取作品
+ * @param {Object} [options]
+ * @param {boolean} [options.excludeDQ=false] 是否排除淘汰作品
+ * @returns {Promise<Array>} 作品数组
+ */
+export async function fetchAllWorks(options = {}) {
+  const { excludeDQ = false } = options;
+  const buildQuery = () => {
+    let query = wixData.query(COLLECTIONS.WORKS).limit(300);
+    if (excludeDQ) {
+      query = query.ne("isDq", true);
+    }
+    return query;
+  };
+
+  return queryAllByCreatedDate(buildQuery);
 }
 
 /**
@@ -735,13 +797,13 @@ export async function getAllWorksWeightedRatingData() {
     // 1. 一次性查询所有主评论（包括自评）和作品，使用分页避免 1000 条限制
     const [allComments, allWorks] = await Promise.all([
       fetchAllMainComments(),
-      wixData.query(COLLECTIONS.WORKS).limit(1000).find(),
+      fetchAllWorks(),
     ]);
 
     // 3. 建立作品所有者和淘汰状态映射
     const workOwnerMap = {};
     const workDQMap = {};
-    allWorks.items.forEach((work) => {
+    allWorks.forEach((work) => {
       workOwnerMap[work.sequenceId] = work._owner;
       workDQMap[work.sequenceId] = work.isDq === true;
     });
@@ -1277,7 +1339,7 @@ export async function getAllUsersTaskManagementData() {
       await Promise.all([
         wixData.query(COLLECTIONS.USER_TASKS).limit(1000).find(),
         wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
-        wixData.query(COLLECTIONS.WORKS).limit(1000).find(),
+        fetchAllWorks(),
         fetchAllMainComments(),
       ]);
 
@@ -1289,7 +1351,7 @@ export async function getAllUsersTaskManagementData() {
 
     // 3. 构建作品信息映射
     const worksMap = {};
-    allWorks.items.forEach((work) => {
+    allWorks.forEach((work) => {
       worksMap[work.sequenceId] = work;
     });
 
@@ -1559,7 +1621,7 @@ export async function getAllWorksWeightComparison() {
   try {
     // 1. 并行获取所有基础数据
     const [allWorks, allComments, allRegistrations] = await Promise.all([
-      wixData.query(COLLECTIONS.WORKS).ne("isDq", true).limit(1000).find(),
+      fetchAllWorks({ excludeDQ: true }),
       fetchAllMainComments(),
       wixData.query(COLLECTIONS.REGISTRATIONS).limit(1000).find(),
     ]);
@@ -1582,7 +1644,7 @@ export async function getAllWorksWeightComparison() {
     // 4. 计算每个作品的权重数据
     const worksWeightData = [];
 
-    for (const work of allWorks.items) {
+    for (const work of allWorks) {
       const comments = commentsMap[work.sequenceId] || [];
       const validRatings = comments.filter((c) => c._owner !== work._owner);
 
