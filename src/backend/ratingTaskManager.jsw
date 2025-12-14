@@ -1228,6 +1228,11 @@ async function getCurrentTaskAssignmentCounts(excludeUserId) {
         continue;
       }
 
+      // 已达成目标的用户不再计入并发占用，避免过度抑制分配
+      if ((record.totalCompleted || 0) >= TARGET_USER_COMPLETION) {
+        continue;
+      }
+
       (record.currentTasks || []).forEach((task) => {
         if (!task || task.workNumber === undefined || task.workNumber === null) {
           return;
