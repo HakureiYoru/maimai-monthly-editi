@@ -1316,6 +1316,27 @@
       currentUserId = data.currentUserId;
       isUserVerified = data.isUserVerified;
       
+      // 【修复】重置所有筛选器状态到默认值
+      currentWorkFilter = '';
+      currentFilter = 'default';
+      currentPage = 1;
+      
+      // 确保UI组件状态同步
+      const dropdownFilter = document.getElementById('dropdownFilter');
+      if (dropdownFilter) {
+        dropdownFilter.value = '';
+      }
+      
+      document.querySelectorAll('.filter-tab').forEach(tab => {
+        if (tab.dataset.filter === 'default') {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+      
+      console.log('[评论系统] 筛选器状态已重置为默认值');
+      
       // 显示初始化加载状态
       showLoading('正在初始化评论系统...');
       
@@ -1330,14 +1351,55 @@
     function handleWorkOptions(data) {
       console.log('[评论系统] 收到作品选项:', data.options?.length);
       allWorkOptions = data.options || [];
+      
+      // 【修复】更新下拉选项前，保存当前选中的值
+      const dropdownFilter = document.getElementById('dropdownFilter');
+      const currentDropdownValue = dropdownFilter ? dropdownFilter.value : '';
+      
       updateWorkDropdowns();
+      
+      // 【修复】恢复之前选中的值（如果该选项仍然存在）
+      if (currentDropdownValue && dropdownFilter) {
+        const optionExists = allWorkOptions.some(opt => opt.value === currentDropdownValue);
+        if (optionExists) {
+          dropdownFilter.value = currentDropdownValue;
+          console.log('[评论系统] 已恢复筛选器选中状态:', currentDropdownValue);
+        }
+      }
     }
 
     async function handleCommentsUpdate(data) {
       console.log('[评论系统] 更新评论数据:', data.comments?.length);
       allCommentsData = data.comments || [];
-      currentWorkFilter = data.workFilter || '';
-      currentFilter = data.filterMode || 'default';
+      
+      // 【修复】更新筛选状态时，同步更新UI组件，避免状态不一致
+      const newWorkFilter = data.workFilter || '';
+      const newFilterMode = data.filterMode || 'default';
+      
+      // 只有当筛选状态真正改变时才更新UI（避免不必要的重置）
+      if (currentWorkFilter !== newWorkFilter) {
+        currentWorkFilter = newWorkFilter;
+        // 同步更新下拉筛选器UI
+        const dropdownFilter = document.getElementById('dropdownFilter');
+        if (dropdownFilter && dropdownFilter.value !== currentWorkFilter) {
+          dropdownFilter.value = currentWorkFilter;
+          console.log('[评论系统] 已同步作品筛选器UI:', currentWorkFilter);
+        }
+      }
+      
+      if (currentFilter !== newFilterMode) {
+        currentFilter = newFilterMode;
+        // 同步更新评论类型筛选器UI
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+          if (tab.dataset.filter === currentFilter) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
+        console.log('[评论系统] 已同步评论类型筛选器UI:', currentFilter);
+      }
+      
       currentPage = data.currentPage ? Number(data.currentPage) : 1;
       totalPages = Math.max(1, Number(data.totalPages) || 1);
       
@@ -1356,6 +1418,9 @@
       loadingState.style.display = 'block';
       document.getElementById('commentList').innerHTML = '';
       document.getElementById('noComments').style.display = 'none';
+      
+      // 【修复】错误时也要解锁请求
+      isRequestingComments = false;
       
       setTimeout(() => {
         loadingState.style.display = 'none';
@@ -1683,9 +1748,11 @@
           data: { workNumber: parseInt(workNumber) }
         }, '*');
         
-        // 同步更新筛选器并加载该作品的评论
+        // 【修复】同步更新筛选器，但避免触发其change事件（防止循环）
         const dropdownFilter = document.getElementById('dropdownFilter');
         if (dropdownFilter.value !== workNumber) {
+          // 标记为程序触发，避免重复加载
+          dropdownFilter.dataset.programmaticChange = 'true';
           dropdownFilter.value = workNumber;
           currentWorkFilter = workNumber;
           currentPage = 1;
@@ -1694,13 +1761,30 @@
       } else {
         // 清空选择时重置状态
         resetWorkSelection();
+        
+        // 【修复】同步清空筛选器
+        const dropdownFilter = document.getElementById('dropdownFilter');
+        if (dropdownFilter.value !== '') {
+          dropdownFilter.dataset.programmaticChange = 'true';
+          dropdownFilter.value = '';
+          currentWorkFilter = '';
+        }
+        
         // 重新加载所有评论
+        currentPage = 1;
         requestCommentsData();
       }
     });
 
     // 作品筛选
     document.getElementById('dropdownFilter').addEventListener('change', (e) => {
+      // 【修复】检查是否为程序触发（来自inputNumber的同步），避免重复加载
+      if (e.target.dataset.programmaticChange === 'true') {
+        delete e.target.dataset.programmaticChange;
+        console.log('[评论系统] 跳过程序触发的筛选器变化');
+        return;
+      }
+      
       currentWorkFilter = e.target.value;
       currentPage = 1;
       
@@ -1714,25 +1798,48 @@
     });
 
     // 评论类型筛选
+    let isFilterChanging = false; // 【新增】防止快速重复点击
+    
     document.querySelectorAll('.filter-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        if (tab.classList.contains('active')) return; // 已选中，无需重复加载
+      tab.addEventListener('click', async () => {
+        // 【修复】已选中或正在切换，无需重复操作
+        if (tab.classList.contains('active') || isFilterChanging) {
+          console.log('[评论系统] 跳过重复的筛选操作');
+          return;
+        }
         
+        isFilterChanging = true;
+        
+        // 更新UI状态
         document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        currentFilter = tab.dataset.filter;
-        currentPage = 1;
         
-        // 显示加载状态并请求数据
-        showLoading('正在切换筛选模式...');
-        requestCommentsData();
+        const newFilter = tab.dataset.filter;
+        
+        // 【修复】只有真正改变筛选模式时才重新加载
+        if (currentFilter !== newFilter) {
+          currentFilter = newFilter;
+          currentPage = 1;
+          
+          // 显示加载状态并请求数据
+          showLoading('正在切换筛选模式...');
+          requestCommentsData();
+          
+          // 延迟解锁，防止快速重复点击
+          setTimeout(() => {
+            isFilterChanging = false;
+          }, 500);
+        } else {
+          isFilterChanging = false;
+        }
       });
     });
 
     // 分页按钮
     ['Top', 'Bottom'].forEach(suffix => {
       document.getElementById(`prevBtn${suffix}`).addEventListener('click', () => {
-        if (currentPage > 1) {
+        // 【修复】添加防重复点击保护
+        if (currentPage > 1 && !isRequestingComments) {
           currentPage--;
           showLoading('正在加载上一页评论...');
           requestCommentsData();
@@ -1740,7 +1847,8 @@
       });
 
       document.getElementById(`nextBtn${suffix}`).addEventListener('click', () => {
-        if (currentPage < totalPages) {
+        // 【修复】添加防重复点击保护
+        if (currentPage < totalPages && !isRequestingComments) {
           currentPage++;
           showLoading('正在加载更多评论...');
           requestCommentsData();
@@ -1769,6 +1877,10 @@
         noComments.style.display = 'none';
         renderComments(allCommentsData);
       }
+      
+      // 【修复】渲染完成后解锁请求锁
+      isRequestingComments = false;
+      console.log('[评论系统] 评论渲染完成，已解锁请求');
     }
 
     function updatePagination() {
@@ -2289,8 +2401,34 @@
       }, '*');
     }
 
+    // 【新增】防止并发请求的锁
+    let isRequestingComments = false;
+    let pendingRequest = null;
+    
     function requestCommentsData() {
-      console.log('[评论系统] 请求评论数据...');
+      // 【修复】如果正在请求中，记录待处理请求并延迟执行
+      if (isRequestingComments) {
+        console.log('[评论系统] 已有请求进行中，延迟当前请求...');
+        
+        // 清除之前的待处理请求
+        if (pendingRequest) {
+          clearTimeout(pendingRequest);
+        }
+        
+        // 设置新的待处理请求（300ms后执行）
+        pendingRequest = setTimeout(() => {
+          pendingRequest = null;
+          requestCommentsData();
+        }, 300);
+        return;
+      }
+      
+      isRequestingComments = true;
+      console.log('[评论系统] 请求评论数据...', {
+        workFilter: currentWorkFilter,
+        filterMode: currentFilter,
+        currentPage: currentPage
+      });
       showLoading('加载评论中...');
       
       window.parent.postMessage({
@@ -2301,6 +2439,11 @@
           currentPage: currentPage
         }
       }, '*');
+      
+      // 【新增】2秒后自动解锁，防止卡死
+      setTimeout(() => {
+        isRequestingComments = false;
+      }, 2000);
     }
 
     // ==================== 实时Markdown预览 ====================

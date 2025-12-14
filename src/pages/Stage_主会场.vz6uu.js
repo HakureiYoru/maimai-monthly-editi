@@ -461,15 +461,19 @@ function initDeleteConfirmationPanel() {
         closeDeleteConfirmation();
         await refreshRepeaters();
 
-        // 【新增】同时刷新评论系统HTML元件的评论列表
+        // 【修复】刷新评论系统时，重置筛选状态（删除后回到所有评论视图更合理）
         if ($w("#commentSystemPanel")) {
           try {
+            // 清空评论缓存
+            resetCommentDataCache();
+            
+            // 刷新评论列表（回到默认视图）
             await sendCommentsData({
               workFilter: "",
               filterMode: "default",
               currentPage: 1,
             });
-            // console.log("[评论系统] 删除后已刷新评论列表");
+            console.log("[评论系统] 删除后已刷新评论列表");
           } catch (error) {
             console.error("[评论系统] 刷新评论列表失败:", error);
           }
@@ -547,15 +551,20 @@ function closeCommentRepliesPanel() {
     // 刷新页面数据
     refreshRepeaters();
 
-    // 【新增】同时刷新评论系统HTML元件的评论列表（如果有新回复）
+    // 【修复】回复后刷新评论系统，清空缓存以显示最新回复数（保持当前筛选状态）
     if ($w("#commentSystemPanel")) {
       try {
+        // 清空回复计数缓存和评论缓存
+        replyCountsCache = {};
+        resetCommentDataCache();
+        
+        // 刷新评论列表（保持默认视图，因为回复不影响主评论列表）
         sendCommentsData({
           workFilter: "",
           filterMode: "default",
           currentPage: 1,
         });
-        // console.log("[评论系统] 回复后已刷新评论列表");
+        console.log("[评论系统] 回复后已刷新评论列表");
       } catch (error) {
         console.error("[评论系统] 刷新评论列表失败:", error);
       }
@@ -1930,15 +1939,38 @@ async function ensureCommentPage(state, requestedPage) {
   return targetPage;
 }
 
+// 【新增】防止并发请求的锁
+let isSendingComments = false;
+let pendingSendRequest = null;
+
 // 发送评论数据
 async function sendCommentsData(requestData) {
+  // 【修复】如果正在发送评论数据，延迟当前请求
+  if (isSendingComments) {
+    console.log("[评论系统] 已有发送请求进行中，延迟当前请求...");
+    
+    // 清除之前的待处理请求
+    if (pendingSendRequest) {
+      clearTimeout(pendingSendRequest);
+    }
+    
+    // 设置新的待处理请求（300ms后执行，使用最新的请求数据）
+    pendingSendRequest = setTimeout(() => {
+      pendingSendRequest = null;
+      sendCommentsData(requestData);
+    }, 300);
+    return;
+  }
+  
+  isSendingComments = true;
+  
   try {
     const {
       workFilter = "",
       filterMode = "default",
       currentPage = 1,
     } = requestData || {};
-    // console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
+    console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
 
     const cacheKey = getCommentCacheKey(workFilter, filterMode);
     let state = commentDataCache.get(cacheKey);
@@ -1954,12 +1986,13 @@ async function sendCommentsData(requestData) {
     );
     const comments = state.pages.get(targetPage) || [];
 
+    // 【修复】返回当前实际使用的筛选状态，确保客户端同步
     $w("#commentSystemPanel").postMessage({
       type: "UPDATE_COMMENTS",
       data: {
         comments,
-        workFilter: workFilter || "",
-        filterMode,
+        workFilter: workFilter || "", // 返回实际使用的workFilter
+        filterMode: filterMode || "default", // 返回实际使用的filterMode
         currentPage: targetPage,
         totalPages: Math.max(1, state.totalPages),
         totalCount: state.totalCount,
@@ -1977,6 +2010,9 @@ async function sendCommentsData(requestData) {
         message: error.message || "加载评论数据失败，请稍后重试",
       },
     });
+  } finally {
+    // 【修复】无论成功或失败，都要解锁
+    isSendingComments = false;
   }
 }
 
@@ -2231,15 +2267,21 @@ async function handleCommentSubmit(data) {
 
     sendSubmitResult(true, successMessage);
 
-    // 立即刷新评论列表（重要：确保新评论立即显示）
+    // 【修复】刷新评论列表时，保持当前筛选状态（而非重置为默认）
+    // 清空缓存以确保获取最新数据
     resetCommentDataCache();
+    
+    // 延迟刷新，确保数据库已完成写入
     setTimeout(() => {
+      // 刷新到刚提交的作品评论页面，便于用户查看新评论
       sendCommentsData({
-        workFilter: "",
+        workFilter: workNumber.toString(),
         filterMode: "default",
         currentPage: 1,
       });
-    }, 500); // 500ms延迟确保数据库已完成写入
+      
+      console.log(`[评论系统] 评论提交成功，已刷新到作品 #${workNumber} 的评论列表`);
+    }, 500);
 
     // console.log(`[评论系统] 评论提交成功`);
   } catch (error) {
