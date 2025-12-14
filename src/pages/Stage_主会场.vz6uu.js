@@ -1999,6 +1999,7 @@ async function formatCommentForHTML(comment) {
       workTitle: "",
       replyCount: 0,
       isSelfScComment: false,
+      createdDate: comment._createdDate, // 添加创建时间
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询
