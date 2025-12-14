@@ -1306,6 +1306,9 @@
         case 'WORK_SELECTION_STATE':
           handleWorkSelectionState(data);
           break;
+        case 'SET_WORK_FILTER':
+          handleSetWorkFilter(data);
+          break;
         default:
           console.log('[评论系统] 未知消息类型:', type);
       }
@@ -1521,6 +1524,33 @@
         submitBtn.textContent = '提交评论';
         console.log('[评论系统] 正常状态，可以评论');
       }
+    }
+
+    // 【新增】处理设置作品筛选器的请求（来自"跳转到作品"按钮）
+    function handleSetWorkFilter(data) {
+      const workNumber = data.workNumber;
+      
+      if (!workNumber) {
+        console.warn('[评论系统] 设置筛选器失败：作品编号为空');
+        return;
+      }
+      
+      console.log(`[评论系统] 设置筛选器到作品 #${workNumber}`);
+      
+      // 更新筛选状态
+      currentWorkFilter = workNumber;
+      currentPage = 1;
+      
+      // 同步更新UI（使用程序触发标记避免重复加载）
+      const dropdownFilter = document.getElementById('dropdownFilter');
+      if (dropdownFilter) {
+        dropdownFilter.dataset.programmaticChange = 'true';
+        dropdownFilter.value = workNumber;
+      }
+      
+      // 加载该作品的评论
+      showLoading(`正在加载作品 #${workNumber} 的评论...`);
+      requestCommentsData();
     }
 
     function resetWorkSelection() {

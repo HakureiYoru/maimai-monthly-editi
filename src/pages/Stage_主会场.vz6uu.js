@@ -33,6 +33,13 @@ const commentDataCache = new Map(); // 缓存分页查询结果
 let selfScCommentIdCache = null; // 缓存作者自评评论ID集合
 let isLoadingSelfScComments = false; // 防止并发加载作者自评评论ID
 
+// 【新增】保存评论系统当前的筛选状态（避免面板切换时重置）
+let currentCommentSystemState = {
+  workFilter: "",
+  filterMode: "default",
+  currentPage: 1
+};
+
 // 缓存数据以减少API调用（性能优化）
 let userFormalRatingsCache = null; // 缓存用户正式评分状态
 let replyCountsCache = {}; // 缓存回复数量
@@ -461,19 +468,19 @@ function initDeleteConfirmationPanel() {
         closeDeleteConfirmation();
         await refreshRepeaters();
 
-        // 【修复】刷新评论系统时，重置筛选状态（删除后回到所有评论视图更合理）
+        // 【修复】刷新评论系统时，保持用户当前的筛选状态
         if ($w("#commentSystemPanel")) {
           try {
             // 清空评论缓存
             resetCommentDataCache();
             
-            // 刷新评论列表（回到默认视图）
+            // 【修复】使用保存的筛选状态，而不是硬编码的默认值
             await sendCommentsData({
-              workFilter: "",
-              filterMode: "default",
-              currentPage: 1,
+              workFilter: currentCommentSystemState.workFilter,
+              filterMode: currentCommentSystemState.filterMode,
+              currentPage: currentCommentSystemState.currentPage,
             });
-            console.log("[评论系统] 删除后已刷新评论列表");
+            console.log("[评论系统] 删除后已刷新评论列表（保持筛选状态）");
           } catch (error) {
             console.error("[评论系统] 刷新评论列表失败:", error);
           }
@@ -558,13 +565,13 @@ function closeCommentRepliesPanel() {
         replyCountsCache = {};
         resetCommentDataCache();
         
-        // 刷新评论列表（保持默认视图，因为回复不影响主评论列表）
+        // 【修复】使用保存的筛选状态，而不是硬编码的默认值
         sendCommentsData({
-          workFilter: "",
-          filterMode: "default",
-          currentPage: 1,
+          workFilter: currentCommentSystemState.workFilter,
+          filterMode: currentCommentSystemState.filterMode,
+          currentPage: currentCommentSystemState.currentPage,
         });
-        console.log("[评论系统] 回复后已刷新评论列表");
+        console.log("[评论系统] 回复后已刷新评论列表（保持筛选状态）");
       } catch (error) {
         console.error("[评论系统] 刷新评论列表失败:", error);
       }
@@ -988,15 +995,15 @@ async function refreshRepeaters() {
     // 重新加载排名数据
     await calculateAllWorksRanking();
 
-    // 【优化】通知新评论系统HTML元件刷新评论列表
+    // 【修复】通知新评论系统HTML元件刷新评论列表（保持当前筛选状态）
     if ($w("#commentSystemPanel")) {
       try {
         await sendCommentsData({
-          workFilter: "",
-          filterMode: "default",
-          currentPage: 1,
+          workFilter: currentCommentSystemState.workFilter,
+          filterMode: currentCommentSystemState.filterMode,
+          currentPage: currentCommentSystemState.currentPage,
         });
-        // console.log("[评论系统] 已刷新评论列表");
+        console.log("[评论系统] 已刷新评论列表（保持筛选状态）");
       } catch (error) {
         console.error("[评论系统] 刷新评论列表失败:", error);
       }
@@ -1972,6 +1979,13 @@ async function sendCommentsData(requestData) {
     } = requestData || {};
     console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
 
+    // 【新增】保存当前的筛选状态，用于面板切换后恢复
+    currentCommentSystemState = {
+      workFilter: workFilter,
+      filterMode: filterMode,
+      currentPage: currentPage
+    };
+
     const cacheKey = getCommentCacheKey(workFilter, filterMode);
     let state = commentDataCache.get(cacheKey);
 
@@ -2520,7 +2534,7 @@ async function handleViewReplies(data) {
 // 处理跳转到作品 - 设置作品搜索框、刷新作品列表并滚动到anchor2位置
 async function handleGotoWork(workNumber) {
   try {
-    // console.log(`[评论系统] 跳转到作品 #${workNumber}`);
+    console.log(`[评论系统] 跳转到作品 #${workNumber}`);
 
     // 获取作品标题
     const workResults = await wixData
@@ -2530,6 +2544,20 @@ async function handleGotoWork(workNumber) {
 
     if (workResults.items.length > 0) {
       const workTitle = workResults.items[0].firstName;
+
+      // 【新增】同时设置评论系统的筛选器到该作品
+      if ($w("#commentSystemPanel")) {
+        try {
+          // 通知评论系统切换筛选器到该作品
+          $w("#commentSystemPanel").postMessage({
+            type: "SET_WORK_FILTER",
+            data: { workNumber: workNumber.toString() }
+          });
+          console.log(`[评论系统] 已设置筛选器到作品 #${workNumber}`);
+        } catch (filterError) {
+          console.error("[评论系统] 设置筛选器失败:", filterError);
+        }
+      }
 
       // 更新作品搜索框（input1）的值为作品名称
       // 这会触发作品列表的搜索和刷新
@@ -2543,13 +2571,13 @@ async function handleGotoWork(workNumber) {
         try {
           if ($w("#anchor2")) {
             await $w("#anchor2").scrollTo();
-            // console.log(`[评论系统] 已滚动到 #anchor2`);
+            console.log(`[评论系统] 已滚动到 #anchor2`);
           }
         } catch (scrollError) {
           console.error("[评论系统] 滚动到anchor2失败:", scrollError);
         }
 
-        // console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
+        console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
       }
     }
   } catch (error) {
