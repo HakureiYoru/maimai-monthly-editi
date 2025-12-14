@@ -4,7 +4,11 @@
 
 import wixData from 'wix-data';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
-import { getWorkWeightedRatingData } from 'backend/ratingTaskManager.jsw';
+import {
+    fetchAllMainComments,
+    fetchAllWorks,
+    getWorkWeightedRatingData
+} from 'backend/ratingTaskManager.jsw';
 
 // ==================== 分页配置 ====================
 const WORKS_PER_PAGE = 10; // 每页显示10个作品
@@ -93,11 +97,9 @@ async function initializeWorksCache() {
         console.log('[评论检索] 初始化作品缓存...');
         
         // 1. 查询所有作品基础信息
-        const worksResult = await wixData.query("enterContest034")
-            .limit(1000)
-            .find();
+        const worksResult = await fetchAllWorks();
         
-        console.log(`[评论检索] 查询到 ${worksResult.items.length} 个作品`);
+        console.log(`[评论检索] 查询到 ${worksResult.length} 个作品`);
         
         // 2. 构建作品所有者映射和标题映射
         workOwnerMapCache = {};
@@ -106,7 +108,7 @@ async function initializeWorksCache() {
         
         let emptyTitleCount = 0;
         
-        worksResult.items.forEach(work => {
+        worksResult.forEach(work => {
             // 获取作品标题，优先使用firstName，如果为空则使用其他字段
             let title = work.firstName || work.title || work.name || `作品#${work.sequenceId}`;
             
@@ -143,19 +145,16 @@ async function initializeWorksCache() {
         });
         
         // 3. 加载所有评论数据
-        const commentsResult = await wixData.query("BOFcomment")
-            .isEmpty("replyTo")
-            .limit(1000)
-            .find();
+        const commentsResult = await fetchAllMainComments();
         
-        console.log(`[评论检索] 查询到 ${commentsResult.items.length} 条评论`);
+        console.log(`[评论检索] 查询到 ${commentsResult.length} 条评论`);
         
         // 过滤掉作者自评并按作品分组
         allCommentsCache = [];
         commentsByWorkCache = {};
         let missingWorkCount = 0;
         
-        for (const comment of commentsResult.items) {
+        for (const comment of commentsResult) {
             const workOwner = workOwnerMapCache[comment.workNumber];
             const isAuthorComment = comment._owner === workOwner;
             
