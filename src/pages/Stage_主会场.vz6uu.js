@@ -1,4 +1,4 @@
-﻿import wixUsers from "wix-users";
+import wixUsers from "wix-users";
 import wixData from "wix-data";
 import wixWindow from "wix-window";
 import {
@@ -1757,7 +1757,7 @@ async function initializeCommentPaginationState(
     if (normalizedWorkFilter !== null) {
       return query
         .eq("workNumber", normalizedWorkFilter)
-        .ascending("_createdDate");
+        .descending("_createdDate");
     }
 
     if (effectiveFilterMode === "YourComment") {
