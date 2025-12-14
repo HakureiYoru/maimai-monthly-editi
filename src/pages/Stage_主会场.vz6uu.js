@@ -1924,19 +1924,23 @@ async function ensureCommentPage(state, requestedPage) {
   const maxPage = Math.max(1, state.totalPages);
   const targetPage = Math.max(1, Math.min(requestedPage, maxPage));
 
-  while (!state.pages.has(targetPage) && !state.noMoreData) {
-    if (state.loadingPromise) {
-      await state.loadingPromise;
-    } else {
-      state.loadingPromise = fetchMoreComments(state)
-        .catch((error) => {
-          console.error("[评论系统] 加载评论页面数据失败:", error);
-        })
-        .finally(() => {
-          state.loadingPromise = null;
-        });
-      await state.loadingPromise;
-    }
+  // 【优化】如果目标页已缓存，直接返回
+  if (state.pages.has(targetPage)) {
+    return targetPage;
+  }
+
+  // 【优化】直接跳转到目标页，而不是顺序加载
+  if (state.loadingPromise) {
+    await state.loadingPromise;
+  } else {
+    state.loadingPromise = fetchSpecificCommentPage(state, targetPage)
+      .catch((error) => {
+        console.error("[评论系统] 加载评论页面数据失败:", error);
+      })
+      .finally(() => {
+        state.loadingPromise = null;
+      });
+    await state.loadingPromise;
   }
 
   if (!state.pages.has(targetPage)) {
@@ -1944,6 +1948,82 @@ async function ensureCommentPage(state, requestedPage) {
   }
 
   return targetPage;
+}
+
+// 【新增】直接加载指定页码的评论数据
+async function fetchSpecificCommentPage(state, targetPage) {
+  if (!state || state.noMoreData) {
+    return;
+  }
+
+  try {
+    // 计算需要跳过的记录数
+    const skipCount = (targetPage - 1) * state.pageSize;
+
+    // 【特殊处理】对于 ScoreOnly 模式，由于需要过滤作者自评，无法精确计算 skip
+    // 因此退回到顺序加载模式
+    if (state.isScoreOnly) {
+      // 检查是否需要顺序加载多页
+      const largestLoadedPage = state.pages.size > 0 ? Math.max(...state.pages.keys()) : 0;
+      
+      // 如果目标页距离已加载的最大页不远（<=4页），则顺序加载
+      if (targetPage - largestLoadedPage <= 4) {
+        while (!state.pages.has(targetPage) && !state.noMoreData) {
+          await fetchMoreComments(state);
+        }
+        return;
+      }
+      
+      // 否则，尝试估算并直接跳转（可能不精确）
+      const estimatedSkip = Math.floor(skipCount * 1.2); // 预留20%余量
+      const result = await state.createQuery()
+        .skip(estimatedSkip)
+        .limit(state.fetchLimit)
+        .find();
+      
+      const filteredItems = result.items.filter(
+        (item) => !state.selfScCommentIds.has(item._id)
+      );
+      
+      if (filteredItems.length >= state.pageSize) {
+        const pageData = filteredItems.slice(0, state.pageSize);
+        const formatted = await Promise.all(
+          pageData.map((item) => formatCommentForHTML(item))
+        );
+        state.pages.set(targetPage, formatted);
+      } else {
+        // 数据不足，退回顺序加载
+        state.lastResult = null;
+        while (!state.pages.has(targetPage) && !state.noMoreData) {
+          await fetchMoreComments(state);
+        }
+      }
+      return;
+    }
+
+    // 【普通模式】可以精确跳转
+    const result = await state.createQuery()
+      .skip(skipCount)
+      .limit(state.pageSize)
+      .find();
+
+    if (result.items.length > 0) {
+      const formatted = await Promise.all(
+        result.items.map((item) => formatCommentForHTML(item))
+      );
+      state.pages.set(targetPage, formatted);
+      console.log(`[评论系统] 已直接加载第 ${targetPage} 页 (${formatted.length} 条评论)`);
+    } else {
+      // 目标页没有数据，设置为空数组
+      state.pages.set(targetPage, []);
+      console.log(`[评论系统] 第 ${targetPage} 页无数据`);
+    }
+  } catch (error) {
+    console.error("[评论系统] 直接加载页面失败:", error);
+    // 失败时设置空数组，避免无限重试
+    state.pages.set(targetPage, []);
+    throw error;
+  }
 }
 
 // 【新增】防止并发请求的锁

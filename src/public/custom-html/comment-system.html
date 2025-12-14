@@ -300,6 +300,18 @@
       color: #fff;
       font-size: 14px;
       font-weight: 600;
+      cursor: pointer;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      transition: all 0.3s;
+      user-select: none;
+    }
+
+    .page-info:hover {
+      background: rgba(255, 255, 255, 0.4);
+      transform: translateY(-1px);
     }
 
     /* 评论列表 */
@@ -840,9 +852,15 @@
       transition: all 0.3s;
     }
 
-    .action-btn:hover {
+    .action-btn:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: rgba(255, 255, 255, 0.2);
     }
 
     .action-btn.delete {
@@ -850,7 +868,7 @@
       border-color: rgba(244, 67, 54, 0.6);
     }
 
-    .action-btn.delete:hover {
+    .action-btn.delete:hover:not(:disabled) {
       background: rgba(244, 67, 54, 0.6);
     }
 
@@ -1884,6 +1902,43 @@
           requestCommentsData();
         }
       });
+
+      // 【新增】页码点击跳转功能
+      document.getElementById(`pageInfo${suffix}`).addEventListener('click', () => {
+        if (isRequestingComments || totalPages <= 1) {
+          return; // 正在加载或只有一页时不响应
+        }
+
+        const inputPage = prompt(`请输入页码（1-${totalPages}）:`, currentPage.toString());
+        
+        if (inputPage === null) {
+          return; // 用户取消
+        }
+
+        const targetPage = parseInt(inputPage.trim());
+        
+        // 验证输入
+        if (isNaN(targetPage)) {
+          alert('❌ 请输入有效的数字');
+          return;
+        }
+        
+        if (targetPage < 1 || targetPage > totalPages) {
+          alert(`❌ 页码必须在 1-${totalPages} 之间`);
+          return;
+        }
+
+        if (targetPage === currentPage) {
+          return; // 已经在当前页，无需跳转
+        }
+
+        // 跳转到目标页
+        currentPage = targetPage;
+        showLoading(`正在加载第 ${targetPage} 页...`);
+        requestCommentsData();
+        
+        console.log(`[评论系统] 跳转到第 ${targetPage} 页`);
+      });
     });
 
     // ==================== 评论显示 ====================
@@ -2069,7 +2124,10 @@
 
       // 跳转到作品按钮（仅主评论）
       if (!comment.isReply) {
-        buttons.push(`<button class="action-btn goto-work-btn">跳转到作品</button>`);
+        // 检查当前是否已经在该作品的筛选下
+        const isCurrentlyFiltered = currentWorkFilter === comment.workNumber.toString();
+        const disabledAttr = isCurrentlyFiltered ? ' disabled title="已在该作品筛选下"' : '';
+        buttons.push(`<button class="action-btn goto-work-btn"${disabledAttr}>跳转到作品</button>`);
       }
 
       // 查看回复按钮
@@ -2135,7 +2193,7 @@
 
       // 跳转到作品
       const gotoWorkBtn = element.querySelector('.goto-work-btn');
-      if (gotoWorkBtn) {
+      if (gotoWorkBtn && !gotoWorkBtn.disabled) {
         gotoWorkBtn.addEventListener('click', (e) => {
           e.stopPropagation(); // 防止触发评论展开
           
