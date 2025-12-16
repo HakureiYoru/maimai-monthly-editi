@@ -36,7 +36,7 @@ const PARALLEL_TASKS_BUFFER = 1; // 缺口附加并发（收紧）
 const PARALLEL_TASKS_EXTRA_TOLERANCE = 1; // 软上限后仅多放1个
 const TASK_SATURATION_PENALTY_STEP = 0.25; // 超限降权更陡
 const TASK_SATURATION_FALLBACK_PENALTY = 0.5; // 只有饱和任务可选时的降权系数
-const MAX_PARALLEL_TASKS_PER_WORK = 6; // 并发硬封顶
+const MAX_PARALLEL_TASKS_PER_WORK = 8; // 并发硬封顶
 
 // 用户权重缓存
 let userQualityCache = {};
