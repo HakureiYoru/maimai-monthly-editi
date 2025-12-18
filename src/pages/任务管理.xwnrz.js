@@ -18,6 +18,8 @@ let filteredUsersData = [];
 let userInfoCache = {}; // 缓存用户公开信息
 let worksWeightComparisonData = null; // 作品权重对比数据
 let taskSummaryData = null; // 作品任务占用统计
+let rawRegistrationData = []; // 报名原始数据（包含未提交的报名者）
+let registrationProgressData = []; // 报名进度视图数据
 let currentFilters = {
   quality: 'all',
   completion: 'all',
@@ -79,7 +81,7 @@ async function batchLoadUserInfo(userIds, batchSize = 15, onBatchComplete = null
           setTimeout(() => reject(new Error('timeout')), 2000)
         );
         
-        const userInfoPromise = getUserPublicInfo(userId);
+        const userInfoPromise = getUserPublicInfo(userId).catch(() => null);
         const userInfo = await Promise.race([userInfoPromise, timeoutPromise]);
         
         if (userInfo) {
@@ -129,6 +131,7 @@ async function loadAllUsersTaskData() {
       type: "loading",
       message: "正在汇总作品任务分配情况...",
     });
+    sendRegistrationLoading("正在加载报名任务进度...");
     
     // 设置30秒超时，防止无限等待
     const timeoutPromise = new Promise((_, reject) => 
@@ -139,6 +142,9 @@ async function loadAllUsersTaskData() {
       getAllUsersTaskManagementData(),
       timeoutPromise
     ]);
+    
+    // 保存报名数据（包含未提交者）
+    rawRegistrationData = taskManagementData.registrations || [];
     
     // 创建初始数据，优先使用缓存的用户信息
     allUsersData = taskManagementData.users.map(userData => {
@@ -161,6 +167,9 @@ async function loadAllUsersTaskData() {
         };
       }
     });
+
+    // 映射报名视图数据
+    registrationProgressData = mapRegistrationViewData(rawRegistrationData);
     
     // 重新应用筛选器和排序
     applyFilters();
@@ -176,10 +185,14 @@ async function loadAllUsersTaskData() {
       stats: taskManagementData.stats,
       worksComparison: null
     });
+    sendRegistrationDataToHtml();
     
     // 异步分批加载用户信息，每批完成后更新UI
-    const userIds = taskManagementData.users.map(u => u.userId);
-    const uncachedUserIds = userIds.filter(userId => !userInfoCache[userId]);
+    const userIds = [
+      ...taskManagementData.users.map(u => u.userId),
+      ...rawRegistrationData.map((r) => r.userId)
+    ];
+    const uncachedUserIds = [...new Set(userIds)].filter(userId => !userInfoCache[userId]);
     
     // 只有在有未缓存的用户时才显示加载提示和进行加载
     if (uncachedUserIds.length > 0) {
@@ -218,6 +231,10 @@ async function loadAllUsersTaskData() {
         // 重新应用筛选器和排序
         applyFilters();
         applySorting();
+
+        // 更新报名视图数据并发送
+        registrationProgressData = mapRegistrationViewData(rawRegistrationData);
+        sendRegistrationDataToHtml();
         
         // 每批完成后更新UI（不重新发送作品对比数据）
         sendDataToHTML({
@@ -241,6 +258,7 @@ async function loadAllUsersTaskData() {
       type: "error",
       message: "汇总数据加载失败: " + error.message,
     });
+    sendRegistrationError("报名进度加载失败: " + error.message);
   }
 }
 
@@ -310,6 +328,98 @@ function safePostToTasksum(payload) {
 }
 
 /**
+ * 向报名进度 HTML 元件发送数据
+ */
+function sendRegistrationDataToHtml() {
+  const stats = computeRegistrationStats(registrationProgressData);
+  safePostToRegistration({
+    type: "registrations",
+    data: {
+      registrations: registrationProgressData,
+      stats: stats,
+    },
+  });
+}
+
+/**
+ * 发送报名进度加载状态
+ */
+function sendRegistrationLoading(message) {
+  safePostToRegistration({
+    type: "loading",
+    message: message,
+  });
+}
+
+/**
+ * 发送报名进度错误信息
+ */
+function sendRegistrationError(message) {
+  safePostToRegistration({
+    type: "error",
+    message: message,
+  });
+}
+
+/**
+ * 安全发送报名进度消息（HTML 元件缺失时静默）
+ */
+function safePostToRegistration(payload) {
+  try {
+    $w("#htmlRegistrations").postMessage(payload);
+  } catch (err) {
+    // 元件缺失时忽略
+  }
+}
+
+/**
+ * 将报名原始数据映射为视图数据，补充用户公开信息
+ */
+function mapRegistrationViewData(registrations = []) {
+  return registrations.map((reg) => {
+    const userInfo = userInfoCache[reg.userId];
+    return {
+      ...reg,
+      userName: userInfo?.name || reg.userId,
+      userSlug: userInfo?.slug || "",
+      profileImageUrl: userInfo?.profileImageUrl || "",
+      contactUrl: reg.contactUrl || "",
+      registrationName: reg.registrationName || "",
+    };
+  });
+}
+
+/**
+ * 统计报名进度数据
+ */
+function computeRegistrationStats(registrations = []) {
+  const total = registrations.length;
+  const submitted = registrations.filter((r) => r.hasSubmittedWork).length;
+  const withoutSubmission = total - submitted;
+  const reachedTarget = registrations.filter(
+    (r) => (r.completedCount || 0) >= (r.targetCompletion || 0)
+  ).length;
+  const inProgress = registrations.filter(
+    (r) =>
+      r.hasSubmittedWork &&
+      (r.completedCount || 0) > 0 &&
+      (r.completedCount || 0) < (r.targetCompletion || 0)
+  ).length;
+  const notStarted = registrations.filter(
+    (r) => r.hasSubmittedWork && (r.completedCount || 0) === 0
+  ).length;
+
+  return {
+    total,
+    submitted,
+    withoutSubmission,
+    reachedTarget,
+    inProgress,
+    notStarted,
+  };
+}
+
+/**
  * 设置事件监听器
  */
 function setupEventListeners() {
@@ -376,6 +486,17 @@ function setupEventListeners() {
       });
     }
   });
+
+  // 监听报名进度 HTML 元件
+  try {
+    $w("#htmlRegistrations").onMessage((event) => {
+      if (event.data.action === "ready") {
+        sendRegistrationDataToHtml();
+      }
+    });
+  } catch (err) {
+    // 元件缺失时静默忽略
+  }
 }
 
 /**

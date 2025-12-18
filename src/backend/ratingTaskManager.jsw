@@ -1351,8 +1351,13 @@ export async function getAllUsersTaskManagementData() {
 
     // 3. 构建作品信息映射
     const worksMap = {};
+    const worksByOwner = {};
     allWorks.forEach((work) => {
       worksMap[work.sequenceId] = work;
+      if (!worksByOwner[work._owner]) {
+        worksByOwner[work._owner] = [];
+      }
+      worksByOwner[work._owner].push(work.sequenceId);
     });
 
     // 4. 构建评论映射（按作品分组）
@@ -1372,6 +1377,30 @@ export async function getAllUsersTaskManagementData() {
       }
       userRatedWorksMap[comment._owner].add(comment.workNumber);
     });
+
+    // 5. 预先建立 userId → 任务记录 的映射，便于后续查询
+    const taskRecordMap = {};
+    allTaskRecords.items.forEach((record) => {
+      taskRecordMap[record.userId] = record;
+    });
+
+    // 5.1 报名联系方式提取工具（兼容多种字段命名）
+    const getRegistrationContact = (registration) => {
+      const candidates = [
+        registration["谱面发布网址"],
+        registration.publishUrl,
+        registration.puMianFaBuWangZhi,
+        registration.url,
+        registration.url1,
+        registration.url2,
+        registration["網址欄1"],
+        registration["網址欄2"],
+      ];
+      const contact = candidates.find(
+        (value) => value !== undefined && value !== null && String(value).trim() !== ""
+      );
+      return contact || "";
+    };
 
     // 5. 预计算所有涉及作品的权重数据（批量处理）
     const allTaskWorkNumbers = new Set();
@@ -1499,6 +1528,32 @@ export async function getAllUsersTaskManagementData() {
       });
     }
 
+    // 7. 构建报名进度列表（包含未提交作品的报名者）
+    const registrationsProgress = allRegistrations.items.map((registration) => {
+      const userId = registration._owner;
+      const taskRecord = taskRecordMap[userId];
+      const completedTasks = taskRecord?.completedTasks || [];
+      const completedSet = new Set(completedTasks);
+      const freeRatings =
+        userRatedWorksMap[userId] && userRatedWorksMap[userId].size > 0
+          ? Array.from(userRatedWorksMap[userId])
+          : [];
+
+      return {
+        userId,
+        isHighQuality: registration.isHighQuality === true,
+        hasSubmittedWork: (worksByOwner[userId] || []).length > 0,
+        completedCount: taskRecord?.totalCompleted || 0,
+        targetCompletion: TARGET_USER_COMPLETION,
+        currentTaskCount: taskRecord?.currentTasks?.length || 0,
+        completedTasks: [...completedTasks].sort((a, b) => b - a),
+        freeRatings: freeRatings.filter((w) => !completedSet.has(w)).sort((a, b) => b - a),
+        lastRefreshTime: taskRecord ? taskRecord.lastRefreshTime : null,
+        contactUrl: getRegistrationContact(registration),
+        registrationName: registration.firstName || "",
+      };
+    });
+
     // 7. 计算整体统计
     const totalHighQualityUsers = Object.values(userQualityMap).filter(
       (v) => v
@@ -1515,6 +1570,7 @@ export async function getAllUsersTaskManagementData() {
         targetRatio: TARGET_HIGH_LOW_RATIO,
         tolerance: RATIO_TOLERANCE,
       },
+      registrations: registrationsProgress,
     };
   } catch (error) {
     console.error("获取任务管理数据失败:", error);

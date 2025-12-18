@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>报名任务进度</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: rgba(0, 0, 0, 0);
+      color: #f2f2f2;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .header .sub {
+      color: #c7c7c7;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls label {
+      font-size: 13px;
+      color: #c7c7c7;
+    }
+
+    .controls select {
+      padding: 8px 12px;
+      background: #2a2a2a;
+      border: 1px solid #555;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      padding: 16px;
+    }
+
+    .stat-label {
+      color: #a5a5a5;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .stat-extra {
+      color: #888;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-muted {
+      border-color: #6b1111;
+      background: rgba(54, 33, 33, 0.85);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .user {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      word-break: break-all;
+    }
+
+    .meta {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .badge.qualified {
+      background: #ffc107;
+      color: #000;
+    }
+
+    .badge.muted {
+      background: #555;
+      color: #f7f7f7;
+    }
+
+    .badge.status-submitted {
+      background: #2ecc71;
+      color: #fff;
+    }
+
+    .badge.status-progress {
+      background: #3498db;
+      color: #fff;
+    }
+
+    .badge.status-pending {
+      background: #e74c3c;
+      color: #fff;
+    }
+
+    .value-pill {
+      padding: 6px 12px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #fff;
+      font-weight: 800;
+      border-radius: 8px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .progress {
+      width: 100%;
+      height: 14px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-bar.complete {
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+    }
+
+    .progress-bar.active {
+      background: linear-gradient(90deg, #1e88e5, #64b5f6);
+    }
+
+    .progress-bar.pending {
+      background: #555;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #ccc;
+    }
+
+    .state {
+      padding: 60px 20px;
+      text-align: center;
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+      color: #d1d1d1;
+      font-size: 16px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+      font-size: 14px;
+      background: rgba(42, 42, 42, 0.92);
+      border: 1px solid #555;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #444;
+      border-top: 4px solid #ccc;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>报名任务进度</h1>
+      <div class="sub">展示 jobApplication089 报名用户的任务完成情况，包含尚未提交作品的报名者。</div>
+      <div class="controls">
+        <label for="sortSelect">排序：</label>
+        <select id="sortSelect">
+          <option value="status">按完成状态</option>
+          <option value="name">按姓名字母</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="stats" class="stats"></div>
+
+    <div id="content" class="state">
+      <div class="spinner"></div>
+      正在等待数据...
+    </div>
+  </div>
+
+  <script>
+    let registrationsData = [];
+    let registrationStats = {};
+    let currentSortMode = 'status';
+
+    const sortSelect = document.getElementById('sortSelect');
+    sortSelect.addEventListener('change', (e) => {
+      currentSortMode = e.target.value;
+      render();
+    });
+
+    window.addEventListener('message', (event) => {
+      const payload = event.data || {};
+      if (!payload.type) {
+        return;
+      }
+
+      if (payload.type === 'registrations') {
+        const data = payload.data || {};
+        registrationsData = data.registrations || [];
+        registrationStats = data.stats || {};
+        render();
+      } else if (payload.type === 'loading') {
+        showLoading(payload.message || '正在加载报名进度...');
+      } else if (payload.type === 'error') {
+        showError(payload.message || '加载失败');
+      }
+    });
+
+    window.onload = () => {
+      window.parent.postMessage({ action: 'ready' }, '*');
+    };
+
+    function render() {
+      updateStats(registrationStats);
+      renderList(registrationsData);
+    }
+
+    function updateStats(stats = {}) {
+      const total = stats.total || 0;
+      const submitted = stats.submitted || 0;
+      const withoutSubmission = stats.withoutSubmission || 0;
+      const reachedTarget = stats.reachedTarget || 0;
+      const inProgress = stats.inProgress || 0;
+
+      const statsEl = document.getElementById('stats');
+      statsEl.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">报名人数</div>
+          <div class="stat-value">${total}</div>
+          <div class="stat-extra">jobApplication089 总报名数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已提交作品</div>
+          <div class="stat-value">${submitted}</div>
+          <div class="stat-extra">可派发任务的人数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">未提交作品</div>
+          <div class="stat-value">${withoutSubmission}</div>
+          <div class="stat-extra">仍需提交作品后才能分配任务</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已达标</div>
+          <div class="stat-value">${reachedTarget}</div>
+          <div class="stat-extra">已完成目标任务数量的报名者</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">进行中</div>
+          <div class="stat-value">${inProgress}</div>
+          <div class="stat-extra">已提交作品但尚未达标</div>
+        </div>
+      `;
+    }
+
+    function renderList(list = []) {
+      const contentEl = document.getElementById('content');
+      if (!list.length) {
+        contentEl.className = 'empty';
+        contentEl.innerHTML = '暂无报名数据';
+        return;
+      }
+
+      contentEl.className = '';
+      const sorted = getSortedRegistrations(list);
+
+      const cardsHtml = sorted.map(renderCard).join('');
+      contentEl.innerHTML = `<div class="cards">${cardsHtml}</div>`;
+    }
+
+    function getSortedRegistrations(list) {
+      const data = [...list];
+      if (currentSortMode === 'name') {
+        return data.sort((a, b) => {
+          const nameA = (a.userName || a.registrationName || '').toLowerCase();
+          const nameB = (b.userName || b.registrationName || '').toLowerCase();
+          if (nameA !== nameB) {
+            return nameA.localeCompare(nameB);
+          }
+          return (a.userId || '').localeCompare(b.userId || '');
+        });
+      }
+
+      // 默认：按完成状态
+      return data.sort((a, b) => {
+        if (a.hasSubmittedWork !== b.hasSubmittedWork) {
+          return a.hasSubmittedWork ? 1 : -1; // 未提交排前
+        }
+        const aPct = getProgress(a).percent;
+        const bPct = getProgress(b).percent;
+        if (bPct !== aPct) {
+          return bPct - aPct; // 进度高的优先
+        }
+        return (b.completedCount || 0) - (a.completedCount || 0);
+      });
+    }
+
+    function renderCard(item) {
+      const progress = getProgress(item);
+      const statusBadge = getStatusBadge(item, progress);
+      const qualityBadge = item.isHighQuality
+        ? '<span class="badge qualified">Qualified</span>'
+        : '<span class="badge muted">普通</span>';
+      const progressClass = !item.hasSubmittedWork
+        ? 'pending'
+        : progress.completed >= progress.target && progress.target > 0
+        ? 'complete'
+        : 'active';
+      const refreshText = formatDate(item.lastRefreshTime);
+      const taskInfo = item.hasSubmittedWork
+        ? `${item.currentTaskCount || 0} 个当前任务`
+        : '未派发任务';
+      const contactHtml = formatContact(item.contactUrl);
+      const regName = item.registrationName ? `（${escapeHtml(item.registrationName)}）` : '';
+
+      return `
+        <div class="card ${!item.hasSubmittedWork ? 'card-muted' : ''}">
+          <div class="card-header">
+            <div class="user">
+              <div class="name">${escapeHtml(item.userName || '未知用户')}${regName}</div>
+              <div class="meta">${contactHtml}</div>
+              <div class="badges">
+                ${qualityBadge}
+                ${statusBadge}
+              </div>
+            </div>
+            <div class="value-pill">${progress.completed}/${progress.target}</div>
+          </div>
+          <div class="progress">
+            <div class="progress-bar ${progressClass}" style="width:${progress.percent}%"></div>
+          </div>
+          <div class="progress-info">
+            <span>${progress.percent}% 完成</span>
+            <span>${taskInfo}</span>
+          </div>
+          <div class="meta">最后刷新：${refreshText}</div>
+        </div>
+      `;
+    }
+
+    function getProgress(item) {
+      const target = item.targetCompletion || 0;
+      const completed = item.completedCount || 0;
+      const percent = target > 0 ? Math.min(100, Math.round((completed / target) * 100)) : 0;
+      return { target, completed, percent };
+    }
+
+    function getStatusBadge(item, progress) {
+      if (!item.hasSubmittedWork) {
+        return '<span class="badge status-pending">未提交作品</span>';
+      }
+      if (progress.completed >= progress.target && progress.target > 0) {
+        return '<span class="badge status-submitted">已达标</span>';
+      }
+      return '<span class="badge status-progress">进行中</span>';
+    }
+
+    function formatContact(raw) {
+      const contact = (raw || '').trim();
+      if (!contact) return '未填写联系方式';
+      if (/^https?:\/\//i.test(contact)) {
+        const safe = escapeHtml(contact);
+        return `<a href="${safe}" target="_blank" rel="noopener noreferrer" style="color:#61dafb;">${safe}</a>`;
+      }
+      return escapeHtml(contact);
+    }
+
+    function formatDate(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return '—';
+      }
+      return date.toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function showLoading(message) {
+      const contentEl = document.getElementById('content');
+      contentEl.className = 'state';
+      contentEl.innerHTML = `
+        <div class="spinner"></div>
+        ${message || '正在加载...'}
+      `;
+    }
+
+    function showError(message) {
+      const contentEl = document.getElementById('content');
+      contentEl.className = 'state';
+      contentEl.innerHTML = `
+        ${escapeHtml(message || '加载失败')}
+      `;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
