@@ -1,11 +1,7 @@
 import wixUsers from "wix-users";
 import wixData from "wix-data";
 import wixWindow from "wix-window";
-import {
-  getMediaDownloadUrls,
-  getFileDownloadUrlAndContent,
-  getBatchDownloadUrls,
-} from "backend/mediaManagement.jsw";
+import { getBatchDownloadUrls } from "backend/mediaManagement.jsw";
 import { updateUserPoints } from "backend/forumPoints.jsw";
 import {
   deleteComment,
@@ -219,33 +215,20 @@ $w.onReady(async function () {
 
   // Repeater2: 作品显示
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
-    const maidataUrl = itemData.inVideo的複本;
-    const trackUrl = itemData.maidata的複本;
-    const bgUrl = itemData.track的複本;
     const bgVideoUrl = itemData.上傳檔案欄;
     const submitTime = itemData.submissionTime;
     const formattedSubmitTime = formatDate(submitTime);
 
-    const downloadUrl = await getMediaDownloadUrls(
-      maidataUrl,
-      trackUrl,
-      bgUrl,
-      bgVideoUrl
-    );
-
-    $item("#button3").label = "Download";
-
-    // 视频显示控制
-    if (bgVideoUrl) {
-      $item("#movie").show();
-    } else {
-      $item("#movie").hide();
-    }
+    // // 视频显示控制
+    // if (bgVideoUrl) {
+    //   $item("#movie").show();
+    // } else {
+    //   $item("#movie").hide();
+    // }
 
     $item("#submitTime").text = formattedSubmitTime;
-    await parseDifficultyLevels($item, maidataUrl);
     await updateItemEvaluationDisplay($item, itemData);
-    await updateButtonStatus($item, itemData._id);
+    // await updateButtonStatus($item, itemData._id);
     await updateCommentStatus($item, itemData);
 
     // 淘汰作品视觉效果
@@ -255,7 +238,7 @@ $w.onReady(async function () {
       $item("#container2").style.backgroundColor = "rgba(128, 128, 128, 0.2)";
     }
 
-    setupItemEventListeners($item, itemData, downloadUrl);
+    setupItemEventListeners($item, itemData);
   });
 
   // 【已移除】Repeater1评论显示功能已迁移到新的HTML元件（commentSystemPanel）
@@ -1016,28 +999,7 @@ async function refreshRepeaters() {
   }
 }
 
-// 解析maidata文件中的难度等级
-async function parseDifficultyLevels($item, maidataUrl) {
-  try {
-    const { downloadUrl, fileContent } = await getFileDownloadUrlAndContent(
-      maidataUrl
-    );
-
-    const lv4Pattern = /&lv_4=([\d+]+)/;
-    const lv5Pattern = /&lv_5=([\d+]+)/;
-    const lv6Pattern = /&lv_6=([\d+]+)/;
-
-    const lv4Match = fileContent.match(lv4Pattern);
-    const lv5Match = fileContent.match(lv5Pattern);
-    const lv6Match = fileContent.match(lv6Pattern);
-
-    $item("#LevelExpert").text = lv4Match ? lv4Match[1] : "";
-    $item("#LevelMaster").text = lv5Match ? lv5Match[1] : "";
-    $item("#LevelRe").text = lv6Match ? lv6Match[1] : "";
-  } catch (error) {
-    console.error("Error fetching file content:", error);
-  }
-}
+// 【已移除】parseDifficultyLevels 函数 - 不再从maidata文件解析难度等级
 
 // 【优化】显示作者信息和样式
 // 优化：使用批量缓存，只在必要时查询作品名称
@@ -1131,14 +1093,8 @@ async function displayReplyCount($item, commentId) {
 }
 
 // 设置作品项目的事件监听器
-function setupItemEventListeners($item, itemData, downloadUrl) {
-  $item("#button3").onClick(() => {
-    $w("#htmlDownloadHelper").postMessage({
-      action: "download",
-      downloadUrl,
-      titleValue,
-    });
-  });
+function setupItemEventListeners($item, itemData) {
+  // 【已移除】下载按钮事件监听器 - 不再使用 getMediaDownloadUrls
 
   $item("#checkText").onClick(() => {
     const descriptionText = $item("#descriptionBox").value;
@@ -1233,12 +1189,12 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   }
 }
 
-// 更新下载按钮状态
-async function updateButtonStatus($item, sheetId) {
-  $item("#button3").enable();
-  $item("#button3").show();
-  $item("#downloadAble").show();
-}
+// // 更新下载按钮状态
+// async function updateButtonStatus($item, sheetId) {
+//   $item("#button3").enable();
+//   $item("#button3").show();
+//   $item("#downloadAble").show();
+// }
 
 // 【优化】获取评分数据（排除作者自评，使用加权平均分）
 // 优先使用批量缓存，大幅减少API调用
