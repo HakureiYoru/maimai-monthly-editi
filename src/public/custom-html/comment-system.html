@@ -2434,6 +2434,53 @@
       return div.innerHTML;
     }
 
+    function isSafeUrl(url) {
+      if (!url) return false;
+      const value = url.trim().toLowerCase();
+      if (value.startsWith('javascript:') || value.startsWith('vbscript:')) {
+        return false;
+      }
+      if (value.startsWith('data:') && !value.startsWith('data:image/')) {
+        return false;
+      }
+      return true;
+    }
+
+    function sanitizeMarkdownHtml(html) {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+
+      const forbiddenTags = new Set(['script', 'style', 'link', 'iframe', 'object', 'embed', 'base', 'meta']);
+      const nodesToRemove = [];
+      const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT, null);
+
+      while (walker.nextNode()) {
+        const element = walker.currentNode;
+        const tagName = element.tagName.toLowerCase();
+        if (forbiddenTags.has(tagName)) {
+          nodesToRemove.push(element);
+          continue;
+        }
+
+        for (const attr of Array.from(element.attributes)) {
+          const name = attr.name.toLowerCase();
+          if (name === 'style' || name.startsWith('on')) {
+            element.removeAttribute(attr.name);
+            continue;
+          }
+          if ((name === 'href' || name === 'src') && !isSafeUrl(attr.value)) {
+            element.removeAttribute(attr.name);
+          }
+        }
+      }
+
+      for (const node of nodesToRemove) {
+        node.remove();
+      }
+
+      return template.innerHTML;
+    }
+
     function renderMarkdown(text) {
       if (!text) return '';
       
@@ -2455,7 +2502,7 @@
             return `<img${before}alt="${cleanAlt}"${sizeClass}${after}>`;
           });
           
-          return html;
+          return sanitizeMarkdownHtml(html);
         } catch (error) {
           console.error('[评论系统] Markdown解析失败:', error);
           // 降级为纯文本显示

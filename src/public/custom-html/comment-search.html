@@ -655,8 +655,15 @@
             // 清空现有选项
             userFilter.innerHTML = '<option value="">全部用户</option>';
             
+            // 【修改】按用户序号排序
+            const sortedUserList = [...userList].sort((a, b) => {
+                const numA = userIdToNumberMap[a.userId] || 0;
+                const numB = userIdToNumberMap[b.userId] || 0;
+                return numA - numB;
+            });
+            
             // 添加用户选项
-            userList.forEach(user => {
+            sortedUserList.forEach(user => {
                 const option = document.createElement('option');
                 option.value = user.userId;
                 option.textContent = getEncryptedUserName(user.userId) + ` (${user.commentCount}条评论)`;
