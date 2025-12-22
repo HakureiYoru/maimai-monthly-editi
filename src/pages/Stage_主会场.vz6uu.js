@@ -42,11 +42,13 @@ let replyCountsCache = {}; // 缓存回复数量
 let workOwnersCache = {}; // 缓存作品所有者信息
 let allWorksRankingCache = null; // 缓存所有作品的排名信息
 let workTitlesCache = {}; // 缓存作品标题信息
+let userCommentStatusCache = null; // 【新增】缓存用户评论状态 Map<workNumber, boolean>
 
 // 【新增】加载锁，防止并发重复加载
 let isLoadingUserFormalRatings = false; // 防止并发加载用户评分状态
 let isLoadingBatchData = false; // 防止并发加载批量数据
 let isLoadingRanking = false; // 防止并发加载排名数据
+let isLoadingUserComments = false; // 防止并发加载用户评论状态
 
 // 【新增】批量数据缓存 - 一次性加载所有作品评分数据
 let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
@@ -251,6 +253,11 @@ $w.onReady(async function () {
     await batchLoadUserFormalRatings();
   }
 
+  // 【性能优化】预加载用户评论状态（减少 repeater2 的请求量）
+  if (currentUserId && isUserVerified) {
+    await batchLoadUserCommentStatus();
+  }
+
   // 【优化】预加载作品排名数据（使用批量数据）
   await calculateAllWorksRanking();
 
@@ -270,6 +277,7 @@ $w.onReady(async function () {
 
 // 评论状态检查 - 优先级：淘汰 > 未登录 > 未验证 > 评论状态（任务/冷门高亮提示）
 // ⚠️ 此函数被 Repeater2（作品列表）使用，用于显示作品的评论状态（#ifComment）
+// 【性能优化】使用缓存避免每个作品都查询数据库和后端API
 async function updateCommentStatus($item, itemData) {
   if (itemData.isDq === true) {
     $item("#ifComment").text = "已淘汰";
@@ -290,31 +298,35 @@ async function updateCommentStatus($item, itemData) {
   }
 
   try {
-    const results = await wixData
-      .query("BOFcomment")
-      .eq("workNumber", itemData.sequenceId)
-      .eq("_owner", currentUserId)
-      .isEmpty("replyTo")
-      .find();
+    // 【性能优化】从缓存读取评论状态，避免逐个查询数据库
+    if (!userCommentStatusCache) {
+      await batchLoadUserCommentStatus();
+    }
+    const hasCommented = userCommentStatusCache.get(itemData.sequenceId) || false;
 
-    // 【优化】检查是否为任务作品或冷门作品 - 使用缓存避免重复调用
-    // 【新增】同时检查用户任务数据是否有效（排除未提交作品等错误状态）
+    // 【性能优化】直接从缓存的任务列表检查，避免每个作品都调用后端API
     const hasValidTaskData = userTaskDataCache && !userTaskDataCache.error;
-    const taskCheck = hasValidTaskData
-      ? await checkIfWorkInTaskList(currentUserId, itemData.sequenceId)
-      : { inTaskList: false, alreadyCompleted: false };
-    const hasCompletedTarget = hasValidTaskData
-      ? userTaskDataCache.hasCompletedTarget || false
-      : false;
+    let isTask = false;
+    let isColdWork = false;
 
-    const isTask =
-      taskCheck.inTaskList &&
-      !taskCheck.alreadyCompleted &&
-      !hasCompletedTarget;
-    const isColdWork =
-      taskCheck.inTaskList && !taskCheck.alreadyCompleted && hasCompletedTarget;
+    if (hasValidTaskData && userTaskDataCache.taskList) {
+      // 从任务列表中查找当前作品
+      const taskItem = userTaskDataCache.taskList.find(
+        (task) => task.workNumber === itemData.sequenceId
+      );
+      
+      if (taskItem) {
+        const isAlreadyCompleted = taskItem.completed === true;
+        const hasCompletedTarget = userTaskDataCache.hasCompletedTarget || false;
+        
+        // 未完成的任务且未达成目标 = 任务作品
+        isTask = !isAlreadyCompleted && !hasCompletedTarget;
+        // 未完成的任务但已达成目标 = 冷门作品
+        isColdWork = !isAlreadyCompleted && hasCompletedTarget;
+      }
+    }
 
-    if (results.items.length > 0) {
+    if (hasCommented) {
       $item("#ifComment").text = "已评论";
       $item("#ifComment").style.color = "#228B22";
     } else {
@@ -731,6 +743,59 @@ async function calculateAllWorksRanking() {
   }
 }
 
+// 【新增】批量加载用户评论状态（优化 updateCommentStatus 性能）
+async function batchLoadUserCommentStatus() {
+  // 如果已有缓存，直接返回
+  if (!currentUserId || !isUserVerified || userCommentStatusCache) {
+    return userCommentStatusCache || new Map();
+  }
+
+  // 【关键】如果正在加载，等待加载完成
+  if (isLoadingUserComments) {
+    let waitCount = 0;
+    while (isLoadingUserComments && waitCount < 600) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      waitCount++;
+    }
+    return userCommentStatusCache || new Map();
+  }
+
+  // 设置加载锁
+  isLoadingUserComments = true;
+
+  try {
+    // console.log("[性能优化] 批量加载用户评论状态...");
+    const startTime = Date.now();
+
+    // 一次性查询用户的所有主评论（非回复）
+    const userComments = await wixData
+      .query("BOFcomment")
+      .eq("_owner", currentUserId)
+      .isEmpty("replyTo")
+      .limit(1000)
+      .find();
+
+    // 构建缓存 Map：workNumber -> true
+    const commentStatusMap = new Map();
+    userComments.items.forEach((comment) => {
+      commentStatusMap.set(comment.workNumber, true);
+    });
+
+    userCommentStatusCache = commentStatusMap;
+    const endTime = Date.now();
+    console.log(
+      `用户评论状态加载完成，共${commentStatusMap.size}个作品已评论，耗时: ${endTime - startTime}ms`
+    );
+    return commentStatusMap;
+  } catch (error) {
+    console.error("批量加载用户评论状态失败:", error);
+    return new Map();
+  } finally {
+    // 释放加载锁
+    isLoadingUserComments = false;
+  }
+}
+
 // 【优化】批量获取用户正式评分状态
 // 使用批量缓存中的作品所有者信息，减少查询
 async function batchLoadUserFormalRatings() {
@@ -816,6 +881,7 @@ async function checkUserHasFormalRating(workNumber) {
 // 【优化】清理缓存数据
 function clearCaches() {
   userFormalRatingsCache = null;
+  userCommentStatusCache = null; // 清理用户评论状态缓存
   replyCountsCache = {};
   workOwnersCache = {};
   workTitlesCache = {}; // 清理作品标题缓存
@@ -826,6 +892,7 @@ function clearCaches() {
 
   // 重置所有加载锁
   isLoadingUserFormalRatings = false;
+  isLoadingUserComments = false;
   isLoadingBatchData = false;
   isLoadingRanking = false;
 
@@ -849,6 +916,12 @@ async function incrementalUpdateAfterComment(
       batchDataCache.commentCountMap[workNumber] = currentCount + 1;
       commentsCountByWorkNumber[workNumber] = currentCount + 1;
       // console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
+    }
+
+    // 【新增】更新用户评论状态缓存
+    if (userCommentStatusCache && !isAuthorComment) {
+      userCommentStatusCache.set(workNumber, true);
+      // console.log(`[热更新] 用户评论状态缓存已更新: 作品#${workNumber} 标记为已评论`);
     }
 
     // 2. 如果不是作者自评，更新用户正式评分缓存和作品评分数据
@@ -973,6 +1046,11 @@ async function refreshRepeaters() {
     // 重新加载用户评分缓存
     if (currentUserId && isUserVerified) {
       await batchLoadUserFormalRatings();
+    }
+
+    // 【性能优化】重新加载用户评论状态缓存
+    if (currentUserId && isUserVerified) {
+      await batchLoadUserCommentStatus();
     }
 
     // 重新加载排名数据
