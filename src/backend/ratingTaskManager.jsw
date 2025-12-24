@@ -135,6 +135,18 @@ export async function fetchAllWorks(options = {}) {
 }
 
 /**
+ * 全量获取所有注册记录（使用游标分页，绕过1000条限制）
+ * @returns {Promise<Array>} 注册记录数组
+ */
+export async function fetchAllRegistrations() {
+  const buildQuery = () => {
+    return wixData.query(COLLECTIONS.REGISTRATIONS);
+  };
+
+  return queryAllByCreatedDate(buildQuery);
+}
+
+/**
  * 获取用户任务数据（主入口）
  * @param {string} userId - 用户ID
  * @returns {Promise<Object>} 任务数据
@@ -905,16 +917,14 @@ async function batchCheckUserQuality(userIds) {
   const qualityMap = {};
 
   try {
-    // 查询所有已注册用户
-    const registrations = await wixData
-      .query(COLLECTIONS.REGISTRATIONS)
-      .hasSome("_owner", userIds)
-      .limit(1000)
-      .find();
+    // 使用游标分页获取所有注册记录（避免 _owner 字段的 hasSome 错误）
+    const registrations = await fetchAllRegistrations();
 
-    // 建立用户到isHighQuality的映射
-    registrations.items.forEach((reg) => {
-      qualityMap[reg._owner] = reg.isHighQuality === true;
+    // 建立用户到isHighQuality的映射（只保留需要的用户）
+    registrations.forEach((reg) => {
+      if (userIds.includes(reg._owner)) {
+        qualityMap[reg._owner] = reg.isHighQuality === true;
+      }
     });
 
     // 未注册的用户默认为 false

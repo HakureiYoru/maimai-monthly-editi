@@ -10,6 +10,7 @@ import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import {
   fetchAllMainComments,
   fetchAllWorks,
+  fetchAllRegistrations,
   getWorkWeightedRatingData,
 } from "backend/ratingTaskManager.jsw";
 import { RATING_CONFIG } from "public/constants.js";
@@ -44,27 +45,51 @@ $w.onReady(async function () {
 });
 
 /**
+ * 验证用户ID是否有效（是否为有效的GUID格式）
+ */
+function isValidUserId(userId) {
+  if (!userId || typeof userId !== "string") {
+    return false;
+  }
+  // Wix GUID 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return guidRegex.test(userId.trim());
+}
+
+/**
  * 批量获取用户信息（包括高权重标记）
+ * 使用游标分页获取所有注册记录，避免 _owner 字段的 hasSome 错误
  */
 async function batchLoadUserInfo(userIds) {
-  const uniqueIds = [...new Set(userIds)];
+  // 过滤掉无效的用户ID（undefined、null、空字符串、无效GUID）
+  const validUserIds = userIds.filter(isValidUserId);
+  const uniqueIds = [...new Set(validUserIds)];
 
-  const highQualityMap = {};
-  const CHUNK_SIZE = 50; // hasSome 入参过多会报错，分批查询更稳
-
-  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
-    const batchIds = uniqueIds.slice(i, i + CHUNK_SIZE);
-    const registrations = await wixData
-      .query("jobApplication089")
-      .hasSome("_owner", batchIds)
-      .limit(1000)
-      .find();
-
-    registrations.items.forEach((reg) => {
-      highQualityMap[reg._owner] = reg.isHighQuality === true;
-    });
+  const invalidCount = userIds.length - validUserIds.length;
+  if (invalidCount > 0) {
+    console.log(`过滤掉 ${invalidCount} 个无效的用户ID`);
   }
 
+  const highQualityMap = {};
+
+  try {
+    // 使用游标分页获取所有注册记录（绕过 1000 条限制和 _owner hasSome 限制）
+    const allRegistrations = await fetchAllRegistrations();
+    
+    // 构建高权重映射（只保留需要的用户）
+    allRegistrations.forEach((reg) => {
+      if (uniqueIds.includes(reg._owner)) {
+        highQualityMap[reg._owner] = reg.isHighQuality === true;
+      }
+    });
+
+    console.log(`成功加载 ${allRegistrations.length} 条注册记录，匹配到 ${Object.keys(highQualityMap).length} 个评论者`);
+  } catch (error) {
+    console.error("获取注册记录失败:", error);
+    // 失败时继续，但所有用户的 isHighQuality 都为 false
+  }
+
+  // 批量获取用户公开信息
   for (const userId of uniqueIds) {
     if (!userInfoCache[userId]) {
       try {
@@ -109,9 +134,11 @@ async function loadAllWorksData() {
     const commentsResult = await fetchAllMainComments();
 
     // 3. 批量获取所有评论者的用户信息（包括高权重标记）
+    // 注意：这里包含了所有评论的 _owner，包括可能的无效ID
     const uniqueUserIds = [
       ...new Set(commentsResult.map((c) => c._owner)),
     ];
+    // batchLoadUserInfo 会自动过滤无效ID
     await batchLoadUserInfo(uniqueUserIds);
 
     // 4. 构建作品-评论映射
@@ -193,12 +220,23 @@ function calculateRatingData(formalRatings, workOwnerId) {
   let lowWeightCount = 0;
 
   const raters = formalRatings.map((r) => {
-    const userInfo = userInfoCache[r._owner] || {
-      name: "未知用户",
-      profileImageUrl: "",
-      slug: "",
-      isHighQuality: false,
-    };
+    // 处理无效的用户ID
+    const userId = r._owner;
+    const isInvalidUser = !isValidUserId(userId);
+    
+    const userInfo = isInvalidUser
+      ? {
+          name: "[无效用户ID]",
+          profileImageUrl: "",
+          slug: "",
+          isHighQuality: false,
+        }
+      : (userInfoCache[userId] || {
+          name: "未知用户",
+          profileImageUrl: "",
+          slug: "",
+          isHighQuality: false,
+        });
 
     // 统计高低权重评分
     if (userInfo.isHighQuality) {
@@ -210,7 +248,7 @@ function calculateRatingData(formalRatings, workOwnerId) {
     }
 
     return {
-      userId: r._owner,
+      userId: isInvalidUser ? "invalid-user" : userId,
       userName: userInfo.name,
       userSlug: userInfo.slug,
       profileImageUrl: userInfo.profileImageUrl,

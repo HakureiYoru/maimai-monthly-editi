@@ -12,22 +12,25 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow-x: hidden;
+        }
+
         body {
             font-family: Arial, sans-serif;
             background: rgba(0, 0, 0, 0);
             color: #fff;
             padding: 20px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
+            min-height: 100%;
         }
 
         .header {
@@ -613,17 +616,24 @@
             // 处理评论者信息，显示用户名和高权重标记
             const ratersHtml = work.raters.length > 0
                 ? work.raters.map(r => {
-                    const avatarHtml = r.profileImageUrl
-                        ? `<img src="${r.profileImageUrl}" class="user-avatar" alt="${r.userName}">`
-                        : '👤';
+                    // 检测是否为无效用户
+                    const isInvalidUser = r.userId === 'invalid-user' || r.userName === '[无效用户ID]';
+                    
+                    const avatarHtml = isInvalidUser
+                        ? '❓'
+                        : (r.profileImageUrl
+                            ? `<img src="${r.profileImageUrl}" class="user-avatar" alt="${r.userName}">`
+                            : '👤');
 
                     const userLink = r.userSlug
                         ? `/profile/${r.userSlug}`
                         : '#';
 
-                    const userNameHtml = r.userSlug
-                        ? `<a href="${userLink}" target="_blank">${r.userName || '未知用户'}</a>`
-                        : `<span>${r.userName || '未知用户'}</span>`;
+                    const userNameHtml = isInvalidUser
+                        ? `<span style="color: #999; font-style: italic;">${r.userName}</span>`
+                        : (r.userSlug
+                            ? `<a href="${userLink}" target="_blank">${r.userName || '未知用户'}</a>`
+                            : `<span>${r.userName || '未知用户'}</span>`);
 
                     const highQualityBadge = r.isHighQuality
                         ? '<span class="high-quality-badge">⭐高权重</span>'
