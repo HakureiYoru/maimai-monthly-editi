@@ -149,13 +149,13 @@ async function loadBatchData() {
     const endTime = Date.now();
     // console.log(`加载完成，耗时: ${endTime - startTime}ms`);
     // console.log(
-      `加载了 ${
-        Object.keys(batchDataCache.workRatings || {}).length
-      } 个作品的评分数据`
-    );
+      // `加载了 ${
+        // Object.keys(batchDataCache.workRatings || {}).length
+      // } 个作品的评分数据`
+    // );
     // console.log(
-      `加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`
-    );
+      // `加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`
+    // );
 
     return batchDataCache;
   } catch (error) {
@@ -192,9 +192,9 @@ $w.onReady(async function () {
       // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
       if (userTaskDataCache && userTaskDataCache.error) {
         // console.log(
-          "[主会场] 用户任务数据异常:",
-          userTaskDataCache.message || "未知错误"
-        );
+          // "[主会场] 用户任务数据异常:",
+          // userTaskDataCache.message || "未知错误"
+        // );
       }
     } catch (error) {
       console.error("[主会场] 任务同步检查失败:", error);
@@ -728,10 +728,10 @@ async function calculateAllWorksRanking() {
 
     const endTime = Date.now();
     // console.log(
-      `作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${
-        endTime - startTime
-      }ms`
-    );
+      // `作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${
+        // endTime - startTime
+      // }ms`
+    // );
     return allWorksRankingCache;
   } catch (error) {
     console.error("计算作品排名失败:", error);
@@ -784,8 +784,8 @@ async function batchLoadUserCommentStatus() {
     userCommentStatusCache = commentStatusMap;
     const endTime = Date.now();
     // console.log(
-      `用户评论状态加载完成，共${commentStatusMap.size}个作品已评论，耗时: ${endTime - startTime}ms`
-    );
+      // `用户评论状态加载完成，共${commentStatusMap.size}个作品已评论，耗时: ${endTime - startTime}ms`
+    // );
     return commentStatusMap;
   } catch (error) {
     console.error("批量加载用户评论状态失败:", error);
@@ -851,10 +851,10 @@ async function batchLoadUserFormalRatings() {
     userFormalRatingsCache = formalRatings;
     const endTime = Date.now();
     // console.log(
-      `用户评分状态加载完成，共${
-        Object.keys(formalRatings).length
-      }个作品有正式评分，耗时: ${endTime - startTime}ms`
-    );
+      // `用户评分状态加载完成，共${
+        // Object.keys(formalRatings).length
+      // }个作品有正式评分，耗时: ${endTime - startTime}ms`
+    // );
     return formalRatings;
   } catch (error) {
     console.error("批量加载用户正式评分状态失败:", error);
@@ -1024,9 +1024,9 @@ async function refreshRepeaters() {
         // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
         if (userTaskDataCache && userTaskDataCache.error) {
           // console.log(
-            "[性能优化] 任务数据异常:",
-            userTaskDataCache.message || "未知错误"
-          );
+            // "[性能优化] 任务数据异常:",
+            // userTaskDataCache.message || "未知错误"
+          // );
         }
       } catch (error) {
         console.error("[性能优化] 任务数据重新加载失败:", error);
@@ -2128,8 +2128,8 @@ async function sendCommentsData(requestData) {
     });
 
     // console.log(
-      `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`
-    );
+      // `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`
+    // );
   } catch (error) {
     console.error("[评论系统] 发送评论数据失败:", error);
     $w("#commentSystemPanel").postMessage({
