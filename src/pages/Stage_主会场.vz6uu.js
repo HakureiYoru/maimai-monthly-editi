@@ -1,4 +1,4 @@
-import wixUsers from "wix-users";
+﻿import wixUsers from "wix-users";
 import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { getBatchDownloadUrls } from "backend/mediaManagement.jsw";
@@ -122,7 +122,7 @@ async function loadBatchData() {
 
   // 【关键】如果正在加载，等待加载完成
   if (isLoadingBatchData) {
-    // console.log("[性能优化] 批量数据正在加载中，等待完成...");
+   // console.log("[性能优化] 批量数据正在加载中，等待完成...");
     let waitCount = 0;
     while (isLoadingBatchData && waitCount < 600) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -135,7 +135,7 @@ async function loadBatchData() {
   isLoadingBatchData = true;
 
   try {
-    // console.log("[性能优化] 开始批量加载所有作品数据...");
+   // console.log("[性能优化] 开始批量加载所有作品数据...");
     const startTime = Date.now();
 
     batchDataCache = await getAllWorksWeightedRatingData();
@@ -147,13 +147,13 @@ async function loadBatchData() {
     workOwnersCache = batchDataCache.workOwnerMap || {};
 
     const endTime = Date.now();
-    console.log(`加载完成，耗时: ${endTime - startTime}ms`);
-    console.log(
+    // console.log(`加载完成，耗时: ${endTime - startTime}ms`);
+    // console.log(
       `加载了 ${
         Object.keys(batchDataCache.workRatings || {}).length
       } 个作品的评分数据`
     );
-    console.log(
+    // console.log(
       `加载了 ${Object.keys(commentsCountByWorkNumber).length} 个作品的评论计数`
     );
 
@@ -188,10 +188,10 @@ $w.onReady(async function () {
   if (currentUserId && isUserVerified) {
     try {
       userTaskDataCache = await getUserTaskData(currentUserId);
-      // console.log("[主会场] 任务同步检查完成，已缓存");
+     // console.log("[主会场] 任务同步检查完成，已缓存");
       // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
       if (userTaskDataCache && userTaskDataCache.error) {
-        console.log(
+        // console.log(
           "[主会场] 用户任务数据异常:",
           userTaskDataCache.message || "未知错误"
         );
@@ -475,7 +475,7 @@ function initDeleteConfirmationPanel() {
               filterMode: currentCommentSystemState.filterMode,
               currentPage: currentCommentSystemState.currentPage,
             });
-            console.log("[评论系统] 删除后已刷新评论列表（保持筛选状态）");
+            // console.log("[评论系统] 删除后已刷新评论列表（保持筛选状态）");
           } catch (error) {
             console.error("[评论系统] 刷新评论列表失败:", error);
           }
@@ -566,7 +566,7 @@ function closeCommentRepliesPanel() {
           filterMode: currentCommentSystemState.filterMode,
           currentPage: currentCommentSystemState.currentPage,
         });
-        console.log("[评论系统] 回复后已刷新评论列表（保持筛选状态）");
+        // console.log("[评论系统] 回复后已刷新评论列表（保持筛选状态）");
       } catch (error) {
         console.error("[评论系统] 刷新评论列表失败:", error);
       }
@@ -664,7 +664,7 @@ async function calculateAllWorksRanking() {
 
   // 【关键】如果正在加载，等待加载完成
   if (isLoadingRanking) {
-    // console.log("[性能优化] 排名数据正在加载中，等待完成...");
+   // console.log("[性能优化] 排名数据正在加载中，等待完成...");
     let waitCount = 0;
     while (isLoadingRanking && waitCount < 600) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -677,7 +677,7 @@ async function calculateAllWorksRanking() {
   isLoadingRanking = true;
 
   try {
-    // console.log("[性能优化] 开始计算所有作品排名...");
+   // console.log("[性能优化] 开始计算所有作品排名...");
     const startTime = Date.now();
 
     // 【优化】直接从批量缓存中获取数据
@@ -727,7 +727,7 @@ async function calculateAllWorksRanking() {
     };
 
     const endTime = Date.now();
-    console.log(
+    // console.log(
       `作品排名计算完成，共${validWorks.length}个有效作品，耗时: ${
         endTime - startTime
       }ms`
@@ -764,7 +764,7 @@ async function batchLoadUserCommentStatus() {
   isLoadingUserComments = true;
 
   try {
-    // console.log("[性能优化] 批量加载用户评论状态...");
+   // console.log("[性能优化] 批量加载用户评论状态...");
     const startTime = Date.now();
 
     // 一次性查询用户的所有主评论（非回复）
@@ -783,7 +783,7 @@ async function batchLoadUserCommentStatus() {
 
     userCommentStatusCache = commentStatusMap;
     const endTime = Date.now();
-    console.log(
+    // console.log(
       `用户评论状态加载完成，共${commentStatusMap.size}个作品已评论，耗时: ${endTime - startTime}ms`
     );
     return commentStatusMap;
@@ -806,7 +806,7 @@ async function batchLoadUserFormalRatings() {
 
   // 【关键】如果正在加载，等待加载完成
   if (isLoadingUserFormalRatings) {
-    // console.log("[性能优化] 用户评分状态正在加载中，等待完成...");
+   // console.log("[性能优化] 用户评分状态正在加载中，等待完成...");
     // 等待加载完成（最多等待60秒）
     let waitCount = 0;
     while (isLoadingUserFormalRatings && waitCount < 600) {
@@ -820,7 +820,7 @@ async function batchLoadUserFormalRatings() {
   isLoadingUserFormalRatings = true;
 
   try {
-    // console.log("[性能优化] 批量加载用户评分状态...");
+   // console.log("[性能优化] 批量加载用户评分状态...");
     const startTime = Date.now();
 
     // 【优化】从批量缓存获取作品所有者信息
@@ -850,7 +850,7 @@ async function batchLoadUserFormalRatings() {
 
     userFormalRatingsCache = formalRatings;
     const endTime = Date.now();
-    console.log(
+    // console.log(
       `用户评分状态加载完成，共${
         Object.keys(formalRatings).length
       }个作品有正式评分，耗时: ${endTime - startTime}ms`
@@ -896,7 +896,7 @@ function clearCaches() {
   isLoadingBatchData = false;
   isLoadingRanking = false;
 
-  // console.log("[性能优化] 缓存数据已清理");
+ // console.log("[性能优化] 缓存数据已清理");
 }
 
 // 【新增】增量热更新 - 评论提交后快速更新状态（无需完全刷新）
@@ -907,7 +907,7 @@ async function incrementalUpdateAfterComment(
   isAuthorComment = false
 ) {
   try {
-    // console.log(`[热更新] 开始增量更新作品 #${workNumber} 的状态...`);
+   // console.log(`[热更新] 开始增量更新作品 #${workNumber} 的状态...`);
     const startTime = Date.now();
 
     // 1. 更新评论计数缓存
@@ -915,13 +915,13 @@ async function incrementalUpdateAfterComment(
       const currentCount = batchDataCache.commentCountMap[workNumber] || 0;
       batchDataCache.commentCountMap[workNumber] = currentCount + 1;
       commentsCountByWorkNumber[workNumber] = currentCount + 1;
-      // console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
+     // console.log(`[热更新] 评论计数更新: ${currentCount} -> ${currentCount + 1}`);
     }
 
     // 【新增】更新用户评论状态缓存
     if (userCommentStatusCache && !isAuthorComment) {
       userCommentStatusCache.set(workNumber, true);
-      // console.log(`[热更新] 用户评论状态缓存已更新: 作品#${workNumber} 标记为已评论`);
+     // console.log(`[热更新] 用户评论状态缓存已更新: 作品#${workNumber} 标记为已评论`);
     }
 
     // 2. 如果不是作者自评，更新用户正式评分缓存和作品评分数据
@@ -929,7 +929,7 @@ async function incrementalUpdateAfterComment(
       // 更新用户正式评分状态
       if (userFormalRatingsCache) {
         userFormalRatingsCache[workNumber] = true;
-        // console.log(`[热更新] 用户评分状态已更新`);
+       // console.log(`[热更新] 用户评分状态已更新`);
       }
 
       // 【修复】等待评分数据更新完成后再更新显示
@@ -950,7 +950,7 @@ async function incrementalUpdateAfterComment(
               isDQ: oldRating.isDQ,
             };
             updatedRatingData = newRating;
-            // console.log(`[热更新] 评分数据已更新: 作品 #${workNumber} 现有 ${newRating.numRatings}人评分`);
+           // console.log(`[热更新] 评分数据已更新: 作品 #${workNumber} 现有 ${newRating.numRatings}人评分`);
           }
         } catch (error) {
           console.error("[热更新] 更新评分数据失败:", error);
@@ -975,27 +975,27 @@ async function incrementalUpdateAfterComment(
 
           // 更新评论状态（异步更新）
           updateCommentStatus($item, itemData).then(() => {
-            // console.log(`[热更新] 作品 #${workNumber} 的评论状态已更新`);
+           // console.log(`[热更新] 作品 #${workNumber} 的评论状态已更新`);
           });
 
           // 【修复】等待评分数据更新后再更新显示，确保使用最新数据
           if (!isAuthorComment) {
             updateItemEvaluationDisplay($item, itemData).then(() => {
-              // console.log(`[热更新] 作品 #${workNumber} 的评分显示已更新`);
+             // console.log(`[热更新] 作品 #${workNumber} 的评分显示已更新`);
             });
           }
         }
       });
 
       if (needUpdateRepeater2) {
-        // console.log(`[热更新] Repeater2中作品 #${workNumber} 已热更新`);
+       // console.log(`[热更新] Repeater2中作品 #${workNumber} 已热更新`);
       }
     } catch (error) {
       console.error("[热更新] 更新Repeater2失败:", error);
     }
 
     const endTime = Date.now();
-    // console.log(`[热更新] 增量更新完成，耗时: ${endTime - startTime}ms`);
+   // console.log(`[热更新] 增量更新完成，耗时: ${endTime - startTime}ms`);
 
     return { success: true };
   } catch (error) {
@@ -1007,7 +1007,7 @@ async function incrementalUpdateAfterComment(
 // 【优化】统一刷新两个repeater（完全刷新，用于删除评论等需要完全同步的场景）
 async function refreshRepeaters() {
   try {
-    // console.log("[性能优化] 开始完全刷新Repeaters...");
+   // console.log("[性能优化] 开始完全刷新Repeaters...");
     const startTime = Date.now();
 
     // 清理缓存以确保数据同步
@@ -1020,10 +1020,10 @@ async function refreshRepeaters() {
     if (currentUserId && isUserVerified) {
       try {
         userTaskDataCache = await getUserTaskData(currentUserId);
-        // console.log("[性能优化] 任务数据缓存已重新加载");
+       // console.log("[性能优化] 任务数据缓存已重新加载");
         // 【新增】如果返回错误状态（如未提交作品），也要正确缓存
         if (userTaskDataCache && userTaskDataCache.error) {
-          console.log(
+          // console.log(
             "[性能优化] 任务数据异常:",
             userTaskDataCache.message || "未知错误"
           );
@@ -1064,14 +1064,14 @@ async function refreshRepeaters() {
           filterMode: currentCommentSystemState.filterMode,
           currentPage: currentCommentSystemState.currentPage,
         });
-        console.log("[评论系统] 已刷新评论列表（保持筛选状态）");
+        // console.log("[评论系统] 已刷新评论列表（保持筛选状态）");
       } catch (error) {
         console.error("[评论系统] 刷新评论列表失败:", error);
       }
     }
 
     const endTime = Date.now();
-    // console.log(`[性能优化] 完全刷新完成，耗时: ${endTime - startTime}ms`);
+   // console.log(`[性能优化] 完全刷新完成，耗时: ${endTime - startTime}ms`);
   } catch (error) {
     console.error("刷新Repeaters时发生错误:", error);
   }
@@ -1117,7 +1117,7 @@ async function batchLoadReplyCounts(commentIds) {
   }
 
   try {
-    // console.log(`批量加载${uncachedIds.length}个评论的回复数量...`);
+   // console.log(`批量加载${uncachedIds.length}个评论的回复数量...`);
 
     // 批量查询所有回复
     const allReplies = await wixData
@@ -1137,7 +1137,7 @@ async function batchLoadReplyCounts(commentIds) {
       replyCountsCache[id] = counts[id] || 0;
     });
 
-    // console.log(`回复数量加载完成，共${Object.keys(counts).length}个评论有回复`);
+   // console.log(`回复数量加载完成，共${Object.keys(counts).length}个评论有回复`);
   } catch (err) {
     console.error("批量加载回复数量失败", err);
     // 为未能加载的ID设置默认值
@@ -1188,7 +1188,7 @@ function setupItemEventListeners($item, itemData) {
           filterMode: "default",
           currentPage: 1,
         });
-        // console.log(`[评论系统] 已切换到作品 #${itemData.sequenceId} 的评论`);
+       // console.log(`[评论系统] 已切换到作品 #${itemData.sequenceId} 的评论`);
       } catch (error) {
         console.error("[评论系统] 切换评论筛选失败:", error);
       }
@@ -1601,12 +1601,12 @@ function initCommentSystemPanel() {
       return;
     }
 
-    // console.log("[评论系统] 开始初始化...");
+   // console.log("[评论系统] 开始初始化...");
 
     // 监听来自HTML元件的消息
     $w("#commentSystemPanel").onMessage(async (event) => {
       const { type, data } = event.data;
-      // console.log(`[评论系统] 收到消息: ${type}`, data);
+     // console.log(`[评论系统] 收到消息: ${type}`, data);
 
       switch (type) {
         case "COMMENT_SYSTEM_READY":
@@ -1634,11 +1634,11 @@ function initCommentSystemPanel() {
           await handleDeleteComment(data, data.isSelfScComment);
           break;
         default:
-        // console.log('[评论系统] 未知消息类型:', type);
+      
       }
     });
 
-    // console.log("[评论系统] 初始化完成");
+
   } catch (error) {
     console.error("[评论系统] 初始化失败:", error);
   }
@@ -1646,7 +1646,7 @@ function initCommentSystemPanel() {
 
 // HTML元件准备就绪
 async function handleCommentSystemReady() {
-  // console.log("[评论系统] HTML元件已准备就绪");
+ // console.log("[评论系统] HTML元件已准备就绪");
 
   // 发送初始化数据
   $w("#commentSystemPanel").postMessage({
@@ -1669,7 +1669,7 @@ async function sendWorkOptions() {
     results.items.forEach((item) => {
       workTitlesCache[item.sequenceId] = item.firstName;
     });
-    // console.log(`[评论系统] 已缓存 ${Object.keys(workTitlesCache).length} 个作品标题`);
+   // console.log(`[评论系统] 已缓存 ${Object.keys(workTitlesCache).length} 个作品标题`);
 
     const options = filteredItems.map((item) => ({
       label: `${item.sequenceId} - ${item.firstName}`,
@@ -1681,7 +1681,7 @@ async function sendWorkOptions() {
       data: { options },
     });
 
-    console.log(`[评论系统] 已发送 ${options.length} 个作品选项`);
+    // console.log(`[评论系统] 已发送 ${options.length} 个作品选项`);
   } catch (error) {
     console.error("[评论系统] 发送作品选项失败:", error);
   }
@@ -2046,11 +2046,11 @@ async function fetchSpecificCommentPage(state, targetPage) {
         result.items.map((item) => formatCommentForHTML(item))
       );
       state.pages.set(targetPage, formatted);
-      console.log(`[评论系统] 已直接加载第 ${targetPage} 页 (${formatted.length} 条评论)`);
+      // console.log(`[评论系统] 已直接加载第 ${targetPage} 页 (${formatted.length} 条评论)`);
     } else {
       // 目标页没有数据，设置为空数组
       state.pages.set(targetPage, []);
-      console.log(`[评论系统] 第 ${targetPage} 页无数据`);
+      // console.log(`[评论系统] 第 ${targetPage} 页无数据`);
     }
   } catch (error) {
     console.error("[评论系统] 直接加载页面失败:", error);
@@ -2068,7 +2068,7 @@ let pendingSendRequest = null;
 async function sendCommentsData(requestData) {
   // 【修复】如果正在发送评论数据，延迟当前请求
   if (isSendingComments) {
-    console.log("[评论系统] 已有发送请求进行中，延迟当前请求...");
+    // console.log("[评论系统] 已有发送请求进行中，延迟当前请求...");
     
     // 清除之前的待处理请求
     if (pendingSendRequest) {
@@ -2091,7 +2091,7 @@ async function sendCommentsData(requestData) {
       filterMode = "default",
       currentPage = 1,
     } = requestData || {};
-    console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
+    // console.log(`[评论系统] 请求评论数据: workFilter=${workFilter}, filterMode=${filterMode}, page=${currentPage}`);
 
     // 【新增】保存当前的筛选状态，用于面板切换后恢复
     currentCommentSystemState = {
@@ -2127,7 +2127,7 @@ async function sendCommentsData(requestData) {
       },
     });
 
-    console.log(
+    // console.log(
       `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`
     );
   } catch (error) {
@@ -2271,7 +2271,7 @@ async function formatCommentForHTML(comment) {
 async function handleCommentSubmit(data) {
   try {
     const { workNumber, score, comment } = data;
-    // console.log(`[评论系统] 提交评论: 作品#${workNumber}, 评分${score}`);
+   // console.log(`[评论系统] 提交评论: 作品#${workNumber}, 评分${score}`);
 
     // 步骤1: 验证用户登录和报名状态
     sendSubmitProgress("验证用户身份...", "validating");
@@ -2408,10 +2408,10 @@ async function handleCommentSubmit(data) {
         currentPage: 1,
       });
       
-      console.log(`[评论系统] 评论提交成功，已刷新到作品 #${workNumber} 的评论列表`);
+      // console.log(`[评论系统] 评论提交成功，已刷新到作品 #${workNumber} 的评论列表`);
     }, 500);
 
-    // console.log(`[评论系统] 评论提交成功`);
+   // console.log(`[评论系统] 评论提交成功`);
   } catch (error) {
     console.error("[评论系统] 评论提交失败:", error);
     sendSubmitResult(
@@ -2434,7 +2434,7 @@ function sendSubmitResult(success, message) {
 
 // 处理作品编号变化 - 显示详细的作品状态并发送完整的UI状态
 async function handleWorkNumberChange(workNumber) {
-  // console.log(`[评论系统] 作品编号变化: ${workNumber}`);
+ // console.log(`[评论系统] 作品编号变化: ${workNumber}`);
 
   try {
     // 获取作品信息
@@ -2619,7 +2619,7 @@ async function handleViewReplies(data) {
 
     // 如果是楼中楼回复，需要先查询父评论数据
     if (isReply && replyTo) {
-      // console.log(`[评论系统] 楼中楼回复，查询父评论: ${replyTo}`);
+     // console.log(`[评论系统] 楼中楼回复，查询父评论: ${replyTo}`);
 
       const parentCommentResult = await wixData
         .query("BOFcomment")
@@ -2648,7 +2648,7 @@ async function handleViewReplies(data) {
 // 处理跳转到作品 - 设置作品搜索框、刷新作品列表并滚动到anchor2位置
 async function handleGotoWork(workNumber) {
   try {
-    console.log(`[评论系统] 跳转到作品 #${workNumber}`);
+    // console.log(`[评论系统] 跳转到作品 #${workNumber}`);
 
     // 获取作品标题
     const workResults = await wixData
@@ -2667,7 +2667,7 @@ async function handleGotoWork(workNumber) {
             type: "SET_WORK_FILTER",
             data: { workNumber: workNumber.toString() }
           });
-          console.log(`[评论系统] 已设置筛选器到作品 #${workNumber}`);
+          // console.log(`[评论系统] 已设置筛选器到作品 #${workNumber}`);
         } catch (filterError) {
           console.error("[评论系统] 设置筛选器失败:", filterError);
         }
@@ -2685,16 +2685,18 @@ async function handleGotoWork(workNumber) {
         try {
           if ($w("#anchor2")) {
             await $w("#anchor2").scrollTo();
-            console.log(`[评论系统] 已滚动到 #anchor2`);
+            // console.log(`[评论系统] 已滚动到 #anchor2`);
           }
         } catch (scrollError) {
           console.error("[评论系统] 滚动到anchor2失败:", scrollError);
         }
 
-        console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
+        // console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
       }
     }
   } catch (error) {
     console.error("[评论系统] 跳转到作品失败:", error);
   }
 }
+
+
