@@ -1,8 +1,10 @@
 import wixUsers from 'wix-users';
 import { getUserInfo, submitVote, getVotingOptions, getVotingResults } from 'backend/votingSystem.jsw';
+import { getVote2Status, submitVote2, getVote2Options, getVote2Results } from 'backend/votingSystemLite.jsw';
 
 let currentUserId = null;
 let isHtmlReady = false;
+let isVote2HtmlReady = false;
 
 $w.onReady(function () {
     // 获取当前用户ID
@@ -16,6 +18,7 @@ $w.onReady(function () {
     
     // 初始化HTML元件通信
     initHtmlComponent();
+    initVote2HtmlComponent();
 });
 
 // 初始化HTML元件
@@ -62,6 +65,40 @@ function initHtmlComponent() {
 }
 
 // 处理HTML元件准备就绪
+function initVote2HtmlComponent() {
+    try {
+        if (!$w("#vote2")) {
+            console.error("[Vote2] HTML component #vote2 not found");
+            return;
+        }
+
+        $w("#vote2").onMessage(async (event) => {
+            const { type, data } = event.data;
+
+            switch (type) {
+                case 'VOTE2_READY':
+                    await handleVote2Ready();
+                    break;
+                case 'VOTE2_REQUEST_STATUS':
+                    await handleVote2StatusRequest();
+                    break;
+                case 'VOTE2_REQUEST_OPTIONS':
+                    await handleVote2OptionsRequest();
+                    break;
+                case 'VOTE2_REQUEST_RESULTS':
+                    await handleVote2ResultsRequest();
+                    break;
+                case 'VOTE2_SUBMIT':
+                    await handleVote2Submission(data);
+                    break;
+                default:
+            }
+        });
+    } catch (error) {
+        console.error("[Vote2] Failed to init HTML component", error);
+    }
+}
+
 async function handleVotingSystemReady() {
     //console.log("[投票页面] HTML元件已准备就绪");
     isHtmlReady = true;
@@ -95,6 +132,23 @@ function postMessageToHtml(type, data) {
 }
 
 // 处理用户信息请求
+function postMessageToVote2(type, data) {
+    try {
+        const htmlComponent = $w('#vote2');
+        if (!htmlComponent) {
+            console.error('[Vote2] HTML component #vote2 not found');
+            return;
+        }
+
+        htmlComponent.postMessage({
+            type: type,
+            data: data
+        });
+    } catch (error) {
+        console.error('[Vote2] Failed to post message', error);
+    }
+}
+
 async function handleUserInfoRequest() {
     try {
         if (!currentUserId) {
@@ -161,6 +215,76 @@ async function handleVoteSubmission(voteData) {
     } catch (error) {
         console.error('[投票页面] 提交投票失败:', error);
         postMessageToHtml('VOTE_SUBMISSION_RESULT', {
+            success: false,
+            message: '提交投票失败，请稍后重试'
+        });
+    }
+}
+
+async function handleVote2Ready() {
+    isVote2HtmlReady = true;
+    postMessageToVote2('VOTE2_INIT', {
+        currentUserId: currentUserId
+    });
+}
+
+async function handleVote2StatusRequest() {
+    try {
+        if (!currentUserId) {
+            throw new Error('用户未登录');
+        }
+
+        const status = await getVote2Status(currentUserId);
+        postMessageToVote2('VOTE2_STATUS', status);
+    } catch (error) {
+        console.error('[Vote2] 获取用户状态失败:', error);
+        postMessageToVote2('VOTE2_ERROR', {
+            message: '获取用户状态失败，请稍后重试'
+        });
+    }
+}
+
+async function handleVote2OptionsRequest() {
+    try {
+        const options = await getVote2Options();
+        postMessageToVote2('VOTE2_OPTIONS', options);
+    } catch (error) {
+        console.error('[Vote2] 获取投票选项失败:', error);
+        postMessageToVote2('VOTE2_ERROR', {
+            message: '获取投票选项失败，请稍后重试'
+        });
+    }
+}
+
+async function handleVote2ResultsRequest() {
+    try {
+        const results = await getVote2Results();
+        postMessageToVote2('VOTE2_RESULTS', results);
+    } catch (error) {
+        console.error('[Vote2] 获取投票结果失败:', error);
+        postMessageToVote2('VOTE2_ERROR', {
+            message: '获取投票结果失败，请稍后重试'
+        });
+    }
+}
+
+async function handleVote2Submission(voteData) {
+    try {
+        if (!currentUserId) {
+            throw new Error('用户未登录');
+        }
+
+        const { userName, themeValue } = voteData;
+        const result = await submitVote2(
+            currentUserId,
+            userName,
+            themeValue
+        );
+
+        postMessageToVote2('VOTE2_SUBMISSION_RESULT', result);
+    } catch (error) {
+        console.error('[Vote2] 提交投票失败:', error);
+        postMessageToVote2('VOTE2_SUBMISSION_RESULT', {
             success: false,
             message: '提交投票失败，请稍后重试'
         });

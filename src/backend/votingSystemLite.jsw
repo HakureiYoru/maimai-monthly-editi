@@ -1,0 +1,149 @@
+import wixData from "wix-data";
+import { QUERY_LIMITS } from "backend/constants";
+
+const VOTE2_COLLECTION = "ThemeVote2";
+
+async function checkIfUserVoted(userId) {
+  const results = await wixData
+    .query(VOTE2_COLLECTION)
+    .eq("_owner", userId)
+    .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+    .find();
+
+  return results.items.length > 0;
+}
+
+export async function getVote2Status(userId) {
+  try {
+    const hasVoted = await checkIfUserVoted(userId);
+    return { hasVoted };
+  } catch (error) {
+    console.error("获取用户投票状态失败:", error);
+    throw error;
+  }
+}
+
+export async function getVote2Options() {
+  try {
+    return {
+      options: [
+        { value: "3", label: "3-アマオト" },
+        { value: "4", label: "4-Operation Spectrum" },
+        { value: "34", label: "34-永遠の春夢" },
+        { value: "36", label: "36-Battle Against a True Hero" },
+        { value: "41", label: "41-Behind the Wall" },
+        { value: "59", label: "59-Backside Of The TV" },
+        { value: "107", label: "107-Theme" },
+        { value: "109", label: "109-Beat Beat Beat" },
+        { value: "115", label: "115-恋ひ恋う縁" },
+        { value: "121", label: "121-太空漫步 Space Walk" },
+        { value: "138", label: "138-KONNANじゃないっ！" },
+        { value: "140", label: "140-夏のひとひら" },
+        { value: "157", label: "157-Glorious Morning" },
+        { value: "164", label: "164-BURNIN’RUBBER" },
+        { value: "176", label: "176-goldenslaughterer" }
+      ]
+    };
+  } catch (error) {
+    console.error("获取投票选项失败:", error);
+    throw error;
+  }
+}
+
+export async function submitVote2(userId, userName, themeValue) {
+  try {
+    const hasVoted = await checkIfUserVoted(userId);
+    if (hasVoted) {
+      return {
+        success: false,
+        message: "您已经投过票了"
+      };
+    }
+
+    const voteData = {
+      userName,
+      themeValue,
+      voteDate: new Date()
+    };
+
+    const result = await wixData.save(VOTE2_COLLECTION, voteData);
+
+    return {
+      success: true,
+      voteId: result._id,
+      message: "投票成功"
+    };
+  } catch (error) {
+    console.error("提交投票失败:", error);
+    return {
+      success: false,
+      message: "提交投票失败，请稍后重试"
+    };
+  }
+}
+
+export async function getVote2Results() {
+  try {
+    const results = await wixData
+      .query(VOTE2_COLLECTION)
+      .ascending("voteDate")
+      .limit(QUERY_LIMITS.VOTE_QUERY_LIMIT)
+      .find();
+
+    if (results.items.length === 0) {
+      return {
+        labels: [],
+        data: [],
+        voters: []
+      };
+    }
+
+    const voteCounts = {};
+    const voteVoters = {};
+
+    results.items.forEach((item) => {
+      const theme = item.themeValue;
+      const userName = item.userName;
+
+      voteCounts[theme] = (voteCounts[theme] || 0) + 1;
+
+      if (!voteVoters[theme]) {
+        voteVoters[theme] = [];
+      }
+      if (userName) {
+        voteVoters[theme].push(userName);
+      }
+    });
+
+    const options = await getVote2Options();
+    const optionList = Array.isArray(options.options) ? options.options : [];
+
+    if (optionList.length === 0) {
+      const labels = Object.keys(voteCounts);
+      return {
+        labels,
+        data: labels.map((label) => voteCounts[label] || 0),
+        voters: labels.map((label) => (voteVoters[label] || []).join(", "))
+      };
+    }
+
+    const labels = [];
+    const data = [];
+    const voters = [];
+
+    optionList.forEach((option) => {
+      labels.push(option.label);
+      data.push(voteCounts[option.value] || 0);
+      voters.push((voteVoters[option.value] || []).join(", "));
+    });
+
+    return {
+      labels,
+      data,
+      voters
+    };
+  } catch (error) {
+    console.error("获取投票结果失败:", error);
+    throw error;
+  }
+}
