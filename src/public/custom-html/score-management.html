@@ -201,6 +201,15 @@
             font-size: 14px;
         }
 
+        .work-author {
+            font-size: 13px;
+            color: #bbb;
+        }
+
+        .work-author .registration-id {
+            color: #999;
+        }
+
         .tier-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -613,6 +622,12 @@
                 ? `<img src="${work.coverImage}" alt="封面" onerror="this.parentElement.innerHTML='${work.sequenceId}';">`
                 : work.sequenceId;
 
+            const ownerName = work.ownerName || '未知投稿人';
+            const ownerRegistration = work.ownerRegistrationName
+                ? `<span class="registration-id">（${work.ownerRegistrationName}）</span>`
+                : '';
+            const ownerHtml = `${ownerName}${ownerRegistration}`;
+
             // 处理评论者信息，显示用户名和高权重标记
             const ratersHtml = work.raters.length > 0
                 ? work.raters.map(r => {
@@ -716,6 +731,7 @@
                             <span class="work-id">#${work.sequenceId}</span>
                             <span>${work.title}</span>
                         </div>
+                        <div class="work-author">投稿人：${ownerHtml}</div>
                         <div>
                             <span class="tier-badge tier-${work.tier}">${work.tier}</span>
                             ${work.rank ? `<span style="color: #999; margin-left: 10px;">排名: #${work.rank}</span>` : ''}
@@ -878,15 +894,20 @@
         // 生成CSV
         function generateCSV(works) {
             const headers = ['作品ID', '作品标题', '等级', '排名', '平均分', '评论数', '评论者列表'];
-            const rows = works.map(w => [
-                w.sequenceId,
-                w.title,
-                w.tier,
-                w.rank || '-',
-                w.averageScore.toFixed(2),
-                w.numRatings,
-                w.raters.map(r => `${r.userName || '未知用户'}(${r.score}分)`).join('; ')
-            ]);
+            const rows = works.map(w => {
+                const isDq = w.isDq === true;
+                const tierValue = isDq ? '已淘汰' : w.tier;
+                const scoreValue = isDq ? '已淘汰' : w.averageScore.toFixed(2);
+                return [
+                    w.sequenceId,
+                    w.title,
+                    tierValue,
+                    w.rank || '-',
+                    scoreValue,
+                    w.numRatings,
+                    w.raters.map(r => `${r.userName || '未知用户'}(${r.score}分)`).join('; ')
+                ];
+            });
 
             return [headers, ...rows]
                 .map(row => row.map(cell => `"${cell}"`).join(','))

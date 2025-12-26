@@ -60,10 +60,11 @@ function isValidUserId(userId) {
  * 批量获取用户信息（包括高权重标记）
  * 使用游标分页获取所有注册记录，避免 _owner 字段的 hasSome 错误
  */
-async function batchLoadUserInfo(userIds) {
+async function batchLoadUserInfo(userIds, registrationInfoMap = {}) {
   // 过滤掉无效的用户ID（undefined、null、空字符串、无效GUID）
   const validUserIds = userIds.filter(isValidUserId);
   const uniqueIds = [...new Set(validUserIds)];
+  const uniqueIdSet = new Set(uniqueIds);
 
   const invalidCount = userIds.length - validUserIds.length;
   if (invalidCount > 0) {
@@ -71,6 +72,19 @@ async function batchLoadUserInfo(userIds) {
   }
 
   const highQualityMap = {};
+  const registrationNameMap = {};
+
+  if (registrationInfoMap && Object.keys(registrationInfoMap).length > 0) {
+    Object.entries(registrationInfoMap).forEach(([ownerId, info]) => {
+      if (!uniqueIdSet.has(ownerId)) {
+        return;
+      }
+      highQualityMap[ownerId] = info.isHighQuality === true;
+      if (info.registrationName) {
+        registrationNameMap[ownerId] = info.registrationName;
+      }
+    });
+  } else {
 
   try {
     // 使用游标分页获取所有注册记录（绕过 1000 条限制和 _owner hasSome 限制）
@@ -78,8 +92,12 @@ async function batchLoadUserInfo(userIds) {
     
     // 构建高权重映射（只保留需要的用户）
     allRegistrations.forEach((reg) => {
-      if (uniqueIds.includes(reg._owner)) {
+      if (uniqueIdSet.has(reg._owner)) {
         highQualityMap[reg._owner] = reg.isHighQuality === true;
+        const registrationName = reg.registrationName || reg.firstName || "";
+        if (registrationName) {
+          registrationNameMap[reg._owner] = registrationName;
+        }
       }
     });
 
@@ -90,6 +108,8 @@ async function batchLoadUserInfo(userIds) {
   }
 
   // 批量获取用户公开信息
+  }
+
   for (const userId of uniqueIds) {
     if (!userInfoCache[userId]) {
       try {
@@ -100,6 +120,7 @@ async function batchLoadUserInfo(userIds) {
             profileImageUrl: userInfo.profileImageUrl || "",
             slug: userInfo.userslug || "",
             isHighQuality: highQualityMap[userId] || false,
+            registrationName: registrationNameMap[userId] || "",
           };
         } else {
           userInfoCache[userId] = {
@@ -107,6 +128,7 @@ async function batchLoadUserInfo(userIds) {
             profileImageUrl: "",
             slug: "",
             isHighQuality: highQualityMap[userId] || false,
+            registrationName: registrationNameMap[userId] || "",
           };
         }
       } catch (error) {
@@ -116,6 +138,7 @@ async function batchLoadUserInfo(userIds) {
           profileImageUrl: "",
           slug: "",
           isHighQuality: false,
+          registrationName: registrationNameMap[userId] || "",
         };
       }
     }
@@ -132,14 +155,31 @@ async function loadAllWorksData() {
 
     // 2. 获取所有评论
     const commentsResult = await fetchAllMainComments();
+    const registrationsResult = await fetchAllRegistrations();
+    const registrationInfoMap = {};
+    registrationsResult.forEach((reg) => {
+      if (!reg || !reg._owner) {
+        return;
+      }
+      if (!isValidUserId(reg._owner)) {
+        return;
+      }
+      registrationInfoMap[reg._owner] = {
+        isHighQuality: reg.isHighQuality === true,
+        registrationName: reg.registrationName || reg.firstName || "",
+      };
+    });
 
     // 3. 批量获取所有评论者的用户信息（包括高权重标记）
     // 注意：这里包含了所有评论的 _owner，包括可能的无效ID
     const uniqueUserIds = [
-      ...new Set(commentsResult.map((c) => c._owner)),
+      ...new Set([
+        ...commentsResult.map((c) => c._owner),
+        ...worksResult.map((w) => w._owner),
+      ]),
     ];
     // batchLoadUserInfo 会自动过滤无效ID
-    await batchLoadUserInfo(uniqueUserIds);
+    await batchLoadUserInfo(uniqueUserIds, registrationInfoMap);
 
     // 4. 构建作品-评论映射
     const workCommentsMap = {};
@@ -161,6 +201,12 @@ async function loadAllWorksData() {
       );
 
       const ratingData = calculateRatingData(formalRatings, work._owner);
+      const ownerInfo = userInfoCache[work._owner] || {};
+      const registrationInfo = registrationInfoMap[work._owner];
+      const ownerRegistrationName =
+        (registrationInfo && registrationInfo.registrationName) ||
+        ownerInfo.registrationName ||
+        "";
 
       // 正确处理图片URL（可能是对象或字符串）
       let coverImageUrl = "";
@@ -178,6 +224,8 @@ async function loadAllWorksData() {
         coverImage: coverImageUrl,
         isDq: work.isDq === true,
         ownerId: work._owner,
+        ownerName: ownerInfo.name || "未知投稿人",
+        ownerRegistrationName: ownerRegistrationName,
         ...ratingData,
       });
     }
