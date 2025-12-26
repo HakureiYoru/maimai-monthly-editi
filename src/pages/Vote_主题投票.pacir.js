@@ -274,11 +274,11 @@ async function handleVote2Submission(voteData) {
             throw new Error('用户未登录');
         }
 
-        const { userName, themeValue } = voteData;
+        const { userName, themeValues, themeValue } = voteData;
         const result = await submitVote2(
             currentUserId,
             userName,
-            themeValue
+            themeValues || (themeValue ? [themeValue] : [])
         );
 
         postMessageToVote2('VOTE2_SUBMISSION_RESULT', result);

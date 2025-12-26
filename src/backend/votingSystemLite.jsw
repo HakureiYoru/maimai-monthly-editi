@@ -50,7 +50,7 @@ export async function getVote2Options() {
   }
 }
 
-export async function submitVote2(userId, userName, themeValue) {
+export async function submitVote2(userId, userName, themeValues) {
   try {
     const hasVoted = await checkIfUserVoted(userId);
     if (hasVoted) {
@@ -60,9 +60,16 @@ export async function submitVote2(userId, userName, themeValue) {
       };
     }
 
+    if (!Array.isArray(themeValues) || themeValues.length !== 3) {
+      return {
+        success: false,
+        message: "请选择三个选项"
+      };
+    }
+
     const voteData = {
       userName,
-      themeValue,
+      themeValues,
       voteDate: new Date()
     };
 
@@ -102,17 +109,23 @@ export async function getVote2Results() {
     const voteVoters = {};
 
     results.items.forEach((item) => {
-      const theme = item.themeValue;
       const userName = item.userName;
+      const themes = Array.isArray(item.themeValues)
+        ? item.themeValues
+        : item.themeValue
+          ? [item.themeValue]
+          : [];
 
-      voteCounts[theme] = (voteCounts[theme] || 0) + 1;
+      themes.forEach((theme) => {
+        voteCounts[theme] = (voteCounts[theme] || 0) + 1;
 
-      if (!voteVoters[theme]) {
-        voteVoters[theme] = [];
-      }
-      if (userName) {
-        voteVoters[theme].push(userName);
-      }
+        if (!voteVoters[theme]) {
+          voteVoters[theme] = [];
+        }
+        if (userName) {
+          voteVoters[theme].push(userName);
+        }
+      });
     });
 
     const options = await getVote2Options();

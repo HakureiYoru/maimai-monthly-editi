@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>轻量投票</title>
+  <title>投票</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * {
@@ -91,6 +91,12 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+
+    .selection-count {
+      margin-top: 6px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.75);
     }
 
     .radio-option {
@@ -249,7 +255,7 @@
 <body>
   <div class="container">
     <div class="glass-card">
-      <div class="section-title">轻量投票</div>
+      <div class="section-title">投票</div>
       <div class="voting-form" id="votingForm">
         <div class="input-group">
           <label class="input-label">您的名称</label>
@@ -257,7 +263,8 @@
         </div>
 
         <div class="input-group">
-          <label class="input-label">请选择一个选项</label>
+          <label class="input-label">请选择三个选项</label>
+          <div class="selection-count" id="selectionCount">已选 0/3</div>
           <div class="radio-group" id="themeOptions"></div>
         </div>
 
@@ -422,16 +429,31 @@
         const optionElement = document.createElement('div');
         optionElement.className = 'radio-option';
         optionElement.innerHTML = `
-          <input type="radio" id="option${index}" name="theme" value="${option.value}">
+          <input type="checkbox" id="option${index}" name="theme" value="${option.value}">
           <label for="option${index}">${option.label}</label>
         `;
 
-        optionElement.addEventListener('click', () => {
-          document.querySelectorAll('.radio-option').forEach(el => {
-            el.classList.remove('selected');
-          });
-          optionElement.classList.add('selected');
-          document.getElementById(`option${index}`).checked = true;
+        const checkbox = optionElement.querySelector('input');
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked && getSelectedCount() > 3) {
+            checkbox.checked = false;
+            showStatus('请选择三个选项', 'error');
+          }
+          optionElement.classList.toggle('selected', checkbox.checked);
+          validateForm();
+        });
+
+        optionElement.addEventListener('click', (event) => {
+          if (event.target.tagName.toLowerCase() === 'input') {
+            return;
+          }
+          const willCheck = !checkbox.checked;
+          if (willCheck && getSelectedCount() >= 3) {
+            showStatus('请选择三个选项', 'error');
+            return;
+          }
+          checkbox.checked = willCheck;
+          optionElement.classList.toggle('selected', checkbox.checked);
           validateForm();
         });
 
@@ -545,11 +567,22 @@
       });
     }
 
+    function getSelectedCount() {
+      return document.querySelectorAll('input[name="theme"]:checked').length;
+    }
+
+    function updateSelectedCount() {
+      const countEl = document.getElementById('selectionCount');
+      if (!countEl) return;
+      countEl.textContent = `已选 ${getSelectedCount()}/3`;
+    }
+
     function validateForm() {
       const userName = document.getElementById('userName').value.trim();
-      const selectedOption = document.querySelector('input[name="theme"]:checked');
-      const isValid = userName && selectedOption && !hasVoted;
+      const selectedCount = getSelectedCount();
+      const isValid = userName && selectedCount === 3 && !hasVoted;
       document.getElementById('submitVote').disabled = !isValid;
+      updateSelectedCount();
     }
 
     function disableVotingForm() {
@@ -576,15 +609,17 @@
 
     document.getElementById('submitVote').addEventListener('click', () => {
       const userName = document.getElementById('userName').value.trim();
-      const selectedOption = document.querySelector('input[name="theme"]:checked');
+      const selectedOptions = Array.from(
+        document.querySelectorAll('input[name="theme"]:checked')
+      );
 
       if (!userName) {
         showStatus('请输入您的名称', 'error');
         return;
       }
 
-      if (!selectedOption) {
-        showStatus('请选择一个选项', 'error');
+      if (selectedOptions.length !== 3) {
+        showStatus('请选择三个选项', 'error');
         return;
       }
 
@@ -596,7 +631,7 @@
           type: 'VOTE2_SUBMIT',
           data: {
             userName: userName,
-            themeValue: selectedOption.value
+            themeValues: selectedOptions.map(option => option.value)
           }
         }, '*');
       } catch (error) {
