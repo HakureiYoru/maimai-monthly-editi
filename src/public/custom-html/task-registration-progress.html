@@ -65,6 +65,20 @@
       cursor: pointer;
     }
 
+    .controls button {
+      padding: 8px 12px;
+      background: #1f2a38;
+      border: 1px solid #4f5b6a;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -114,6 +128,11 @@
     .card-muted {
       border-color: #6b1111;
       background: rgba(54, 33, 33, 0.85);
+    }
+
+    .card-disqualified {
+      border-color: #a65a00;
+      background: rgba(60, 42, 25, 0.9);
     }
 
     .card-header {
@@ -183,6 +202,11 @@
       color: #fff;
     }
 
+    .badge.status-disqualified {
+      background: #f39c12;
+      color: #1f1f1f;
+    }
+
     .value-pill {
       padding: 6px 12px;
       background: #2a2a2a;
@@ -218,6 +242,10 @@
 
     .progress-bar.pending {
       background: #555;
+    }
+
+    .progress-bar.disqualified {
+      background: linear-gradient(90deg, #f39c12, #f6c36b);
     }
 
     .progress-info {
@@ -278,6 +306,7 @@
           <option value="status">按完成状态</option>
           <option value="name">按姓名字母</option>
         </select>
+        <button id="exportCsv" type="button">导出 CSV</button>
       </div>
     </div>
 
@@ -295,10 +324,15 @@
     let currentSortMode = 'status';
 
     const sortSelect = document.getElementById('sortSelect');
+    const exportButton = document.getElementById('exportCsv');
     sortSelect.addEventListener('change', (e) => {
       currentSortMode = e.target.value;
       render();
     });
+    exportButton.addEventListener('click', () => {
+      exportCsv();
+    });
+    exportButton.disabled = true;
 
     window.addEventListener('message', (event) => {
       const payload = event.data || {};
@@ -325,6 +359,11 @@
     function render() {
       updateStats(registrationStats);
       renderList(registrationsData);
+      updateExportButton(registrationsData.length > 0);
+    }
+
+    function updateExportButton(hasData) {
+      exportButton.disabled = !hasData;
     }
 
     function updateStats(stats = {}) {
@@ -394,8 +433,10 @@
 
       // 默认：按完成状态
       return data.sort((a, b) => {
-        if (a.hasSubmittedWork !== b.hasSubmittedWork) {
-          return a.hasSubmittedWork ? 1 : -1; // 未提交排前
+        const aRank = getStatusRank(a);
+        const bRank = getStatusRank(b);
+        if (aRank !== bRank) {
+          return aRank - bRank;
         }
         const aPct = getProgress(a).percent;
         const bPct = getProgress(b).percent;
@@ -406,26 +447,39 @@
       });
     }
 
+    function getStatusRank(item) {
+      if (!item.hasSubmittedWork) {
+        return 0;
+      }
+      if (item.isDQ) {
+        return 1;
+      }
+      const progress = getProgress(item);
+      if (progress.completed >= progress.target && progress.target > 0) {
+        return 2;
+      }
+      return 3;
+    }
+
     function renderCard(item) {
       const progress = getProgress(item);
-      const statusBadge = getStatusBadge(item, progress);
+      const statusInfo = getStatusInfo(item, progress);
+      const statusBadge = getStatusBadge(statusInfo);
       const qualityBadge = item.isHighQuality
         ? '<span class="badge qualified">Qualified</span>'
         : '<span class="badge muted">普通</span>';
-      const progressClass = !item.hasSubmittedWork
-        ? 'pending'
-        : progress.completed >= progress.target && progress.target > 0
-        ? 'complete'
-        : 'active';
+      const progressClass = statusInfo.progressClass;
       const refreshText = formatDate(item.lastRefreshTime);
-      const taskInfo = item.hasSubmittedWork
+      const taskInfo = item.isDQ
+        ? '作品已淘汰'
+        : item.hasSubmittedWork
         ? `${item.currentTaskCount || 0} 个当前任务`
         : '未派发任务';
       const contactHtml = formatContact(item.contactUrl);
       const regName = item.registrationName ? `（${escapeHtml(item.registrationName)}）` : '';
 
       return `
-        <div class="card ${!item.hasSubmittedWork ? 'card-muted' : ''}">
+        <div class="card ${statusInfo.cardClass}">
           <div class="card-header">
             <div class="user">
               <div class="name">${escapeHtml(item.userName || '未知用户')}${regName}</div>
@@ -456,14 +510,45 @@
       return { target, completed, percent };
     }
 
-    function getStatusBadge(item, progress) {
+    function getStatusInfo(item, progress) {
       if (!item.hasSubmittedWork) {
-        return '<span class="badge status-pending">未提交作品</span>';
+        return {
+          label: '未提交作品',
+          badgeClass: 'status-pending',
+          progressClass: 'pending',
+          cardClass: 'card-muted',
+        };
+      }
+      if (item.isDQ) {
+        return {
+          label: '已淘汰',
+          badgeClass: 'status-disqualified',
+          progressClass: 'disqualified',
+          cardClass: 'card-disqualified',
+        };
       }
       if (progress.completed >= progress.target && progress.target > 0) {
-        return '<span class="badge status-submitted">已达标</span>';
+        return {
+          label: '已达标',
+          badgeClass: 'status-submitted',
+          progressClass: 'complete',
+          cardClass: '',
+        };
       }
-      return '<span class="badge status-progress">进行中</span>';
+      return {
+        label: '进行中',
+        badgeClass: 'status-progress',
+        progressClass: 'active',
+        cardClass: '',
+      };
+    }
+
+    function getStatusBadge(statusInfo) {
+      return `<span class="badge ${statusInfo.badgeClass}">${statusInfo.label}</span>`;
+    }
+
+    function getStatusLabel(item, progress) {
+      return getStatusInfo(item, progress).label;
     }
 
     function formatContact(raw) {
@@ -483,6 +568,66 @@
         return '—';
       }
       return date.toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function exportCsv() {
+      if (!registrationsData.length) {
+        return;
+      }
+      const sorted = getSortedRegistrations(registrationsData);
+      const csvContent = buildCsvContent(sorted);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `registration-progress-${formatExportDate(new Date())}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function buildCsvContent(list) {
+      const rows = [
+        ['用户ID', '用户名', '报名名', '高权重', '状态', '完成数', '目标数', '完成率', '当前任务数', '淘汰', '最后刷新', '联系方式'],
+      ];
+
+      list.forEach((item) => {
+        const progress = getProgress(item);
+        rows.push([
+          item.userId || '',
+          item.userName || '',
+          item.registrationName || '',
+          item.isHighQuality ? '是' : '否',
+          getStatusLabel(item, progress),
+          progress.completed,
+          progress.target,
+          `${progress.percent}%`,
+          item.currentTaskCount || 0,
+          item.isDQ ? '是' : '否',
+          formatDate(item.lastRefreshTime),
+          item.contactUrl || '',
+        ]);
+      });
+
+      const lines = rows.map((row) => row.map(csvEscape).join(','));
+      return `\ufeff${lines.join('\n')}`;
+    }
+
+    function csvEscape(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      const text = String(value).replace(/\r?\n/g, ' ');
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    }
+
+    function formatExportDate(date) {
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
     }
 
     function showLoading(message) {

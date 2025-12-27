@@ -1359,16 +1359,21 @@ export async function getAllUsersTaskManagementData() {
       userQualityMap[reg._owner] = reg.isHighQuality === true;
     });
 
-    // 3. 构建作品信息映射
-    const worksMap = {};
-    const worksByOwner = {};
-    allWorks.forEach((work) => {
-      worksMap[work.sequenceId] = work;
-      if (!worksByOwner[work._owner]) {
-        worksByOwner[work._owner] = [];
-      }
-      worksByOwner[work._owner].push(work.sequenceId);
-    });
+      // 3. 构建作品信息映射
+      const worksMap = {};
+      const worksByOwner = {};
+      const worksDQCountByOwner = {};
+      allWorks.forEach((work) => {
+        worksMap[work.sequenceId] = work;
+        if (!worksByOwner[work._owner]) {
+          worksByOwner[work._owner] = [];
+          worksDQCountByOwner[work._owner] = 0;
+        }
+        worksByOwner[work._owner].push(work.sequenceId);
+        if (work.isDq === true) {
+          worksDQCountByOwner[work._owner] += 1;
+        }
+      });
 
     // 4. 构建评论映射（按作品分组）
     const commentsMap = {};
@@ -1539,23 +1544,27 @@ export async function getAllUsersTaskManagementData() {
     }
 
     // 7. 构建报名进度列表（包含未提交作品的报名者）
-    const registrationsProgress = allRegistrations.items.map((registration) => {
-      const userId = registration._owner;
-      const taskRecord = taskRecordMap[userId];
-      const completedTasks = taskRecord?.completedTasks || [];
-      const completedSet = new Set(completedTasks);
-      const freeRatings =
-        userRatedWorksMap[userId] && userRatedWorksMap[userId].size > 0
-          ? Array.from(userRatedWorksMap[userId])
-          : [];
+      const registrationsProgress = allRegistrations.items.map((registration) => {
+        const userId = registration._owner;
+        const taskRecord = taskRecordMap[userId];
+        const completedTasks = taskRecord?.completedTasks || [];
+        const completedSet = new Set(completedTasks);
+        const freeRatings =
+          userRatedWorksMap[userId] && userRatedWorksMap[userId].size > 0
+            ? Array.from(userRatedWorksMap[userId])
+            : [];
+        const totalWorks = (worksByOwner[userId] || []).length;
+        const dqWorks = worksDQCountByOwner[userId] || 0;
+        const hasSubmittedWork = totalWorks > 0;
 
-      return {
-        userId,
-        isHighQuality: registration.isHighQuality === true,
-        hasSubmittedWork: (worksByOwner[userId] || []).length > 0,
-        completedCount: taskRecord?.totalCompleted || 0,
-        targetCompletion: TARGET_USER_COMPLETION,
-        currentTaskCount: taskRecord?.currentTasks?.length || 0,
+        return {
+          userId,
+          isHighQuality: registration.isHighQuality === true,
+          hasSubmittedWork: hasSubmittedWork,
+          isDQ: hasSubmittedWork && dqWorks > 0 && dqWorks === totalWorks,
+          completedCount: taskRecord?.totalCompleted || 0,
+          targetCompletion: TARGET_USER_COMPLETION,
+          currentTaskCount: taskRecord?.currentTasks?.length || 0,
         completedTasks: [...completedTasks].sort((a, b) => b - a),
         freeRatings: freeRatings.filter((w) => !completedSet.has(w)).sort((a, b) => b - a),
         lastRefreshTime: taskRecord ? taskRecord.lastRefreshTime : null,

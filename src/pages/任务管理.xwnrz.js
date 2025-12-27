@@ -380,6 +380,7 @@ function mapRegistrationViewData(registrations = []) {
     const userInfo = userInfoCache[reg.userId];
     return {
       ...reg,
+      isDQ: reg.isDQ === true,
       userName: userInfo?.name || reg.userId,
       userSlug: userInfo?.slug || "",
       profileImageUrl: userInfo?.profileImageUrl || "",
