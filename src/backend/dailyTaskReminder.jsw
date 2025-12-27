@@ -1,0 +1,245 @@
+/**
+ * 每日任务提醒模块
+ * 功能：每天检查未完成任务的用户并发送邮件提醒
+ */
+
+import wixData from "wix-data";
+import { triggeredEmails } from "wix-crm-backend";
+import { getUserPublicInfo } from "./getUserPublicInfo.jsw";
+
+const COLLECTIONS = {
+  USER_TASKS: "UserRatingTasks",
+  REGISTRATIONS: "jobApplication089",
+  WORKS: "enterContest034",
+};
+
+const TARGET_USER_COMPLETION = 10; // 用户目标完成数
+
+/**
+ * 检查并提醒未完成任务的用户
+ * 每天北京时间10点自动执行
+ */
+export async function checkAndRemindIncompleteTasks() {
+  try {
+    console.log(`[每日任务提醒] 开始检查未完成任务的用户 - ${new Date().toISOString()}`);
+    
+    // 1. 查询所有 totalCompleted < 10 的用户任务记录
+    const incompleteTasksResult = await wixData
+      .query(COLLECTIONS.USER_TASKS)
+      .lt("totalCompleted", TARGET_USER_COMPLETION)
+      .find();
+
+    if (incompleteTasksResult.items.length === 0) {
+      console.log("[每日任务提醒] 所有用户都已完成任务目标，无需发送提醒");
+      return {
+        success: true,
+        message: "所有用户都已完成任务",
+        totalChecked: 0,
+        emailsSent: 0,
+      };
+    }
+
+    console.log(`[每日任务提醒] 找到 ${incompleteTasksResult.items.length} 个未完成任务的用户`);
+
+    // 2. 遍历每个用户，发送提醒邮件
+    let emailsSent = 0;
+    let emailsFailed = 0;
+    let skippedDQUsers = 0; // 因作品被DQ而跳过的用户数
+    const failedUsers = [];
+    const skippedUsers = []; // 被跳过的用户列表
+
+    for (const taskRecord of incompleteTasksResult.items) {
+      const userId = taskRecord._owner;
+      const completedCount = taskRecord.totalCompleted || 0;
+      const remainingTasks = TARGET_USER_COMPLETION - completedCount;
+
+      try {
+        // 获取用户信息
+        const userInfo = await getUserPublicInfo(userId);
+        if (!userInfo) {
+          console.log(`[每日任务提醒] 无法获取用户信息: ${userId}`);
+          emailsFailed++;
+          failedUsers.push({ userId, reason: "无法获取用户信息" });
+          continue;
+        }
+
+        const userName = userInfo.name || "用户";
+
+        // 检查用户是否有提交作品，且作品未被淘汰（DQ）
+        const hasValidWork = await checkUserHasValidWork(userId);
+        if (!hasValidWork) {
+          console.log(`[每日任务提醒] 用户 ${userName} (${userId}) 的作品已被淘汰或未提交作品，跳过提醒`);
+          skippedDQUsers++;
+          skippedUsers.push({ userId, userName, reason: "作品被DQ或未提交作品" });
+          continue;
+        }
+
+        // 发送触发式邮件
+        const emailResult = await sendTaskReminderEmail(
+          userId,
+          userName,
+          completedCount,
+          remainingTasks
+        );
+
+        if (emailResult.success) {
+          emailsSent++;
+          console.log(`[每日任务提醒] 已发送提醒邮件给: ${userName} (${userId}) - 已完成 ${completedCount}/${TARGET_USER_COMPLETION}`);
+        } else {
+          emailsFailed++;
+          failedUsers.push({ userId, userName, reason: emailResult.message });
+          console.log(`[每日任务提醒] 发送邮件失败: ${userName} (${userId}) - ${emailResult.message}`);
+        }
+
+        // 添加延迟，避免触发API限流
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+      } catch (error) {
+        emailsFailed++;
+        failedUsers.push({ userId, reason: error.message });
+        console.error(`[每日任务提醒] 处理用户 ${userId} 时出错:`, error);
+      }
+    }
+
+    const summary = {
+      success: true,
+      message: "每日任务提醒执行完成",
+      totalChecked: incompleteTasksResult.items.length,
+      emailsSent: emailsSent,
+      emailsFailed: emailsFailed,
+      skippedDQUsers: skippedDQUsers,
+      failedUsers: failedUsers,
+      skippedUsers: skippedUsers,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log("[每日任务提醒] 执行完成:", summary);
+    return summary;
+
+  } catch (error) {
+    console.error("[每日任务提醒] 执行失败:", error);
+    return {
+      success: false,
+      message: `执行失败: ${error.message}`,
+      error: error.toString(),
+    };
+  }
+}
+
+/**
+ * 检查用户是否有有效作品（未被淘汰）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<boolean>} true表示有有效作品，false表示无作品或全部被DQ
+ */
+async function checkUserHasValidWork(userId) {
+  try {
+    // 查询用户提交的所有作品
+    const userWorksResult = await wixData
+      .query(COLLECTIONS.WORKS)
+      .eq("_owner", userId)
+      .find();
+
+    // 如果用户没有提交任何作品，返回false
+    if (userWorksResult.items.length === 0) {
+      return false;
+    }
+
+    // 检查是否有至少一个作品未被DQ
+    const hasValidWork = userWorksResult.items.some(work => work.isDq !== true);
+    
+    return hasValidWork;
+
+  } catch (error) {
+    console.error(`[检查作品] 检查用户 ${userId} 作品状态失败:`, error);
+    // 如果查询失败，默认返回true（不因为技术问题而跳过用户）
+    return true;
+  }
+}
+
+/**
+ * 发送任务提醒邮件
+ * @param {string} userId - 用户ID
+ * @param {string} userName - 用户昵称
+ * @param {number} completedCount - 已完成任务数
+ * @param {number} remainingTasks - 剩余任务数
+ * @returns {Promise<Object>} 发送结果
+ */
+async function sendTaskReminderEmail(userId, userName, completedCount, remainingTasks) {
+  try {
+    // 使用Wix Triggered Emails发送邮件
+    await triggeredEmails.emailMember("V6bntLr", userId, {
+      variables: {
+        userName: userName,
+        completedCount: completedCount.toString(),
+        targetCount: TARGET_USER_COMPLETION.toString(),
+        remainingTasks: remainingTasks.toString(),
+        percentage: Math.round((completedCount / TARGET_USER_COMPLETION) * 100).toString(),
+      },
+    });
+
+    return {
+      success: true,
+      message: "邮件发送成功",
+    };
+
+  } catch (error) {
+    console.error(`[邮件发送] 发送给用户 ${userId} 失败:`, error);
+    return {
+      success: false,
+      message: error.message || "邮件发送失败",
+    };
+  }
+}
+
+/**
+ * 手动触发任务提醒（用于测试）
+ * @returns {Promise<Object>} 执行结果
+ */
+export async function manualTriggerReminder() {
+  console.log("[手动触发] 手动执行每日任务提醒");
+  return await checkAndRemindIncompleteTasks();
+}
+
+/**
+ * 获取未完成任务的用户统计（用于后台查询）
+ * @returns {Promise<Object>} 统计信息
+ */
+export async function getIncompleteTasksStats() {
+  try {
+    const incompleteTasksResult = await wixData
+      .query(COLLECTIONS.USER_TASKS)
+      .lt("totalCompleted", TARGET_USER_COMPLETION)
+      .find();
+
+    const stats = {
+      totalIncompleteUsers: incompleteTasksResult.items.length,
+      users: [],
+    };
+
+    for (const taskRecord of incompleteTasksResult.items) {
+      const userId = taskRecord._owner;
+      const completedCount = taskRecord.totalCompleted || 0;
+      
+      const userInfo = await getUserPublicInfo(userId);
+      const hasValidWork = await checkUserHasValidWork(userId);
+      
+      stats.users.push({
+        userId: userId,
+        userName: userInfo?.name || "未知用户",
+        completedCount: completedCount,
+        remainingTasks: TARGET_USER_COMPLETION - completedCount,
+        hasValidWork: hasValidWork,
+        willReceiveReminder: hasValidWork, // 是否会收到提醒邮件
+      });
+    }
+
+    return stats;
+
+  } catch (error) {
+    console.error("[统计查询] 获取未完成任务统计失败:", error);
+    return {
+      error: error.message,
+    };
+  }
+}
+
