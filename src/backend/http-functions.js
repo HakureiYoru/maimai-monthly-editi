@@ -111,6 +111,7 @@ export const get_contestList = asyncErrorHandler(async (request) => {
       viewedBy: viewedCount,
       IsApproved: isApproved,
       submissionTime: item.submissionTime,
+      isDQ: item.isDq === true,
     };
   });
 
