@@ -16,6 +16,29 @@ const COLLECTIONS = {
 const TARGET_USER_COMPLETION = 10; // 用户目标完成数
 
 /**
+ * 获取所有未完成任务的用户（使用分页查询，绕过50条限制）
+ * @returns {Promise<Array>} 所有未完成任务的用户任务记录
+ */
+async function fetchAllIncompleteTasks() {
+  const allItems = [];
+  let results = await wixData
+    .query(COLLECTIONS.USER_TASKS)
+    .lt("totalCompleted", TARGET_USER_COMPLETION)
+    .limit(1000) // 每次最多获取1000条
+    .find();
+
+  allItems.push(...results.items);
+
+  // 如果还有更多数据，继续分页获取
+  while (results.hasNext && results.hasNext()) {
+    results = await results.next();
+    allItems.push(...results.items);
+  }
+
+  return allItems;
+}
+
+/**
  * 检查并提醒未完成任务的用户
  * 每天北京时间10点自动执行
  */
@@ -23,13 +46,10 @@ export async function checkAndRemindIncompleteTasks() {
   try {
     console.log(`[每日任务提醒] 开始检查未完成任务的用户 - ${new Date().toISOString()}`);
     
-    // 1. 查询所有 totalCompleted < 10 的用户任务记录
-    const incompleteTasksResult = await wixData
-      .query(COLLECTIONS.USER_TASKS)
-      .lt("totalCompleted", TARGET_USER_COMPLETION)
-      .find();
+    // 1. 查询所有 totalCompleted < 10 的用户任务记录（使用分页获取全部）
+    const allIncompleteTasks = await fetchAllIncompleteTasks();
 
-    if (incompleteTasksResult.items.length === 0) {
+    if (allIncompleteTasks.length === 0) {
       console.log("[每日任务提醒] 所有用户都已完成任务目标，无需发送提醒");
       return {
         success: true,
@@ -39,7 +59,7 @@ export async function checkAndRemindIncompleteTasks() {
       };
     }
 
-    console.log(`[每日任务提醒] 找到 ${incompleteTasksResult.items.length} 个未完成任务的用户`);
+    console.log(`[每日任务提醒] 找到 ${allIncompleteTasks.length} 个未完成任务的用户`);
 
     // 2. 遍历每个用户，发送提醒邮件
     let emailsSent = 0;
@@ -48,7 +68,7 @@ export async function checkAndRemindIncompleteTasks() {
     const failedUsers = [];
     const skippedUsers = []; // 被跳过的用户列表
 
-    for (const taskRecord of incompleteTasksResult.items) {
+    for (const taskRecord of allIncompleteTasks) {
       const userId = taskRecord._owner;
       const completedCount = taskRecord.totalCompleted || 0;
       const remainingTasks = TARGET_USER_COMPLETION - completedCount;
@@ -104,7 +124,7 @@ export async function checkAndRemindIncompleteTasks() {
     const summary = {
       success: true,
       message: "每日任务提醒执行完成",
-      totalChecked: incompleteTasksResult.items.length,
+      totalChecked: allIncompleteTasks.length,
       emailsSent: emailsSent,
       emailsFailed: emailsFailed,
       skippedDQUsers: skippedDQUsers,
@@ -206,17 +226,15 @@ export async function manualTriggerReminder() {
  */
 export async function getIncompleteTasksStats() {
   try {
-    const incompleteTasksResult = await wixData
-      .query(COLLECTIONS.USER_TASKS)
-      .lt("totalCompleted", TARGET_USER_COMPLETION)
-      .find();
+    // 使用分页查询获取所有未完成任务的用户
+    const allIncompleteTasks = await fetchAllIncompleteTasks();
 
     const stats = {
-      totalIncompleteUsers: incompleteTasksResult.items.length,
+      totalIncompleteUsers: allIncompleteTasks.length,
       users: [],
     };
 
-    for (const taskRecord of incompleteTasksResult.items) {
+    for (const taskRecord of allIncompleteTasks) {
       const userId = taskRecord._owner;
       const completedCount = taskRecord.totalCompleted || 0;
       
