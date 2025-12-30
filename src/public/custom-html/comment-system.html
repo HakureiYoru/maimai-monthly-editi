@@ -1553,7 +1553,7 @@
         return;
       }
       
-      console.log(`[评论系统] 设置筛选器到作品 #${workNumber}`);
+     // console.log(`[评论系统] 设置筛选器到作品 #${workNumber}`);
       
       // 更新筛选状态
       currentWorkFilter = workNumber;
@@ -2179,7 +2179,7 @@
           // 只有有溢出的评论才能展开/收起
           if (commentContent.classList.contains('has-overflow') || commentContent.classList.contains('expanded')) {
             commentContent.classList.toggle('expanded');
-            console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
+            //console.log('[评论系统] 评论内容已' + (commentContent.classList.contains('expanded') ? '展开' : '收起'));
             
             // 如果是展开操作，滚动到评论位置以便查看完整内容
             if (commentContent.classList.contains('expanded')) {
@@ -2330,16 +2330,16 @@
           
           if (hasOverflow) {
             commentContent.classList.add('has-overflow');
-            console.log('[评论系统] 检测到内容溢出，添加展开功能', {
-              scrollHeight: commentContent.scrollHeight,
-              clientHeight: commentContent.clientHeight
-            });
+            // console.log('[评论系统] 检测到内容溢出，添加展开功能', {
+            //   scrollHeight: commentContent.scrollHeight,
+            //   clientHeight: commentContent.clientHeight
+            // });
           } else {
             commentContent.classList.add('short');
-            console.log('[评论系统] 内容较短，无需展开', {
-              scrollHeight: commentContent.scrollHeight,
-              clientHeight: commentContent.clientHeight
-            });
+            // console.log('[评论系统] 内容较短，无需展开', {
+            //   scrollHeight: commentContent.scrollHeight,
+            //   clientHeight: commentContent.clientHeight
+            // });
           }
         });
       });
