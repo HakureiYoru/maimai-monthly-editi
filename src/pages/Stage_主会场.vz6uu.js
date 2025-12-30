@@ -517,12 +517,29 @@ function initCommentRepliesPanel() {
 // 显示评论回复面板（替代原来的 lightbox）
 async function showCommentReplies(commentId, workNumber, originalComment) {
   try {
+    // 查询原评论的完整数据（获取所有者ID）
+    const originalCommentResult = await wixData
+      .query("BOFcomment")
+      .eq("_id", commentId)
+      .find();
+    
+    let originalCommentOwnerId = null;
+    if (originalCommentResult.items.length > 0) {
+      originalCommentOwnerId = originalCommentResult.items[0]._owner;
+    }
+
     // 查询回复数据
     const replies = await wixData
       .query("BOFcomment")
       .eq("replyTo", commentId)
       .ascending("_createdDate")
       .find();
+
+    // 获取作品所有者ID（从批量缓存）
+    let workOwnerId = null;
+    if (batchDataCache && batchDataCache.workOwnerMap) {
+      workOwnerId = batchDataCache.workOwnerMap[workNumber];
+    }
 
     // 显示HTML面板
     $w("#commentRepliesPanel").show();
@@ -534,9 +551,11 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
         commentId: commentId,
         workNumber: workNumber,
         originalComment: originalComment,
+        originalCommentOwnerId: originalCommentOwnerId, // 原评论所有者ID
         replies: replies.items,
       },
       currentUserId: currentUserId,
+      workOwnerId: workOwnerId, // 传递作品所有者ID
     });
 
     // 滚动到顶部以确保面板可见

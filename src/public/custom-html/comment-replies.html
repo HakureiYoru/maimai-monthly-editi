@@ -94,6 +94,14 @@
             overflow-y: auto;
         }
 
+        .original-comment .user-label,
+        .original-comment .user-label-author {
+            display: inline-block;
+            margin-right: 8px;
+            margin-bottom: 6px;
+            vertical-align: middle;
+        }
+
         .reply-input-section {
             margin-bottom: 20px;
         }
@@ -188,11 +196,35 @@
 
         .reply-header {
             margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-label {
+            display: inline-block;
+            background: rgba(100, 100, 255, 0.3);
+            color: #aac6ff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .user-label-author {
+            display: inline-block;
+            background: rgba(255, 200, 50, 0.3);
+            color: #ffd17c;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
         }
 
         .reply-time {
             color: #888;
             font-size: 12px;
+            margin-left: auto;
         }
 
         .reply-text {
@@ -270,6 +302,7 @@
     <script>
         let commentData = null;
         let currentUserId = null;
+        let workOwnerId = null; // 作品所有者ID
 
         // 监听来自 Wix 页面的消息
         window.addEventListener('message', async (event) => {
@@ -279,6 +312,7 @@
                 // 初始化数据
                 commentData = data.commentData;
                 currentUserId = data.currentUserId;
+                workOwnerId = data.workOwnerId; // 接收作品所有者ID
                 
                 // 显示原评论信息
                 displayOriginalComment();
@@ -298,8 +332,44 @@
         function displayOriginalComment() {
             if (!commentData) return;
             
-            document.getElementById('originalComment').textContent = commentData.originalComment || '原评论内容';
-            document.getElementById('workNumber').textContent = commentData.workNumber || '-';
+            const originalCommentEl = document.getElementById('originalComment');
+            const workNumberEl = document.getElementById('workNumber');
+            
+            // 获取原评论的用户标识
+            let originalCommentUserLabel = '';
+            if (commentData.originalCommentOwnerId) {
+                if (workOwnerId && commentData.originalCommentOwnerId === workOwnerId) {
+                    originalCommentUserLabel = '<span class="user-label-author">谱面作者</span> ';
+                } else {
+                    // 【优化】非作者的原评论者显示为"用户A"，与回复列表中的标识保持一致
+                    originalCommentUserLabel = '<span class="user-label">用户A</span> ';
+                }
+            }
+            
+            // 使用innerHTML以支持HTML标签，但需要转义评论内容
+            originalCommentEl.innerHTML = originalCommentUserLabel + escapeHtml(commentData.originalComment || '原评论内容');
+            workNumberEl.textContent = commentData.workNumber || '-';
+        }
+
+        // 生成用户标识（匿名化）
+        function generateUserLabel(userId, userIdMap) {
+            // 如果是作品所有者
+            if (workOwnerId && userId === workOwnerId) {
+                return '谱面作者';
+            }
+            
+            // 检查是否已经分配过标识
+            if (userIdMap.has(userId)) {
+                return userIdMap.get(userId);
+            }
+            
+            // 分配新的用户标识（用户A、用户B...）
+            const userLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+            const index = userIdMap.size;
+            const label = index < userLabels.length ? `用户${userLabels[index]}` : `用户${index + 1}`;
+            
+            userIdMap.set(userId, label);
+            return label;
         }
 
         // 加载回复列表
@@ -324,14 +394,33 @@
                         
                         // 显示回复列表
                         if (replies.length > 0) {
-                            repliesList.innerHTML = replies.map(reply => `
-                                <div class="reply-item">
-                                    <div class="reply-header">
-                                        <span class="reply-time">${formatDate(reply._createdDate || reply.submissionTime)}</span>
+                            // 创建用户ID到标识的映射
+                            const userIdMap = new Map();
+                            
+                            // 【优化】先将原评论者加入映射，确保标识一致性
+                            if (commentData.originalCommentOwnerId) {
+                                const originalUserId = commentData.originalCommentOwnerId;
+                                // 只有非作者的原评论者才预先分配标识
+                                if (!workOwnerId || originalUserId !== workOwnerId) {
+                                    generateUserLabel(originalUserId, userIdMap);
+                                }
+                            }
+                            
+                            repliesList.innerHTML = replies.map(reply => {
+                                const userId = reply._owner || 'unknown';
+                                const userLabel = generateUserLabel(userId, userIdMap);
+                                const userLabelClass = (workOwnerId && userId === workOwnerId) ? 'user-label-author' : 'user-label';
+                                
+                                return `
+                                    <div class="reply-item">
+                                        <div class="reply-header">
+                                            <span class="${userLabelClass}">${escapeHtml(userLabel)}</span>
+                                            <span class="reply-time">${formatDate(reply._createdDate || reply.submissionTime)}</span>
+                                        </div>
+                                        <div class="reply-text">${escapeHtml(reply.comment || '无内容')}</div>
                                     </div>
-                                    <div class="reply-text">${escapeHtml(reply.comment || '无内容')}</div>
-                                </div>
-                            `).join('');
+                                `;
+                            }).join('');
                         } else {
                             repliesList.innerHTML = '<div class="no-replies">暂无回复</div>';
                         }
