@@ -476,6 +476,8 @@
         ? `${item.currentTaskCount || 0} 个当前任务`
         : '未派发任务';
       const contactHtml = formatContact(item.contactUrl);
+      const ownWorksText = formatOwnWorks(item);
+      const ownWorksHtml = ownWorksText ? `<div class="meta">${ownWorksText}</div>` : '';
       const regName = item.registrationName ? `（${escapeHtml(item.registrationName)}）` : '';
 
       return `
@@ -484,6 +486,7 @@
             <div class="user">
               <div class="name">${escapeHtml(item.userName || '未知用户')}${regName}</div>
               <div class="meta">${contactHtml}</div>
+              ${ownWorksHtml}
               <div class="badges">
                 ${qualityBadge}
                 ${statusBadge}
@@ -501,6 +504,21 @@
           <div class="meta">最后刷新：${refreshText}</div>
         </div>
       `;
+    }
+
+    function formatOwnWorks(item) {
+      if (!item || !item.hasSubmittedWork) {
+        return '';
+      }
+      const works = Array.isArray(item.ownWorks) ? item.ownWorks : [];
+      const normalized = works
+        .map((num) => Number(num))
+        .filter((num) => Number.isFinite(num));
+      if (!normalized.length) {
+        return '';
+      }
+      const worksText = normalized.map((num) => `#${num}`).join(', ');
+      return `作品编号：${worksText}`;
     }
 
     function getProgress(item) {

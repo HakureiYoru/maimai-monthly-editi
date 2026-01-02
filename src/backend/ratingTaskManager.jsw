@@ -1553,7 +1553,8 @@ export async function getAllUsersTaskManagementData() {
           userRatedWorksMap[userId] && userRatedWorksMap[userId].size > 0
             ? Array.from(userRatedWorksMap[userId])
             : [];
-        const totalWorks = (worksByOwner[userId] || []).length;
+        const ownWorks = worksByOwner[userId] || [];
+        const totalWorks = ownWorks.length;
         const dqWorks = worksDQCountByOwner[userId] || 0;
         const hasSubmittedWork = totalWorks > 0;
 
@@ -1565,11 +1566,14 @@ export async function getAllUsersTaskManagementData() {
           completedCount: taskRecord?.totalCompleted || 0,
           targetCompletion: TARGET_USER_COMPLETION,
           currentTaskCount: taskRecord?.currentTasks?.length || 0,
-        completedTasks: [...completedTasks].sort((a, b) => b - a),
-        freeRatings: freeRatings.filter((w) => !completedSet.has(w)).sort((a, b) => b - a),
-        lastRefreshTime: taskRecord ? taskRecord.lastRefreshTime : null,
-        contactUrl: getRegistrationContact(registration),
-        registrationName: registration.firstName || "",
+          ownWorks: [...ownWorks].sort((a, b) => a - b),
+          completedTasks: [...completedTasks].sort((a, b) => b - a),
+          freeRatings: freeRatings
+            .filter((w) => !completedSet.has(w))
+            .sort((a, b) => b - a),
+          lastRefreshTime: taskRecord ? taskRecord.lastRefreshTime : null,
+          contactUrl: getRegistrationContact(registration),
+          registrationName: registration.firstName || "",
       };
     });
 

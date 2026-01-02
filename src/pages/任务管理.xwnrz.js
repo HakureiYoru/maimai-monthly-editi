@@ -386,6 +386,7 @@ function mapRegistrationViewData(registrations = []) {
       profileImageUrl: userInfo?.profileImageUrl || "",
       contactUrl: reg.contactUrl || "",
       registrationName: reg.registrationName || "",
+      ownWorks: Array.isArray(reg.ownWorks) ? reg.ownWorks : [],
     };
   });
 }
