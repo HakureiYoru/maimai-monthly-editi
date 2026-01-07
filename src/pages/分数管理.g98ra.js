@@ -56,6 +56,43 @@ function isValidUserId(userId) {
   return guidRegex.test(userId.trim());
 }
 
+function normalizeWixImageUrl(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    const candidates = [value.url, value.src, value.fileUrl];
+    for (const candidate of candidates) {
+      const normalized = normalizeWixImageUrl(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("wix:image://")) {
+    const match = trimmed.match(/^wix:image:\/\/v1\/([^/#]+)(?:\/[^#]*)?(?:#.*)?$/);
+    return match ? `https://static.wixstatic.com/media/${match[1]}` : "";
+  }
+
+  return trimmed;
+}
+
 /**
  * 批量获取用户信息（包括高权重标记）
  * 使用游标分页获取所有注册记录，避免 _owner 字段的 hasSome 错误
@@ -208,15 +245,7 @@ async function loadAllWorksData() {
         ownerInfo.registrationName ||
         "";
 
-      // 正确处理图片URL（可能是对象或字符串）
-      let coverImageUrl = "";
-      if (work.track的複本) {
-        if (typeof work.track的複本 === "object" && work.track的複本.url) {
-          coverImageUrl = work.track的複本.url;
-        } else if (typeof work.track的複本 === "string") {
-          coverImageUrl = work.track的複本;
-        }
-      }
+      const coverImageUrl = normalizeWixImageUrl(work.track的複本);
 
       worksWithRatings.push({
         sequenceId: work.sequenceId,
