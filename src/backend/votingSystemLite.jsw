@@ -27,21 +27,17 @@ export async function getVote2Options() {
   try {
     return {
       options: [
-        { value: "3", label: "3-アマオト" },
-        { value: "4", label: "4-Operation Spectrum" },
-        { value: "34", label: "34-永遠の春夢" },
-        { value: "36", label: "36-Battle Against a True Hero" },
-        { value: "41", label: "41-Behind the Wall" },
-        { value: "59", label: "59-Backside Of The TV" },
-        { value: "107", label: "107-Theme" },
-        { value: "109", label: "109-Beat Beat Beat" },
-        { value: "115", label: "115-恋ひ恋う縁" },
-        { value: "121", label: "121-太空漫步 Space Walk" },
-        { value: "138", label: "138-KONNANじゃないっ！" },
-        { value: "140", label: "140-夏のひとひら" },
-        { value: "157", label: "157-Glorious Morning" },
-        { value: "164", label: "164-BURNIN’RUBBER" },
-        { value: "176", label: "176-goldenslaughterer" }
+        { value: "54", label: "54 まっかっか" },
+        { value: "86", label: "86 Spider Dance (Shirobon Remix)" },
+        { value: "94", label: "94 夢花咲進" },
+        { value: "97", label: "97 Mystic Light Quest" },
+        { value: "98", label: "98 コンテンポラリのダンス" },
+        { value: "119", label: "119 英雄の証 (モンスターハンター)" },
+        { value: "124", label: "124 Follow Your Heart" },
+        { value: "155", label: "155 无限速" },
+        { value: "159", label: "159 Your Reality" },
+        { value: "174", label: "174 Ticking Away" },
+        { value: "177", label: "177 碧い瞳の中に" }
       ]
     };
   } catch (error) {
