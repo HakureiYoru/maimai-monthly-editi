@@ -1390,7 +1390,7 @@
     }
 
     async function handleCommentsUpdate(data) {
-      console.log('[评论系统] 更新评论数据:', data.comments?.length);
+      // console.log('[评论系统] 更新评论数据:', data.comments?.length);
       allCommentsData = data.comments || [];
       
       // 【修复】更新筛选状态时，同步更新UI组件，避免状态不一致
@@ -1965,7 +1965,7 @@
       
       // 【修复】渲染完成后解锁请求锁
       isRequestingComments = false;
-      console.log('[评论系统] 评论渲染完成，已解锁请求');
+      // console.log('[评论系统] 评论渲染完成，已解锁请求');
     }
 
     function updatePagination() {
@@ -2559,11 +2559,11 @@
       }
       
       isRequestingComments = true;
-      console.log('[评论系统] 请求评论数据...', {
-        workFilter: currentWorkFilter,
-        filterMode: currentFilter,
-        currentPage: currentPage
-      });
+      // console.log('[评论系统] 请求评论数据...', {
+      //   workFilter: currentWorkFilter,
+      //   filterMode: currentFilter,
+      //   currentPage: currentPage
+      // });
       showLoading('加载评论中...');
       
       window.parent.postMessage({
