@@ -877,8 +877,11 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     if (b.votesByUser !== a.votesByUser) {
       return b.votesByUser - a.votesByUser;
     }
-    if (b.rating !== a.rating) {
-      return b.rating - a.rating;
+    if (b.userWinRate !== a.userWinRate) {
+      return b.userWinRate - a.userWinRate;
+    }
+    if (b.userWins !== a.userWins) {
+      return b.userWins - a.userWins;
     }
     return a.workNumber - b.workNumber;
   });
