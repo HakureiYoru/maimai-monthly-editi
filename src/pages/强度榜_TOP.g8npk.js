@@ -15,6 +15,7 @@ let htmlComponent = null;
 let currentUserId = null;
 let isAdmin = false;
 let userVoteCount = 0;
+const MAX_VOTES = 100;
 
 $w.onReady(function () {
   currentUserId = wixUsers.currentUser.id || null;
@@ -59,6 +60,7 @@ function setupHtmlBridge() {
 
     switch (type) {
       case "STRENGTH_VOTE_READY":
+        postToHtml("CONFIG", { maxVotes: MAX_VOTES });
         await pushStatus();
         await pushLeaderboard();
         break;
@@ -190,6 +192,7 @@ async function handleSubmitVote(data) {
     postToHtml("VOTE_RESULT", result);
 
     if (result?.success) {
+      await pushVoteCount();
       await pushLeaderboard();
     }
   } catch (error) {
@@ -211,11 +214,16 @@ async function pushLeaderboard() {
     postToHtml("LEADERBOARD_PERSONAL", { items: personalItems });
 
     // 全站榜单（仅管理员可见）
-    if (isAdmin) {
+    const canViewGlobal = isAdmin || userVoteCount >= MAX_VOTES;
+    if (canViewGlobal) {
       const items = await getStrengthLeaderboard(50);
-      postToHtml("LEADERBOARD_GLOBAL", { items, isAdmin: true });
+      postToHtml("LEADERBOARD_GLOBAL", { items, isAdmin, canViewGlobal: true });
     } else {
-      postToHtml("LEADERBOARD_GLOBAL", { items: [], isAdmin: false });
+      postToHtml("LEADERBOARD_GLOBAL", {
+        items: [],
+        isAdmin: false,
+        canViewGlobal: false,
+      });
     }
   } catch (error) {
     console.error("[强度榜] 获取榜单失败", error);

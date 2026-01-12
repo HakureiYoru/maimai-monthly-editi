@@ -90,6 +90,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
       gap: 16px;
       border-radius: 100px;
     }
@@ -221,6 +222,22 @@
       z-index: 10;
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
       pointer-events: none;
+    }
+
+    .pair-actions {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, 32px);
+      z-index: 11;
+    }
+
+    .skip-btn {
+      padding: 8px 18px;
+      font-size: 13px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
     }
 
     .work-card {
@@ -557,6 +574,10 @@
         box-shadow: 0 0 0 4px var(--bg);
       }
 
+      .pair-actions {
+        transform: translate(-50%, 46px);
+      }
+
       .work-card .cover-container {
         padding-top: 100%;
       }
@@ -632,9 +653,6 @@
         <span class="dot warn"></span>
         <span>正在检查权限...</span>
       </div>
-      <div class="actions">
-        <button id="newCompareBtn" class="secondary" disabled>开始</button>
-      </div>
       <div class="progress" id="voteProgress">已投 0 / 100</div>
     </section>
 
@@ -646,6 +664,9 @@
     </section>
 
     <section class="pair">
+      <div class="pair-actions">
+        <button id="newCompareBtn" class="skip-btn" disabled>开始</button>
+      </div>
       <div class="entry" id="entryA">
         <div class="glass-card work-card" id="cardA">
           <div class="cover-wrap">
@@ -705,8 +726,8 @@
     <section class="glass-card leaderboard" id="globalLeaderboardSection" style="display:none;">
       <div class="leaderboard-header">
         <div>
-          <div class="title" style="font-size:20px;">全站实时榜单（管理员）</div>
-          <div class="subtitle" style="font-size:13px; margin-top:4px;">基于全站 Elo 积分</div>
+          <div class="title" style="font-size:20px;">全站实时榜单</div>
+          <div class="subtitle" id="globalRequirement" style="font-size:13px; margin-top:4px;">管理员或完成 100 次投票可查看</div>
         </div>
       </div>
       <div class="list" id="globalLeaderboardList">
@@ -730,7 +751,7 @@
   <script>
     const DEFAULT_RATING = 1500;
     const REQUIRED_TASKS = 10;
-    const MAX_VOTES = 100;
+    let maxVotes = 100;
     const VOTE_COUNT_KEY = "strengthVoteUserVoteCount";
     let isAdmin = false;
 
@@ -749,6 +770,7 @@
       introOverlay: document.getElementById("introOverlay"),
       introConfirmBtn: document.getElementById("introConfirmBtn"),
       voteProgress: document.getElementById("voteProgress"),
+      globalRequirement: document.getElementById("globalRequirement"),
       descTextA: document.getElementById("descTextA"),
       descTextB: document.getElementById("descTextB"),
       descCardA: document.getElementById("descCardA"),
@@ -852,17 +874,20 @@
 
     function updateVoteProgress() {
       if (!els.voteProgress) return;
-      const safeCount = Math.min(voteCount, MAX_VOTES);
-      els.voteProgress.textContent = `已投 ${safeCount} / ${MAX_VOTES}`;
+      const safeCount = Math.min(voteCount, maxVotes);
+      els.voteProgress.textContent = `已投 ${safeCount} / ${maxVotes}`;
+      if (els.globalRequirement) {
+        els.globalRequirement.textContent = `管理员或完成 ${maxVotes} 次投票可查看`;
+      }
     }
 
     function reachedVoteLimit() {
-      return voteCount >= MAX_VOTES;
+      return voteCount >= maxVotes;
     }
 
     function enforceVoteLimit() {
       if (reachedVoteLimit()) {
-        setStatus(`已达到今日上限（${MAX_VOTES} 次 1v1 投票）`, "warn");
+        setStatus(`已达到累计上限（${maxVotes} 次 1v1 投票）`, "warn");
         els.newCompareBtn.disabled = true;
         els.voteA.disabled = true;
         els.voteB.disabled = true;
@@ -909,7 +934,7 @@
       }
       state.sessionId = payload.sessionId;
       renderPair(payload.pair || []);
-      els.newCompareBtn.textContent = "下一题";
+      els.newCompareBtn.textContent = "跳过";
       setLoading(false);
       updateVoteProgress();
     }
@@ -1002,8 +1027,8 @@
           renderLeaderboard(data?.items || [], els.userLeaderboardList, false);
           break;
         case "LEADERBOARD_GLOBAL":
-          if (data?.isAdmin) {
-            isAdmin = true;
+          if (data?.canViewGlobal) {
+            isAdmin = !!data?.isAdmin;
             els.globalLeaderboardSection.style.display = "block";
             renderLeaderboard(data?.items || [], els.globalLeaderboardList, true);
           } else {
@@ -1014,6 +1039,12 @@
         case "VOTE_COUNT":
           if (typeof data?.count === "number" && data.count >= 0) {
             voteCount = data.count;
+          }
+          updateVoteProgress();
+          break;
+        case "CONFIG":
+          if (typeof data?.maxVotes === "number" && data.maxVotes > 0) {
+            maxVotes = data.maxVotes;
             updateVoteProgress();
           }
           break;
