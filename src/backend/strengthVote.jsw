@@ -818,12 +818,18 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     return [];
   }
 
-  // 统计用户选择胜者的次数
+  // 统计用户个人胜负（胜者=用户选择的作品，败者=用户未选择的作品）
   const voteCountMap = {};
+  const lossCountMap = {};
   logs.forEach((log) => {
     const winner = Number(log.winnerWorkNumber);
-    if (!Number.isFinite(winner)) return;
-    voteCountMap[winner] = (voteCountMap[winner] || 0) + 1;
+    const loser = Number(log.loserWorkNumber);
+    if (Number.isFinite(winner)) {
+      voteCountMap[winner] = (voteCountMap[winner] || 0) + 1;
+    }
+    if (Number.isFinite(loser)) {
+      lossCountMap[loser] = (lossCountMap[loser] || 0) + 1;
+    }
   });
 
   const voteWorkNumbers = Object.keys(voteCountMap).map((n) => Number(n));
@@ -849,9 +855,21 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
   const statsMap = await fetchStatsMap(voteWorkNumbers);
   const ranking = filteredWorks.map((work) => {
     const payload = buildWorkPayload(work, statsMap[work.sequenceId]);
+    const userWins = voteCountMap[work.sequenceId] || 0;
+    const userLosses = lossCountMap[work.sequenceId] || 0;
+    const userTotal = userWins + userLosses;
+    const userWinRate =
+      userTotal > 0 ? Number((userWins / userTotal).toFixed(4)) : 0;
     return {
       ...payload,
       votesByUser: voteCountMap[work.sequenceId] || 0,
+      userWins,
+      userLosses,
+      userWinRate,
+      // 覆盖展示字段为个人口径
+      wins: userWins,
+      losses: userLosses,
+      winRate: userWinRate,
     };
   });
 
