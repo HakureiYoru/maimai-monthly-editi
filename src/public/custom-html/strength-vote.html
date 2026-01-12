@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -421,10 +421,11 @@
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       z-index: 10000;
       padding: 16px;
+      padding-top: 25vh;
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
@@ -889,6 +890,8 @@
       if (reachedVoteLimit()) {
         setStatus(`已达到累计上限（${maxVotes} 次 1v1 投票）`, "warn");
         els.newCompareBtn.disabled = true;
+        els.newCompareBtn.style.display = "block";
+        els.newCompareBtn.textContent = "已达上限";
         els.voteA.disabled = true;
         els.voteB.disabled = true;
         setLoading(false);
@@ -910,6 +913,7 @@
       if (!payload.eligible) {
         setStatus(`不可参与：${payload.reason || "未满足条件"} (${total}/${target})`, "warn");
         els.newCompareBtn.disabled = true;
+        els.newCompareBtn.style.display = "block";
         els.voteA.disabled = true;
         els.voteB.disabled = true;
         return;
@@ -921,6 +925,7 @@
       }
       if (!state.sessionId) {
         els.newCompareBtn.textContent = "开始";
+        els.newCompareBtn.style.display = "block";
       }
       updateVoteProgress();
     }
@@ -934,7 +939,8 @@
       }
       state.sessionId = payload.sessionId;
       renderPair(payload.pair || []);
-      els.newCompareBtn.textContent = "跳过";
+      // 隐藏跳过按钮，只能通过投票进入下一轮
+      els.newCompareBtn.style.display = "none";
       setLoading(false);
       updateVoteProgress();
     }
@@ -942,9 +948,11 @@
     function handleVoteResult(payload) {
       if (!payload?.success) {
         els.resultCard.style.display = "block";
-        els.resultMessage.innerHTML = `<span class="dot danger"></span>${payload?.message || "投票失败"}`;
+        els.resultMessage.innerHTML = `<span class="dot danger"></span>${payload?.message || "投票失败，请重新投票"}`;
         setLoading(false);
         toggleVoteButtons(true);
+        // 投票失败时，保持按钮隐藏，让用户重新投票
+        els.newCompareBtn.style.display = "none";
         return;
       }
 
@@ -956,6 +964,7 @@
       voteCount += 1;
       saveVoteCount(voteCount);
       updateVoteProgress();
+      // 投票成功后自动加载下一轮，按钮保持隐藏
       setTimeout(() => {
         post("REQUEST_NEW_COMPARE");
       }, 400);

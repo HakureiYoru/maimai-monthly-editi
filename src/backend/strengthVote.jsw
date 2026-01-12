@@ -493,7 +493,10 @@ export async function requestStrengthComparison(userId) {
     };
   }
 
-  const works = await fetchActiveWorks();
+  const allWorks = await fetchActiveWorks();
+  // 过滤掉当前用户自己提交的作品
+  const works = allWorks.filter(item => item._owner !== userId);
+  
   if (works.length < 2) {
     return {
       success: false,
