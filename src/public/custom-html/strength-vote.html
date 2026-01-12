@@ -1,0 +1,1020 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>强度榜投票</title>
+  <style>
+    :root {
+      --bg: radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.05), transparent 40%),
+        radial-gradient(circle at 85% 10%, rgba(37, 99, 235, 0.1), transparent 40%),
+        #0f172a;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-hover: rgba(255, 255, 255, 0.12);
+      --glass-strong: rgba(0, 0, 0, 0.2);
+      --border: rgba(255, 255, 255, 0.15);
+      --border-highlight: rgba(255, 255, 255, 0.3);
+      --text: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+      --radius: 24px;
+      --radius-sm: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+      outline: none;
+    }
+
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: transparent;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 8px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+      max-width: 600px;
+    }
+
+    .glass-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-top-color: var(--border-highlight);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 24px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: var(--transition);
+    }
+
+    .status {
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border-radius: 100px;
+    }
+
+    .status .message {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .status .progress {
+      font-size: 12px;
+      color: var(--text-secondary);
+      letter-spacing: 0.2px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 10px #22c55e;
+      position: relative;
+    }
+
+    .dot::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: rgba(34, 197, 94, 0.2);
+      animation: pulse 2s infinite;
+    }
+
+    .dot.warn { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+    .dot.warn::after { background: rgba(245, 158, 11, 0.2); }
+    .dot.danger { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    .dot.danger::after { background: rgba(239, 68, 68, 0.2); }
+
+    @keyframes pulse {
+      0% { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+
+    button {
+      border: none;
+      border-radius: 100px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      cursor: pointer;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    button:active:not(:disabled) { transform: translateY(0); }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: #fff;
+    }
+
+    button.secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      filter: grayscale(0.8);
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+      position: relative;
+    }
+
+    .pair::after {
+      content: "VS";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--text);
+      color: #0f172a;
+      font-weight: 900;
+      font-style: italic;
+      padding: 8px 12px;
+      border-radius: 8px;
+      z-index: 10;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+    }
+
+    .work-card {
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .work-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.5);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .entry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .desc-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .desc-title {
+      font-size: 13px;
+      color: var(--text-secondary);
+      letter-spacing: 0.2px;
+    }
+
+    .desc-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 6;
+      -webkit-box-orient: vertical;
+      max-height: 9em;
+    }
+
+    .desc-card.expanded .desc-text {
+      -webkit-line-clamp: unset;
+      max-height: none;
+    }
+
+    .desc-toggle {
+      align-self: flex-start;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    .work-card .cover-container {
+      position: relative;
+      width: 100%;
+      padding-top: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .cover-wrap {
+      padding: 14px;
+    }
+
+    .cover-wrap .cover-container {
+      border-radius: 12px;
+    }
+
+    .cover-container img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+      display: none; /* 默认隐藏，避免空src显示破图 */
+    }
+
+    .work-card:hover .cover-container img { transform: scale(1.05); }
+
+    .cover-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      z-index: 1;
+    }
+
+    .tag-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 2;
+    }
+
+    .card-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      gap: 16px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), transparent);
+    }
+
+    .title-line {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.3;
+      min-height: 1.3em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .stat-item {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stat-item label {
+      display: block;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+
+    .stat-item .value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .vote-btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      letter-spacing: 1px;
+      margin-top: 4px;
+      border-radius: 12px;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .spinner {
+      width: 56px;
+      height: 56px;
+      border: 6px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Intro Overlay */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 16px;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .intro-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      padding: 24px 28px;
+      max-width: 520px;
+      width: 100%;
+      color: #fff;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .intro-card h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .intro-card p {
+      margin: 0 0 20px;
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    #resultCard {
+      text-align: center;
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.3);
+      padding: 16px;
+    }
+
+    .result {
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .leaderboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+  .row {
+    display: grid;
+    grid-template-columns: 50px 1fr 100px 90px 110px;
+    align-items: center;
+    gap: 16px;
+      padding: 12px 20px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      transition: var(--transition);
+  }
+  .row.no-rating {
+    grid-template-columns: 50px 1fr 110px;
+  }
+
+    .row:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--border);
+    }
+
+    .row .rank {
+      font-family: "SF Mono", monospace;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+
+    .row:nth-child(1) .rank { color: #fbbf24; opacity: 1; text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
+    .row:nth-child(2) .rank { color: #94a3b8; opacity: 1; }
+    .row:nth-child(3) .rank { color: #b45309; opacity: 1; }
+
+    .row .name-col { display: flex; flex-direction: column; }
+    .row .name { font-weight: 600; font-size: 15px; }
+    .row .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    .row .stat-col { text-align: right; font-variant-numeric: tabular-nums; }
+    .row .stat-val { font-weight: 700; font-size: 15px; }
+
+    .empty { padding: 32px; text-align: center; color: var(--text-secondary); }
+
+    @media (max-width: 768px) {
+      .pair {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .pair::after {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-size: 12px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 0 4px var(--bg);
+      }
+
+      .work-card .cover-container { padding-top: 100%; }
+
+      .entry {
+        grid-template-columns: 1fr;
+      }
+
+      .row {
+        grid-template-columns: 40px 1fr auto;
+        grid-template-areas:
+          "rank name rating"
+          "rank name details";
+        gap: 4px 12px;
+        padding: 12px;
+      }
+      .row.no-rating {
+        grid-template-columns: 40px 1fr auto;
+        grid-template-areas:
+          "rank name details";
+      }
+
+      .row .rank { grid-area: rank; font-size: 16px; }
+      .row .name-col { grid-area: name; }
+      .row .stat-col { display: none; }
+      .row .stat-col.rating-only { display: block; grid-area: rating; }
+      .row.no-rating .stat-col.rating-only { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .row { grid-template-columns: 30px 1fr auto; }
+      .row > div:nth-child(4),
+      .row > div:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <header>
+      <div class="title">
+        <span>🏆</span> 强度榜投票
+      </div>
+      <div class="subtitle">
+        两两对决，票据验证 + 智能匹配。完成 10 个评分任务即可参与。
+      </div>
+    </header>
+
+    <section class="glass-card status" id="statusCard">
+      <div class="message" id="statusMessage">
+        <span class="dot warn"></span>
+        <span>正在检查权限...</span>
+      </div>
+      <div class="actions">
+        <button id="newCompareBtn" class="secondary" disabled>开始</button>
+      </div>
+      <div class="progress" id="voteProgress">已投 0 / 200</div>
+    </section>
+
+    <section class="glass-card" id="resultCard" style="display:none;">
+      <div class="result" id="resultMessage">
+        <span class="dot"></span>
+        对决结果已保存
+      </div>
+    </section>
+
+    <section class="pair">
+      <div class="entry" id="entryA">
+        <div class="glass-card work-card" id="cardA">
+        <div class="cover-wrap">
+          <div class="cover-container">
+            <img id="coverA" src="" alt="" />
+            <div class="tag-overlay" id="tagA">#?</div>
+            <div class="cover-placeholder" id="placeholderA">?</div>
+          </div>
+        </div>
+          <div class="card-content">
+            <div class="title-line" id="titleA">等待载入...</div>
+            <div class="meta-grid">
+              <div class="stat-item">
+                <label>Rating</label>
+                <div class="value" id="ratingA">-</div>
+              </div>
+              <div class="stat-item">
+                <label>胜率</label>
+                <div class="value" id="winrateA">-</div>
+              </div>
+              <div class="stat-item">
+                <label>战绩</label>
+                <div class="value" id="recordA">-</div>
+              </div>
+            </div>
+            <button class="vote-btn" id="voteA" disabled>投给 TA</button>
+          </div>
+        </div>
+        <div class="glass-card desc-card" id="descCardA">
+          <div class="desc-title">作品描述</div>
+          <div class="desc-text" id="descTextA">暂无描述</div>
+          <button class="secondary desc-toggle" id="descToggleA" disabled>展开</button>
+        </div>
+      </div>
+
+      <div class="entry" id="entryB">
+        <div class="glass-card work-card" id="cardB">
+        <div class="cover-wrap">
+          <div class="cover-container">
+            <img id="coverB" src="" alt="" />
+            <div class="tag-overlay" id="tagB">#?</div>
+            <div class="cover-placeholder" id="placeholderB">?</div>
+          </div>
+        </div>
+          <div class="card-content">
+            <div class="title-line" id="titleB">等待载入...</div>
+            <div class="meta-grid">
+              <div class="stat-item">
+                <label>Rating</label>
+                <div class="value" id="ratingB">-</div>
+              </div>
+              <div class="stat-item">
+                <label>胜率</label>
+                <div class="value" id="winrateB">-</div>
+              </div>
+              <div class="stat-item">
+                <label>战绩</label>
+                <div class="value" id="recordB">-</div>
+              </div>
+            </div>
+            <button class="vote-btn" id="voteB" disabled>投给 TA</button>
+          </div>
+        </div>
+        <div class="glass-card desc-card" id="descCardB">
+          <div class="desc-title">作品描述</div>
+          <div class="desc-text" id="descTextB">暂无描述</div>
+          <button class="secondary desc-toggle" id="descToggleB" disabled>展开</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass-card leaderboard">
+      <div class="leaderboard-header">
+        <div>
+          <div class="title" style="font-size:20px;">我的个人偏好榜</div>
+          <div class="subtitle" style="font-size:13px; margin-top:4px;">基于你自己投过的作品（按你投票次数排序）</div>
+        </div>
+        <button class="secondary" id="refreshBoardBtn" style="padding: 6px 12px; font-size:12px;">刷新</button>
+      </div>
+      <div class="list" id="userLeaderboardList">
+        <div class="empty">加载中...</div>
+      </div>
+    </section>
+
+    <section class="glass-card leaderboard" id="globalLeaderboardSection" style="display:none;">
+      <div class="leaderboard-header">
+        <div>
+          <div class="title" style="font-size:20px;">全站实时榜单（管理员）</div>
+          <div class="subtitle" style="font-size:13px; margin-top:4px;">基于全站 Elo 积分</div>
+        </div>
+      </div>
+      <div class="list" id="globalLeaderboardList">
+        <div class="empty">暂无权限或暂无数据</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="intro-overlay" id="introOverlay">
+    <div class="intro-card">
+      <h3>须知</h3>
+      <p>请您确保您已经看过参与本投票的大部分谱面。我们希望选手们都能得到合理的参赛体验，感谢您的热情！</p>
+      <button id="introConfirmBtn">我已了解，进入投票</button>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    const DEFAULT_RATING = 1500;
+    const REQUIRED_TASKS = 10;
+    const MAX_VOTES = 200;
+    const VOTE_COUNT_KEY = "strengthVoteUserVoteCount";
+    let isAdmin = false;
+
+    const state = { eligible: false, sessionId: null, pair: [] };
+    const els = {
+      statusMessage: document.getElementById("statusMessage"),
+      newCompareBtn: document.getElementById("newCompareBtn"),
+      voteA: document.getElementById("voteA"),
+      voteB: document.getElementById("voteB"),
+      resultCard: document.getElementById("resultCard"),
+      resultMessage: document.getElementById("resultMessage"),
+      userLeaderboardList: document.getElementById("userLeaderboardList"),
+      globalLeaderboardList: document.getElementById("globalLeaderboardList"),
+      globalLeaderboardSection: document.getElementById("globalLeaderboardSection"),
+      loadingOverlay: document.getElementById("loadingOverlay"),
+      introOverlay: document.getElementById("introOverlay"),
+      introConfirmBtn: document.getElementById("introConfirmBtn"),
+      voteProgress: document.getElementById("voteProgress"),
+      descTextA: document.getElementById("descTextA"),
+      descTextB: document.getElementById("descTextB"),
+      descCardA: document.getElementById("descCardA"),
+      descCardB: document.getElementById("descCardB"),
+      descToggleA: document.getElementById("descToggleA"),
+      descToggleB: document.getElementById("descToggleB"),
+      placeholderA: document.getElementById("placeholderA"),
+      placeholderB: document.getElementById("placeholderB"),
+      coverA: document.getElementById("coverA"),
+      coverB: document.getElementById("coverB"),
+    };
+
+    function loadVoteCount() {
+      return 0; // 由后端同步，前端不再持久化本地计数
+    }
+
+    function saveVoteCount(count) {
+      // 不再写入 localStorage，保持以服务器计数为准
+    }
+
+    let voteCount = loadVoteCount();
+
+    function post(type, data = {}) {
+      parent.postMessage({ type, data }, "*");
+    }
+
+    function setLoading(show) {
+      if (!els.loadingOverlay) return;
+      els.loadingOverlay.style.display = show ? "flex" : "none";
+    }
+
+    function formatWinRate(value) {
+      return value === null || value === undefined ? "-" : `${Math.round(Number(value) * 100)}%`;
+    }
+
+    function renderPair(pair = []) {
+      state.pair = pair;
+      els.resultCard.style.display = "none";
+      const [a, b] = pair;
+
+      const setCard = (prefix, data) => {
+        document.getElementById(`tag${prefix}`).innerText = `#${data.workNumber}`;
+        document.getElementById(`title${prefix}`).innerText = data.title || `作品 #${data.workNumber}`;
+        document.getElementById(`rating${prefix}`).innerText = isAdmin
+          ? Math.round(data.rating || DEFAULT_RATING)
+          : "-";
+        document.getElementById(`winrate${prefix}`).innerText = formatWinRate(data.winRate);
+        document.getElementById(`record${prefix}`).innerText = `${data.wins || 0}W/${data.losses || 0}L`;
+        const coverEl = prefix === "A" ? els.coverA : els.coverB;
+        const placeholder = prefix === "A" ? els.placeholderA : els.placeholderB;
+        if (data.coverImage) {
+          coverEl.src = data.coverImage;
+          coverEl.style.display = "block";
+          placeholder.style.display = "none";
+        } else {
+          coverEl.removeAttribute("src");
+          coverEl.style.display = "none";
+          placeholder.style.display = "flex";
+        }
+      };
+
+      if (a) {
+        setCard("A", a);
+        setDescription("A", a.description || "");
+      }
+      if (b) {
+        setCard("B", b);
+        setDescription("B", b.description || "");
+      }
+      toggleVoteButtons(true);
+    }
+
+    function setDescription(prefix, text) {
+      const descText = prefix === "A" ? els.descTextA : els.descTextB;
+      const descCard = prefix === "A" ? els.descCardA : els.descCardB;
+      const descToggle = prefix === "A" ? els.descToggleA : els.descToggleB;
+      const normalized = (text || "").trim();
+      descText.textContent = normalized || "暂无描述";
+      descCard.classList.remove("expanded");
+      if (normalized) {
+        descToggle.disabled = false;
+        descToggle.textContent = "展开";
+      } else {
+        descToggle.disabled = true;
+        descToggle.textContent = "展开";
+      }
+    }
+
+    function toggleDescription(prefix) {
+      const descCard = prefix === "A" ? els.descCardA : els.descCardB;
+      const descToggle = prefix === "A" ? els.descToggleA : els.descToggleB;
+      const isExpanded = descCard.classList.toggle("expanded");
+      descToggle.textContent = isExpanded ? "收起" : "展开";
+    }
+
+    function toggleVoteButtons(enabled) {
+      els.voteA.disabled = !enabled;
+      els.voteB.disabled = !enabled;
+      els.newCompareBtn.disabled = !state.eligible || !enabled;
+    }
+
+    function setStatus(message, level = "info") {
+      const dot = level === "ok" ? "dot" : level === "warn" ? "dot warn" : "dot danger";
+      els.statusMessage.innerHTML = `<span class="${dot}"></span>${message}`;
+    }
+
+    function updateVoteProgress() {
+      if (!els.voteProgress) return;
+      const safeCount = Math.min(voteCount, MAX_VOTES);
+      els.voteProgress.textContent = `已投 ${safeCount} / ${MAX_VOTES}`;
+    }
+
+    function reachedVoteLimit() {
+      return voteCount >= MAX_VOTES;
+    }
+
+    function enforceVoteLimit() {
+      if (reachedVoteLimit()) {
+        setStatus(`已达到今日上限（${MAX_VOTES} 次 1v1 投票）`, "warn");
+        els.newCompareBtn.disabled = true;
+        els.voteA.disabled = true;
+        els.voteB.disabled = true;
+        setLoading(false);
+        return true;
+      }
+      return false;
+    }
+
+    function handleStatus(payload) {
+      state.eligible = !!payload?.eligible;
+      const total = payload?.totalCompleted ?? 0;
+      const target = payload?.targetCompletion ?? REQUIRED_TASKS;
+
+      if (!payload) {
+        setStatus("无法获取权限信息", "danger");
+        return;
+      }
+
+      if (!payload.eligible) {
+        setStatus(`不可参与：${payload.reason || "未满足条件"} (${total}/${target})`, "warn");
+        els.newCompareBtn.disabled = true;
+        els.voteA.disabled = true;
+        els.voteB.disabled = true;
+        return;
+      }
+
+      setStatus(`已解锁投票资格 (${total}/${target})`, "ok");
+      if (!enforceVoteLimit()) {
+        els.newCompareBtn.disabled = false;
+      }
+      if (!state.sessionId) {
+        els.newCompareBtn.textContent = "开始";
+      }
+      updateVoteProgress();
+    }
+
+    function handleNewCompare(payload) {
+      if (!payload?.success) {
+        setStatus(payload?.message || "获取对决失败", "warn");
+        setLoading(false);
+        toggleVoteButtons(false);
+        return;
+      }
+      state.sessionId = payload.sessionId;
+      renderPair(payload.pair || []);
+      els.newCompareBtn.textContent = "下一题";
+      setLoading(false);
+      updateVoteProgress();
+    }
+
+    function handleVoteResult(payload) {
+      if (!payload?.success) {
+        els.resultCard.style.display = "block";
+        els.resultMessage.innerHTML = `<span class="dot danger"></span>${payload?.message || "投票失败"}`;
+        setLoading(false);
+        toggleVoteButtons(true);
+        return;
+      }
+
+      const winner = payload.winner?.title || `#${payload.winner?.workNumber}`;
+      const delta = payload.deltas?.winnerDelta ?? 0;
+      els.resultMessage.innerHTML = `<span class="dot"></span>已提交：${winner} <span style="color:#4ade80;margin-left:8px;">+${delta}</span>`;
+      els.resultCard.style.display = "block";
+      toggleVoteButtons(false);
+      voteCount += 1;
+      saveVoteCount(voteCount);
+      updateVoteProgress();
+      setTimeout(() => {
+        post("REQUEST_NEW_COMPARE");
+      }, 400);
+    }
+
+    function renderLeaderboard(items = [], targetEl, showRating = false) {
+      if (!targetEl) return;
+      if (!items || items.length === 0) {
+        targetEl.innerHTML = `<div class="empty">暂无榜单数据</div>`;
+        return;
+      }
+
+      targetEl.innerHTML = items.map((item, idx) => `
+        <div class="row ${showRating ? "" : "no-rating"}">
+          <div class="rank">#${idx + 1}</div>
+          <div class="name-col">
+            <div class="name">${item.title || `作品 #${item.workNumber}`}</div>
+            <div class="sub">ID: ${item.workNumber}</div>
+          </div>
+          ${showRating ? `<div class="stat-col rating-only">
+            <div class="stat-val" style="color:#fbbf24">${Math.round(item.rating || 0)}</div>
+          </div>` : ""}
+          <div class="stat-col">
+            <div class="stat-val">${formatWinRate(item.winRate)}</div>
+          </div>
+          <div class="stat-col">
+            <div class="stat-val" style="font-size:13px;opacity:0.8">${item.wins || 0}W / ${item.losses || 0}L</div>
+          </div>
+        </div>`).join("");
+    }
+
+    function requestStatus() { post("REQUEST_STATUS"); }
+
+    function requestNewCompare() {
+      if (!state.eligible) return;
+      if (enforceVoteLimit()) return;
+      setLoading(true);
+      toggleVoteButtons(false);
+      post("REQUEST_NEW_COMPARE");
+    }
+
+    function submitVote(side) {
+      if (!state.sessionId || !state.pair.length) {
+        setStatus("请先获取题目", "warn");
+        return;
+      }
+      if (enforceVoteLimit()) return;
+      const target = state.pair[side === "A" ? 0 : 1];
+      toggleVoteButtons(false);
+      setLoading(true);
+      post("SUBMIT_VOTE", { sessionId: state.sessionId, winnerWorkNumber: target.workNumber });
+    }
+
+    function requestLeaderboard() { post("REQUEST_LEADERBOARD"); }
+
+    window.addEventListener("message", (event) => {
+      const { type, data } = event.data || {};
+      switch (type) {
+        case "STATUS":
+          handleStatus(data);
+          break;
+        case "NEW_COMPARE":
+          handleNewCompare(data);
+          break;
+        case "VOTE_RESULT":
+          handleVoteResult(data);
+          break;
+        case "LEADERBOARD_PERSONAL":
+          renderLeaderboard(data?.items || [], els.userLeaderboardList, false);
+          break;
+        case "LEADERBOARD_GLOBAL":
+          if (data?.isAdmin) {
+            isAdmin = true;
+            els.globalLeaderboardSection.style.display = "block";
+            renderLeaderboard(data?.items || [], els.globalLeaderboardList, true);
+          } else {
+            isAdmin = false;
+            els.globalLeaderboardSection.style.display = "none";
+          }
+          break;
+        case "VOTE_COUNT":
+          if (typeof data?.count === "number" && data.count >= 0) {
+            voteCount = data.count;
+            updateVoteProgress();
+          }
+          break;
+        case "ERROR":
+          setStatus(data?.message || "发生错误", "danger");
+          toggleVoteButtons(false);
+          break;
+        default:
+          break;
+      }
+    });
+
+    els.newCompareBtn.addEventListener("click", requestNewCompare);
+    els.voteA.addEventListener("click", () => submitVote("A"));
+    els.voteB.addEventListener("click", () => submitVote("B"));
+    els.descToggleA.addEventListener("click", () => toggleDescription("A"));
+    els.descToggleB.addEventListener("click", () => toggleDescription("B"));
+    els.introConfirmBtn.addEventListener("click", () => {
+      if (els.introOverlay) {
+        els.introOverlay.style.display = "none";
+      }
+    });
+    document.getElementById("refreshBoardBtn").addEventListener("click", requestLeaderboard);
+
+    post("STRENGTH_VOTE_READY");
+    requestStatus();
+    requestLeaderboard();
+  </script>
+</body>
+
+</html>

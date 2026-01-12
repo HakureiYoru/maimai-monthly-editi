@@ -1,0 +1,757 @@
+/**
+ * 强度榜二选一投票 - 后端服务
+ * - 仅允许已完成 10 个评分任务的用户参与
+ * - 作品来源：enterContest034，排除 isDq=true 的作品
+ * - 机制：匹配 -> 票据绑定 -> Elo 更新 -> 榜单
+ */
+
+import wixData from "wix-data";
+import { getUserTaskData } from "backend/ratingTaskManager.jsw";
+import { COLLECTIONS } from "backend/constants.js";
+import { logError } from "backend/errorHandler.js";
+
+const COLLECTION_MAP = {
+  WORKS: COLLECTIONS.ENTER_CONTEST_034,
+  SESSIONS: "StrengthVoteSessions",
+  STATS: "StrengthVoteStats",
+  LOGS: "StrengthVoteLogs",
+};
+
+const REQUIRED_TASKS = 10;
+const DEFAULT_RATING = 1500;
+const MATCH_WINDOW = 180;
+const EXTENDED_WINDOW = 320;
+const SESSION_TTL_MINUTES = 10;
+const MAX_LEADERBOARD_SIZE = 100;
+const STATS_QUERY_CHUNK = 50;
+// 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
+const ENFORCE_TASK_COMPLETION = false;
+
+/**
+ * 规范化 Wix 媒体 URL，适配图片/文件字段的多种格式
+ */
+function normalizeWixImageUrl(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    const candidates = [value.url, value.src, value.fileUrl];
+    for (const candidate of candidates) {
+      const normalized = normalizeWixImageUrl(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("wix:image://")) {
+    const match = trimmed.match(
+      /^wix:image:\/\/v1\/([^/#]+)(?:\/[^#]*)?(?:#.*)?$/
+    );
+    return match ? `https://static.wixstatic.com/media/${match[1]}` : "";
+  }
+
+  return trimmed;
+}
+
+/**
+ * 尝试提取作品封面
+ * 优先使用已存在的封面/缩略图字段，兜底为空字符串
+ */
+function pickCoverImage(work = {}) {
+  const candidateKeys = [
+    "coverImage",
+    "cover",
+    "thumbnail",
+    "封面",
+    "track的複本",
+    "bg的複本",
+    "上傳檔案欄",
+  ];
+
+  for (const key of candidateKeys) {
+    const value = work[key];
+    const normalized = normalizeWixImageUrl(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+function getMatchesCount(stats) {
+  if (!stats) {
+    return 0;
+  }
+  const wins = Number(stats.wins || 0);
+  const losses = Number(stats.losses || 0);
+  return wins + losses;
+}
+
+function generateSessionId() {
+  return `sv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function calculateKFactor(matches) {
+  if (matches < 5) return 40;
+  if (matches < 15) return 32;
+  return 24;
+}
+
+function calculateWinRate(wins = 0, losses = 0) {
+  const total = Number(wins || 0) + Number(losses || 0);
+  if (total === 0) return 0;
+  return Number((Number(wins || 0) / total).toFixed(4));
+}
+
+async function checkEligibility(userId) {
+  if (!userId) {
+    return {
+      eligible: false,
+      reason: "notLoggedIn",
+      totalCompleted: 0,
+      targetCompletion: REQUIRED_TASKS,
+    };
+  }
+
+  if (!ENFORCE_TASK_COMPLETION) {
+    return {
+      eligible: true,
+      reason: "debugBypass",
+      totalCompleted: 0,
+      targetCompletion: REQUIRED_TASKS,
+    };
+  }
+
+  try {
+    const taskData = await getUserTaskData(userId);
+    const totalCompleted = Number(taskData?.totalCompleted || 0);
+    const targetCompletion = Number(
+      taskData?.targetCompletion || REQUIRED_TASKS
+    );
+    const hasCompleted =
+      taskData?.hasCompletedTarget || totalCompleted >= targetCompletion;
+
+    if (taskData?.error) {
+      return {
+        eligible: false,
+        reason: taskData?.notSubmitted ? "noSubmission" : "taskDataError",
+        message: taskData?.message || "任务数据异常",
+        totalCompleted,
+        targetCompletion,
+      };
+    }
+
+    if (!hasCompleted) {
+      return {
+        eligible: false,
+        reason: "insufficientTasks",
+        totalCompleted,
+        targetCompletion,
+      };
+    }
+
+    return {
+      eligible: true,
+      totalCompleted,
+      targetCompletion,
+    };
+  } catch (error) {
+    logError("strengthVote.checkEligibility", error);
+    return {
+      eligible: false,
+      reason: "unknown",
+      message: error.message,
+      totalCompleted: 0,
+      targetCompletion: REQUIRED_TASKS,
+    };
+  }
+}
+
+
+
+//正式用法
+// async function fetchActiveWorks() {
+//   const works = [];
+//   try {
+//     let result = await wixData
+//       .query(COLLECTION_MAP.WORKS)
+//       .ne("isDq", true)
+//       .limit(1000)
+//       .ascending("_createdDate")
+//       .find();
+
+//     works.push(...(result.items || []));
+
+//     while (result.hasNext()) {
+//       result = await result.next();
+//       works.push(...(result.items || []));
+//     }
+//   } catch (error) {
+//     logError("strengthVote.fetchActiveWorks", error);
+//   }
+
+//   return works.filter(
+//     (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
+//   );
+// }
+
+
+
+
+
+
+
+async function fetchStatsMap(workNumbers = []) {
+  if (!Array.isArray(workNumbers) || workNumbers.length === 0) {
+    return {};
+  }
+
+  const statsMap = {};
+  for (let i = 0; i < workNumbers.length; i += STATS_QUERY_CHUNK) {
+    const chunk = workNumbers.slice(i, i + STATS_QUERY_CHUNK);
+    try {
+      const result = await wixData
+        .query(COLLECTION_MAP.STATS)
+        .hasSome("workNumber", chunk)
+        .limit(1000)
+        .find();
+
+      (result.items || []).forEach((item) => {
+        const key = Number(item.workNumber);
+        statsMap[key] = item;
+      });
+    } catch (error) {
+      logError("strengthVote.fetchStatsMap", error, { chunk });
+    }
+  }
+
+  return statsMap;
+}
+
+async function ensureStats(work, existingStats) {
+  if (existingStats) {
+    return existingStats;
+  }
+
+  const base = {
+    workNumber: Number(work.sequenceId),
+    title: work.firstName || `作品 #${work.sequenceId}`,
+    rating: DEFAULT_RATING,
+    wins: 0,
+    losses: 0,
+    matches: 0,
+    coverImage: pickCoverImage(work),
+    lastMatchAt: null,
+  };
+
+  try {
+    const saved = await wixData.insert(COLLECTION_MAP.STATS, base);
+    return saved;
+  } catch (error) {
+    logError("strengthVote.ensureStats", error, {
+      workNumber: work.sequenceId,
+    });
+    return base;
+  }
+}
+
+function pickMatchPair(works, statsMap) {
+  if (!works || works.length < 2) {
+    throw new Error("作品数量不足，无法生成对决");
+  }
+
+  const shuffled = [...works].sort((a, b) => {
+    const matchesA = getMatchesCount(statsMap[a.sequenceId]);
+    const matchesB = getMatchesCount(statsMap[b.sequenceId]);
+    if (matchesA === matchesB) {
+      return Math.random() - 0.5;
+    }
+    return matchesA - matchesB;
+  });
+
+  const anchorIndex = Math.min(
+    shuffled.length - 1,
+    Math.floor(Math.random() * Math.min(3, shuffled.length))
+  );
+  const anchor = shuffled[anchorIndex];
+  const anchorStats = statsMap[anchor.sequenceId];
+  const anchorRating = anchorStats?.rating || DEFAULT_RATING;
+  const anchorMatches = getMatchesCount(anchorStats);
+
+  let candidates = works.filter(
+    (item) => item.sequenceId !== anchor.sequenceId
+  );
+
+  if (anchorMatches >= 3) {
+    const close = candidates.filter((item) => {
+      const stats = statsMap[item.sequenceId];
+      const rating = stats?.rating || DEFAULT_RATING;
+      const matches = getMatchesCount(stats);
+      if (matches < 3) {
+        return false;
+      }
+      return Math.abs(rating - anchorRating) <= MATCH_WINDOW;
+    });
+
+    if (close.length > 0) {
+      candidates = close;
+    } else {
+      const extended = candidates.filter((item) => {
+        const stats = statsMap[item.sequenceId];
+        const rating = stats?.rating || DEFAULT_RATING;
+        return Math.abs(rating - anchorRating) <= EXTENDED_WINDOW;
+      });
+      if (extended.length > 0) {
+        candidates = extended;
+      }
+    }
+  }
+
+  const opponent =
+    candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
+
+  return { workA: anchor, workB: opponent };
+}
+
+function buildWorkPayload(work, stats) {
+  const wins = Number(stats?.wins || 0);
+  const losses = Number(stats?.losses || 0);
+  const matches = Number(stats?.matches || wins + losses);
+
+  return {
+    workNumber: Number(work.sequenceId),
+    title: work.firstName || `作品 #${work.sequenceId}`,
+    description: work["較長答案欄"] || "",
+    coverImage: stats?.coverImage || pickCoverImage(work),
+    rating: Number(stats?.rating || DEFAULT_RATING),
+    wins,
+    losses,
+    matches,
+    winRate: calculateWinRate(wins, losses),
+    lastMatchAt: stats?.lastMatchAt || null,
+  };
+}
+
+export async function getStrengthVoteStatus(userId) {
+  const eligibility = await checkEligibility(userId);
+  return eligibility;
+}
+
+export async function requestStrengthComparison(userId) {
+  const eligibility = await checkEligibility(userId);
+  if (!eligibility.eligible) {
+    return {
+      success: false,
+      code: "notEligible",
+      message: "您尚未完成必需的评分任务，无法参与投票",
+      eligibility,
+    };
+  }
+
+  const works = await fetchActiveWorks();
+  if (works.length < 2) {
+    return {
+      success: false,
+      code: "noWorks",
+      message: "可用作品不足，无法创建对决",
+    };
+  }
+
+  const workNumbers = works.map((item) => Number(item.sequenceId));
+  const statsMap = await fetchStatsMap(workNumbers);
+  const { workA, workB } = pickMatchPair(works, statsMap);
+
+  const sessionId = generateSessionId();
+  const now = new Date();
+  const sessionRecord = {
+    sessionId,
+    userId,
+    workA: Number(workA.sequenceId),
+    workB: Number(workB.sequenceId),
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + SESSION_TTL_MINUTES * 60 * 1000),
+    used: false,
+  };
+
+  try {
+    await wixData.insert(COLLECTION_MAP.SESSIONS, sessionRecord);
+  } catch (error) {
+    logError("strengthVote.requestStrengthComparison.insertSession", error, {
+      sessionId,
+    });
+  }
+
+  return {
+    success: true,
+    sessionId,
+    expiresAt: sessionRecord.expiresAt,
+    pair: [
+      buildWorkPayload(workA, statsMap[workA.sequenceId]),
+      buildWorkPayload(workB, statsMap[workB.sequenceId]),
+    ],
+  };
+}
+
+export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
+  const eligibility = await checkEligibility(userId);
+  if (!eligibility.eligible) {
+    return {
+      success: false,
+      code: "notEligible",
+      message: "请先完成 10 个评分任务后再参与投票",
+      eligibility,
+    };
+  }
+
+  try {
+    const sessionResult = await wixData
+      .query(COLLECTION_MAP.SESSIONS)
+      .eq("sessionId", sessionId)
+      .limit(1)
+      .find();
+
+    if (!sessionResult.items || sessionResult.items.length === 0) {
+      return {
+        success: false,
+        code: "invalidSession",
+        message: "票据不存在或已失效",
+      };
+    }
+
+    const session = sessionResult.items[0];
+    const now = new Date();
+    if (session.used) {
+      return {
+        success: false,
+        code: "usedSession",
+        message: "该票据已使用，请刷新重新获取对决",
+      };
+    }
+
+    if (session.expiresAt && new Date(session.expiresAt) < now) {
+      return {
+        success: false,
+        code: "expiredSession",
+        message: "票据已过期，请重新获取对决",
+      };
+    }
+
+    if (session.userId && session.userId !== userId) {
+      return {
+        success: false,
+        code: "sessionMismatch",
+        message: "票据与当前账号不匹配",
+      };
+    }
+
+    const pairNumbers = [Number(session.workA), Number(session.workB)];
+    const winner = Number(winnerWorkNumber);
+
+    if (!pairNumbers.includes(winner)) {
+      return {
+        success: false,
+        code: "invalidWinner",
+        message: "提交的作品不在票据对决中",
+      };
+    }
+
+    const loser = pairNumbers.find((num) => num !== winner);
+
+    const workResult = await wixData
+      .query(COLLECTION_MAP.WORKS)
+      .hasSome("sequenceId", [winner, loser])
+      .ne("isDq", true)
+      .limit(2)
+      .find();
+
+    if (!workResult.items || workResult.items.length < 2) {
+      return {
+        success: false,
+        code: "workUnavailable",
+        message: "作品已下架或被淘汰，无法计票",
+      };
+    }
+
+    const workMap = {};
+    workResult.items.forEach((item) => {
+      workMap[Number(item.sequenceId)] = item;
+    });
+    const winnerWork = workMap[winner];
+    const loserWork = workMap[loser];
+
+    const statsMap = await fetchStatsMap([winner, loser]);
+    const winnerStats = await ensureStats(winnerWork, statsMap[winner]);
+    const loserStats = await ensureStats(loserWork, statsMap[loser]);
+
+    const winnerRating = Number(winnerStats.rating || DEFAULT_RATING);
+    const loserRating = Number(loserStats.rating || DEFAULT_RATING);
+    const expectedWinner = 1 / (1 + 10 ** ((loserRating - winnerRating) / 400));
+    const expectedLoser = 1 - expectedWinner;
+
+    const winnerMatches = getMatchesCount(winnerStats);
+    const loserMatches = getMatchesCount(loserStats);
+
+    const winnerK = calculateKFactor(winnerMatches);
+    const loserK = calculateKFactor(loserMatches);
+
+    const winnerDelta = Math.round(winnerK * (1 - expectedWinner));
+    const loserDelta = Math.round(loserK * (0 - expectedLoser));
+
+    const updatedWinner = {
+      ...winnerStats,
+      rating: Math.max(0, winnerRating + winnerDelta),
+      wins: Number(winnerStats.wins || 0) + 1,
+      matches: winnerMatches + 1,
+      lastMatchAt: now,
+    };
+
+    const updatedLoser = {
+      ...loserStats,
+      rating: Math.max(0, loserRating + loserDelta),
+      losses: Number(loserStats.losses || 0) + 1,
+      matches: loserMatches + 1,
+      lastMatchAt: now,
+    };
+
+    await wixData.update(COLLECTION_MAP.STATS, updatedWinner);
+    await wixData.update(COLLECTION_MAP.STATS, updatedLoser);
+
+    await wixData.update(COLLECTION_MAP.SESSIONS, {
+      ...session,
+      used: true,
+      usedAt: now,
+      winnerWorkNumber: winner,
+      loserWorkNumber: loser,
+    });
+
+    await wixData.insert(COLLECTION_MAP.LOGS, {
+      sessionId,
+      userId,
+      winnerWorkNumber: winner,
+      loserWorkNumber: loser,
+      winnerBefore: winnerRating,
+      loserBefore: loserRating,
+      winnerAfter: updatedWinner.rating,
+      loserAfter: updatedLoser.rating,
+      winnerDelta,
+      loserDelta,
+      createdAt: now,
+    });
+
+    return {
+      success: true,
+      message: "投票成功，排名已更新",
+      winner: buildWorkPayload(winnerWork, updatedWinner),
+      loser: buildWorkPayload(loserWork, updatedLoser),
+      deltas: {
+        winnerDelta,
+        loserDelta,
+      },
+    };
+  } catch (error) {
+    logError("strengthVote.submitStrengthVote", error, {
+      sessionId,
+      winnerWorkNumber,
+    });
+    return {
+      success: false,
+      code: "serverError",
+      message: "保存投票失败，请稍后重试",
+    };
+  }
+}
+
+export async function getStrengthLeaderboard(limit = 50) {
+  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+  const works = await fetchActiveWorks();
+  if (works.length === 0) {
+    return [];
+  }
+
+  const workNumbers = works.map((item) => Number(item.sequenceId));
+  const statsMap = await fetchStatsMap(workNumbers);
+
+  const leaderboard = works.map((work) =>
+    buildWorkPayload(work, statsMap[work.sequenceId])
+  );
+
+  leaderboard.sort((a, b) => {
+    if (b.rating !== a.rating) {
+      return b.rating - a.rating;
+    }
+    if (b.winRate !== a.winRate) {
+      return b.winRate - a.winRate;
+    }
+    if (b.wins !== a.wins) {
+      return b.wins - a.wins;
+    }
+    return a.workNumber - b.workNumber;
+  });
+
+  return leaderboard.slice(0, cappedLimit);
+}
+
+/**
+ * 获取当前用户的作品榜单（仅包含该用户的作品）
+ */
+export async function getStrengthLeaderboardForUser(userId, limit = 50) {
+  if (!userId) {
+    return [];
+  }
+
+  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+  const works = await fetchActiveWorks();
+  const userWorks = works.filter(
+    (item) => item._owner === userId && item.isDq !== true
+  );
+
+  if (userWorks.length === 0) {
+    return [];
+  }
+
+  const workNumbers = userWorks.map((item) => Number(item.sequenceId));
+  const statsMap = await fetchStatsMap(workNumbers);
+
+  const leaderboard = userWorks.map((work) =>
+    buildWorkPayload(work, statsMap[work.sequenceId])
+  );
+
+  leaderboard.sort((a, b) => {
+    if (b.rating !== a.rating) {
+      return b.rating - a.rating;
+    }
+    if (b.winRate !== a.winRate) {
+      return b.winRate - a.winRate;
+    }
+    if (b.wins !== a.wins) {
+      return b.wins - a.wins;
+    }
+    return a.workNumber - b.workNumber;
+  });
+
+  return leaderboard.slice(0, cappedLimit);
+}
+
+/**
+ * 获取当前用户个人偏好榜（基于他本人投过票的记录，统计胜者选择次数）
+ * 仅统计用户自己作为投票者的日志，不区分全站。
+ */
+export async function getStrengthUserPersonalRanking(userId, limit = 50) {
+  if (!userId) {
+    return [];
+  }
+
+  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+
+  // 拉取该用户的所有投票日志
+  const logs = [];
+  try {
+    let result = await wixData
+      .query(COLLECTION_MAP.LOGS)
+      .eq("userId", userId)
+      .limit(1000)
+      .find();
+
+    logs.push(...(result.items || []));
+    while (result.hasNext()) {
+      result = await result.next();
+      logs.push(...(result.items || []));
+      if (logs.length >= 5000) {
+        break; // 防止异常量级，保守截断
+      }
+    }
+  } catch (error) {
+    logError("strengthVote.getStrengthUserPersonalRanking.logs", error, { userId });
+    return [];
+  }
+
+  if (logs.length === 0) {
+    return [];
+  }
+
+  // 统计用户选择胜者的次数
+  const voteCountMap = {};
+  logs.forEach((log) => {
+    const winner = Number(log.winnerWorkNumber);
+    if (!Number.isFinite(winner)) return;
+    voteCountMap[winner] = (voteCountMap[winner] || 0) + 1;
+  });
+
+  const voteWorkNumbers = Object.keys(voteCountMap).map((n) => Number(n));
+  if (voteWorkNumbers.length === 0) {
+    return [];
+  }
+
+  // 仅在未淘汰作品中匹配
+  const works = await fetchActiveWorks();
+  const worksByNumber = {};
+  works.forEach((w) => {
+    worksByNumber[Number(w.sequenceId)] = w;
+  });
+
+  const filteredWorks = voteWorkNumbers
+    .map((num) => worksByNumber[num])
+    .filter(Boolean);
+
+  if (filteredWorks.length === 0) {
+    return [];
+  }
+
+  const statsMap = await fetchStatsMap(voteWorkNumbers);
+  const ranking = filteredWorks.map((work) => {
+    const payload = buildWorkPayload(work, statsMap[work.sequenceId]);
+    return {
+      ...payload,
+      votesByUser: voteCountMap[work.sequenceId] || 0,
+    };
+  });
+
+  ranking.sort((a, b) => {
+    if (b.votesByUser !== a.votesByUser) {
+      return b.votesByUser - a.votesByUser;
+    }
+    if (b.rating !== a.rating) {
+      return b.rating - a.rating;
+    }
+    return a.workNumber - b.workNumber;
+  });
+
+  return ranking.slice(0, cappedLimit);
+}
+
+/**
+ * 获取用户已完成的 1v1 投票次数（从日志统计）
+ */
+export async function getUserVoteCount(userId) {
+  if (!userId) {
+    return 0;
+  }
+
+  try {
+    const count = await wixData
+      .query(COLLECTION_MAP.LOGS)
+      .eq("userId", userId)
+      .count();
+    return count;
+  } catch (error) {
+    logError("strengthVote.getUserVoteCount", error, { userId });
+    return 0;
+  }
+}
