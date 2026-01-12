@@ -225,15 +225,17 @@ async function pushLeaderboard() {
 
 async function pushVoteCount() {
   if (!htmlComponent || !currentUserId) {
-    postToHtml("VOTE_COUNT", { count: 0 });
+    postToHtml("VOTE_COUNT", { count: 0, coverage: 0 });
     return;
   }
 
   try {
-    userVoteCount = await getUserVoteCount(currentUserId);
-    postToHtml("VOTE_COUNT", { count: userVoteCount });
+    const result = await getUserVoteCount(currentUserId);
+    userVoteCount = typeof result?.count === "number" ? result.count : 0;
+    const coverage = typeof result?.coverage === "number" ? result.coverage : 0;
+    postToHtml("VOTE_COUNT", { count: userVoteCount, coverage });
   } catch (error) {
     console.error("[强度榜] 获取用户投票次数失败", error);
-    postToHtml("VOTE_COUNT", { count: 0 });
+    postToHtml("VOTE_COUNT", { count: 0, coverage: 0 });
   }
 }
