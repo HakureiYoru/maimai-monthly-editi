@@ -264,6 +264,30 @@ async function clearUserLogs(userId) {
   }
 }
 
+async function clearUserSessions(userId) {
+  if (!userId) return;
+  try {
+    let result = await wixData
+      .query(COLLECTION_MAP.SESSIONS)
+      .eq("userId", userId)
+      .limit(1000)
+      .find();
+
+    while (result.items && result.items.length > 0) {
+      const ids = result.items.map((item) => item._id).filter(Boolean);
+      if (ids.length > 0) {
+        await wixData.bulkRemove(COLLECTION_MAP.SESSIONS, ids);
+      }
+      if (!result.hasNext()) {
+        break;
+      }
+      result = await result.next();
+    }
+  } catch (error) {
+    logError("strengthVote.clearUserSessions", error, { userId });
+  }
+}
+
 function buildSummaryFromLogs(userId, logs = []) {
   const winsMap = {};
   const lossesMap = {};
@@ -383,6 +407,7 @@ async function updateUserSummaryWithVote(userId, winner, loser) {
   const saved = await saveUserSummary(payload, existingSummary);
   if (payload.totalVotes >= MAX_VOTES) {
     await clearUserLogs(userId);
+    await clearUserSessions(userId);
     if (!saved?.logsCleared) {
       await saveUserSummary(
         { ...payload, logsCleared: true, updatedAt: new Date() },
@@ -404,6 +429,7 @@ async function ensureUserSummaryIfNeeded(userId) {
     const summaryVotes = Number(existingSummary.totalVotes || 0);
     if (summaryVotes >= MAX_VOTES && !existingSummary.logsCleared) {
       await clearUserLogs(userId);
+      await clearUserSessions(userId);
       await saveUserSummary(
         { ...existingSummary, logsCleared: true, updatedAt: new Date() },
         existingSummary
@@ -421,6 +447,7 @@ async function ensureUserSummaryIfNeeded(userId) {
   const saved = await saveUserSummary(payload, null);
   if (payload.totalVotes >= MAX_VOTES) {
     await clearUserLogs(userId);
+    await clearUserSessions(userId);
     await saveUserSummary(
       { ...payload, logsCleared: true, updatedAt: new Date() },
       saved || payload
