@@ -378,8 +378,8 @@ function pickMatchPair(
   const personalCount = (seqId) => Number(userWorkCounts[seqId] || 0);
   const pairCounts = (pairKey) =>
     hasPairPenalty ? Number(userWorkCounts.__pairCounts[pairKey] || 0) : 0;
-  // 三档分段：弱/中/强
-  const tiers = ["LOW", "MID", "HIGH"];
+  // 五档分段：弱/偏弱/中/偏强/强
+  const tiers = ["LOW", "LOW_MID", "MID", "HIGH_MID", "HIGH"];
   const tierIndex = (tier) => tiers.indexOf(tier);
 
   // 基于全站 Elo 动态分位段位（低/中/高：30%、70% 分位）
@@ -408,13 +408,17 @@ function pickMatchPair(
     return ratingValues[idx];
   };
   const thresholds = {
-    mid: pickPercentile(0.3),
-    high: pickPercentile(0.7),
+    lowMid: pickPercentile(0.2),
+    mid: pickPercentile(0.4),
+    highMid: pickPercentile(0.6),
+    high: pickPercentile(0.8),
   };
   const getTier = (rating) => {
     const r = rating || DEFAULT_RATING;
     if (r >= thresholds.high) return "HIGH";
+    if (r >= thresholds.highMid) return "HIGH_MID";
     if (r >= thresholds.mid) return "MID";
+    if (r >= thresholds.lowMid) return "LOW_MID";
     return "LOW";
   };
 
