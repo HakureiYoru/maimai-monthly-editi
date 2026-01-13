@@ -416,7 +416,13 @@ async function updateUserSummaryWithVote(userId, winner, loser) {
     }
   }
 
-  return saved || payload;
+  return {
+    summary: saved || payload,
+    personalDeltas: {
+      winnerDelta,
+      loserDelta,
+    },
+  };
 }
 
 async function ensureUserSummaryIfNeeded(userId) {
@@ -743,7 +749,7 @@ function pickMatchPair(
         const key =
           anchorId < wId ? `${anchorId}-${wId}` : `${wId}-${anchorId}`;
         const times = pairCounts(key);
-        const weight = 1 / (1 + 2 * times); // 惩罚系数 2，可调
+        const weight = Math.pow(0.3, times); // 指数衰减：0次=100%, 1次=30%, 2次=9%, 3次=3%
         return { w, weight };
       });
 
@@ -821,7 +827,7 @@ function buildWorkPayload(work, stats) {
   return {
     workNumber: Number(work.sequenceId),
     title: work.firstName || `作品 #${work.sequenceId}`,
-    description: work["较长答案栏"] || "",
+    description: work["較長答案欄"] || "",
     coverImage: stats?.coverImage || pickCoverImage(work),
     rating: Number(stats?.rating || DEFAULT_RATING),
     wins,
@@ -1074,7 +1080,7 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
       createdAt: now,
     });
 
-    await updateUserSummaryWithVote(userId, winner, loser);
+    const userSummaryResult = await updateUserSummaryWithVote(userId, winner, loser);
 
     return {
       success: true,
@@ -1084,6 +1090,10 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
       deltas: {
         winnerDelta,
         loserDelta,
+      },
+      personalDeltas: userSummaryResult?.personalDeltas || {
+        winnerDelta: 0,
+        loserDelta: 0,
       },
     };
   } catch (error) {

@@ -395,11 +395,19 @@
       inset: 0;
       background: rgba(0, 0, 0, 0.4);
       display: none;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      padding-top: 20vh;
       z-index: 9999;
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
+    }
+
+    .loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
     }
 
     .spinner {
@@ -409,6 +417,31 @@
       border-top-color: #3b82f6;
       border-radius: 50%;
       animation: spin 1s linear infinite;
+    }
+
+    .loading-message {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      max-width: 420px;
+      padding: 0 20px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      line-height: 1.5;
+    }
+
+    .loading-message .highlight {
+      color: #4ade80;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    
+    .loading-message .delta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 4px 0;
     }
 
     @keyframes spin {
@@ -814,7 +847,10 @@
   </div>
 
   <div class="loading-overlay" id="loadingOverlay">
-    <div class="spinner"></div>
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <div class="loading-message" id="loadingMessage"></div>
+    </div>
   </div>
 
   <script>
@@ -836,6 +872,7 @@
       globalLeaderboardList: document.getElementById("globalLeaderboardList"),
       globalLeaderboardSection: document.getElementById("globalLeaderboardSection"),
       loadingOverlay: document.getElementById("loadingOverlay"),
+      loadingMessage: document.getElementById("loadingMessage"),
       introOverlay: document.getElementById("introOverlay"),
       introConfirmBtn: document.getElementById("introConfirmBtn"),
       voteProgress: document.getElementById("voteProgress"),
@@ -866,9 +903,12 @@
       parent.postMessage({ type, data }, "*");
     }
 
-    function setLoading(show) {
+    function setLoading(show, message = "") {
       if (!els.loadingOverlay) return;
       els.loadingOverlay.style.display = show ? "flex" : "none";
+      if (els.loadingMessage) {
+        els.loadingMessage.innerHTML = message || "";
+      }
     }
 
     function formatWinRate(value) {
@@ -1015,7 +1055,8 @@
       }
       state.sessionId = payload.sessionId;
       renderPair(payload.pair || []);
-      // 隐藏跳过按钮，只能通过投票进入下一轮
+      // 隐藏结果卡片和跳过按钮
+      els.resultCard.style.display = "none";
       els.newCompareBtn.style.display = "none";
       setLoading(false);
       updateVoteProgress();
@@ -1032,15 +1073,36 @@
         return;
       }
 
+      // 投票成功，隐藏resultCard，在loading中显示结果
+      els.resultCard.style.display = "none";
       const winner = payload.winner?.title || `#${payload.winner?.workNumber}`;
-      const delta = payload.deltas?.winnerDelta ?? 0;
-      els.resultMessage.innerHTML = `<span class="dot"></span>已提交：${winner} <span style="color:#4ade80;margin-left:8px;">+${delta}</span>`;
-      els.resultCard.style.display = "block";
+      const globalDelta = payload.deltas?.winnerDelta ?? 0;
+      const personalDelta = payload.personalDeltas?.winnerDelta ?? 0;
+      
+      // 构建双delta显示消息
+      const resultMessage = `
+        <div style="font-weight:700; font-size:18px; margin-bottom:12px;">投票成功！</div>
+        <div style="font-size:15px; opacity:0.95; margin-bottom:16px; font-weight:500;">
+          ${winner}
+        </div>
+        <div style="font-size:14px; line-height:2; background:rgba(0,0,0,0.2); padding:12px 20px; border-radius:12px; backdrop-filter:blur(4px);">
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+            <span style="opacity:0.9;">✅ 你的评价：</span><span class="highlight">+${personalDelta}</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px; opacity:0.75; margin-top:4px;">
+            <span>📊 全站影响：</span><span style="color:#94a3b8; font-weight:600; font-size:15px;">+${globalDelta}</span>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:13px; opacity:0.5;">正在加载下一轮...</div>
+      `;
+      
       toggleVoteButtons(false);
       voteCount += 1;
       saveVoteCount(voteCount);
       updateVoteProgress();
-      // 投票成功后自动加载下一轮，按钮保持隐藏
+      
+      // 显示加载动画和投票结果，然后自动加载下一轮
+      setLoading(true, resultMessage);
       setTimeout(() => {
         post("REQUEST_NEW_COMPARE");
       }, 400);
@@ -1096,7 +1158,7 @@
     function requestNewCompare() {
       if (!state.eligible) return;
       if (enforceVoteLimit()) return;
-      setLoading(true);
+      setLoading(true, "正在加载对决...");
       toggleVoteButtons(false);
       post("REQUEST_NEW_COMPARE");
     }
@@ -1109,7 +1171,7 @@
       if (enforceVoteLimit()) return;
       const target = state.pair[side === "A" ? 0 : 1];
       toggleVoteButtons(false);
-      setLoading(true);
+      setLoading(true, "正在提交投票...");
       post("SUBMIT_VOTE", { sessionId: state.sessionId, winnerWorkNumber: target.workNumber });
     }
 
