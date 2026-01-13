@@ -181,29 +181,7 @@ async function saveUserSummary(payload, existingSummary = null) {
 
 // 已移除 clearUserLogs：不再需要清理 logs
 
-async function clearUserSessions(userId) {
-  if (!userId) return;
-  try {
-    let result = await wixData
-      .query(COLLECTION_MAP.SESSIONS)
-      .eq("userId", userId)
-      .limit(1000)
-      .find();
-
-    while (result.items && result.items.length > 0) {
-      const ids = result.items.map((item) => item._id).filter(Boolean);
-      if (ids.length > 0) {
-        await wixData.bulkRemove(COLLECTION_MAP.SESSIONS, ids);
-      }
-      if (!result.hasNext()) {
-        break;
-      }
-      result = await result.next();
-    }
-  } catch (error) {
-    logError("strengthVote.clearUserSessions", error, { userId });
-  }
-}
+// 已移除 clearUserSessions：每次投票后立即删除 session，无需批量清理
 
 // 已移除 buildSummaryFromLogs：Summary 直接增量更新，无需从 logs 重建
 
@@ -291,11 +269,6 @@ async function updateUserSummaryWithVote(userId, winner, loser) {
   };
 
   const saved = await saveUserSummary(payload, existingSummary);
-  
-  // 达到上限时清理 Sessions（减少无用数据）
-  if (payload.totalVotes >= MAX_VOTES) {
-    await clearUserSessions(userId);
-  }
 
   return {
     summary: saved || payload,
@@ -914,16 +887,16 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
     await wixData.update(COLLECTION_MAP.STATS, updatedWinner);
     await wixData.update(COLLECTION_MAP.STATS, updatedLoser);
 
-    await wixData.update(COLLECTION_MAP.SESSIONS, {
-      ...session,
-      used: true,
-      usedAt: now,
-      winnerWorkNumber: winner,
-      loserWorkNumber: loser,
-    });
-
     // ✅ 直接更新 Summary，无需写入 Log
     const userSummaryResult = await updateUserSummaryWithVote(userId, winner, loser);
+
+    // ✅ 投票成功后立即删除该 session（优化存储）
+    try {
+      await wixData.remove(COLLECTION_MAP.SESSIONS, session._id);
+    } catch (error) {
+      logError("strengthVote.submitStrengthVote.removeSession", error, { sessionId });
+      // 删除失败不影响投票结果
+    }
 
     return {
       success: true,
