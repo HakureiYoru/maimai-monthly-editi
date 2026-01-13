@@ -86,27 +86,128 @@
     }
 
     .status {
-      padding: 16px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 16px;
-      border-radius: 100px;
+      position: relative;
+      height: 50px;
+      border-radius: 25px;
+      overflow: hidden;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.3);
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.2) 0%, rgba(15, 23, 42, 0.4) 100%);
+    }
+
+    .status-progress-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 25px;
+      
+      /* 浅蓝色渐变背景 */
+      background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 30%, #93c5fd 60%, #60a5fa 100%);
+      
+      /* 水波动画效果 */
+      animation: wave 4s ease-in-out infinite;
+      background-size: 200% 100%;
+      
+      /* 添加内阴影营造深度感 */
+      box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.2), 
+                  inset 0 -2px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* 水波流动动画 */
+    @keyframes wave {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+    
+    /* 进度条上的光泽效果 */
+    .status-progress-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.4), 
+        transparent);
+      animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+    
+    /* 水波纹理叠加层 */
+    .status-progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        rgba(255, 255, 255, 0.05) 10px,
+        transparent 20px
+      );
+      animation: wave-texture 2s linear infinite;
+      border-radius: 25px;
+    }
+    
+    @keyframes wave-texture {
+      0% {
+        transform: translateX(0);
+      }
+      100% {
+        transform: translateX(20px);
+      }
     }
 
     .status .message {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 3;
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-weight: 500;
+      gap: 10px;
+      font-weight: 600;
       font-size: 14px;
+      height: 100%;
+      padding-left: 20px;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.8);
+      transition: color 0.3s ease;
     }
 
     .status .progress {
-      font-size: 12px;
-      color: var(--text-secondary);
-      letter-spacing: 0.2px;
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 3;
+      font-size: 13px;
+      font-weight: 700;
+      color: #e2e8f0;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.9);
+      transition: color 0.3s ease;
+      background: linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+      padding: 4px 10px;
+      border-radius: 10px;
+      backdrop-filter: blur(4px);
     }
 
     .dot {
@@ -114,26 +215,26 @@
       height: 8px;
       border-radius: 50%;
       background: #22c55e;
-      box-shadow: 0 0 10px #22c55e;
+      box-shadow: 0 0 10px #22c55e, 0 0 16px rgba(34, 197, 94, 0.4);
       position: relative;
     }
 
     .dot::after {
       content: '';
       position: absolute;
-      inset: -4px;
+      inset: -3px;
       border-radius: 50%;
-      background: rgba(34, 197, 94, 0.2);
+      background: rgba(34, 197, 94, 0.3);
       animation: pulse 2s infinite;
     }
 
     .dot.warn {
       background: #f59e0b;
-      box-shadow: 0 0 10px #f59e0b;
+      box-shadow: 0 0 10px #f59e0b, 0 0 16px rgba(245, 158, 11, 0.4);
     }
 
     .dot.warn::after {
-      background: rgba(245, 158, 11, 0.2);
+      background: rgba(245, 158, 11, 0.3);
     }
 
     .dot.danger {
@@ -746,11 +847,12 @@
         强度榜投票
       </div>
       <div class="subtitle">
-        两两对决，票据验证 + 智能匹配。完成 10 个评分任务即可参与。
+        完成 10 个评分任务即可参与。投票达标后可以查看全站数据。
       </div>
     </header>
 
     <section class="glass-card status" id="statusCard">
+      <div class="status-progress-bar" id="statusProgressBar" style="width: 0%;"></div>
       <div class="message" id="statusMessage">
         <span class="dot warn"></span>
         <span>正在检查权限...</span>
@@ -993,6 +1095,14 @@
       if (!els.voteProgress) return;
       const safeCount = Math.min(voteCount, maxVotes);
       els.voteProgress.textContent = `已投 ${safeCount} / ${maxVotes}`;
+      
+      // 更新进度条宽度
+      const progressBar = document.getElementById('statusProgressBar');
+      if (progressBar) {
+        const percentage = maxVotes > 0 ? (safeCount / maxVotes) * 100 : 0;
+        progressBar.style.width = `${percentage}%`;
+      }
+      
       if (els.globalRequirement) {
         els.globalRequirement.textContent = `管理员或完成 ${maxVotes} 次投票可查看`;
       }
