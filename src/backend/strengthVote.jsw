@@ -393,7 +393,7 @@ async function fetchActiveWorks() {
       .query(COLLECTION_MAP.WORKS)
       .ne("isDq", true)
       .descending("sequenceId")
-      .limit(20)
+      .limit(30)
       .find();
 
     return (result.items || []).filter(
