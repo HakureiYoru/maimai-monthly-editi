@@ -1,4 +1,4 @@
-﻿import wixUsers from "wix-users";
+import wixUsers from "wix-users";
 import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { getBatchDownloadUrls } from "backend/mediaManagement.jsw";
@@ -2183,12 +2183,14 @@ async function formatCommentForHTML(comment) {
       replyCount: 0,
       isSelfScComment: false,
       createdDate: comment._createdDate, // 添加创建时间
+      coverImage: "", // 添加封面图片字段
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询
     let workOwnerId = null;
     let isWorkDQ = false;
     let workTitle = "";
+    let coverImage = "";
 
     if (batchDataCache && batchDataCache.workOwnerMap) {
       workOwnerId = batchDataCache.workOwnerMap[comment.workNumber];
@@ -2196,6 +2198,11 @@ async function formatCommentForHTML(comment) {
         ? batchDataCache.workDQMap[comment.workNumber] === true
         : false;
       workTitle = workTitlesCache[comment.workNumber] || "";
+      
+      // 【新增】从批量缓存中获取封面图片
+      if (batchDataCache.workCoverMap) {
+        coverImage = batchDataCache.workCoverMap[comment.workNumber] || "";
+      }
     }
 
     // 如果缓存中没有作品标题，尝试从已加载的作品选项中获取
@@ -2208,6 +2215,9 @@ async function formatCommentForHTML(comment) {
     formattedComment.workTitle = workTitle
       ? `#${comment.workNumber} - ${workTitle}`
       : `#${comment.workNumber}`;
+    
+    // 设置封面图片
+    formattedComment.coverImage = coverImage;
 
     // 判断是否为作者自评
     if (workOwnerId) {

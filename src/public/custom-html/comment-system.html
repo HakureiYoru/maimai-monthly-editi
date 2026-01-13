@@ -361,6 +361,43 @@
       font-weight: 600;
       flex: 1;
       min-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .work-cover-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .work-cover-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      transition: transform 0.3s ease;
+    }
+
+    .comment-item:hover .work-cover-thumb img {
+      transform: scale(1.1);
+    }
+
+    .work-cover-thumb .thumb-placeholder {
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.4);
     }
 
     .comment-rating-info {
@@ -950,6 +987,16 @@
       .comment-time {
         align-self: flex-end;
         margin-top: -8px;
+      }
+
+      .work-cover-thumb {
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+      }
+
+      .work-cover-thumb .thumb-placeholder {
+        font-size: 11px;
       }
     }
 
@@ -1997,6 +2044,9 @@
       // 构建评分徽章
       const scoreBadgeHTML = createScoreBadge(comment);
 
+      // 构建封面缩略图
+      const coverThumbHTML = createCoverThumb(comment);
+
       // 构建操作按钮
       const actionsHTML = createActionButtons(comment);
 
@@ -2009,7 +2059,10 @@
       div.innerHTML = `
         <div class="comment-header">
           ${scoreBadgeHTML}
-          <div class="comment-work-title">${escapeHtml(comment.workTitle || `#${comment.workNumber}`)}</div>
+          <div class="comment-work-title">
+            ${coverThumbHTML}
+            <span>${escapeHtml(comment.workTitle || `#${comment.workNumber}`)}</span>
+          </div>
           ${comment.ratingInfo ? `<div class="comment-rating-info">${escapeHtml(comment.ratingInfo)}</div>` : ''}
           <div class="comment-time">${formattedTime}</div>
         </div>
@@ -2117,6 +2170,97 @@
       }
 
       return `<div class="${badgeClass}" style="${badgeStyle}">${badgeText}</div>`;
+    }
+
+    /**
+     * 创建作品封面缩略图 HTML
+     * @param {Object} comment - 评论对象
+     * @returns {string} 缩略图 HTML
+     */
+    function createCoverThumb(comment) {
+      // 优化封面图片 URL（如果存在）
+      const optimizedCover = optimizeCoverUrl(comment.coverImage);
+      
+      if (optimizedCover) {
+        return `
+          <div class="work-cover-thumb">
+            <img src="${optimizedCover}" 
+                 loading="lazy" 
+                 alt="${escapeHtml(comment.workTitle || `作品 #${comment.workNumber}`)}" />
+          </div>
+        `;
+      } else {
+        return `
+          <div class="work-cover-thumb">
+            <div class="thumb-placeholder">#${comment.workNumber}</div>
+          </div>
+        `;
+      }
+    }
+
+    /**
+     * 优化封面图片 URL（添加压缩参数）
+     * @param {string} url - 原始图片 URL
+     * @returns {string|null} 优化后的 URL
+     */
+    function optimizeCoverUrl(url) {
+      if (!url) return null;
+      
+      // 使用后端提供的 normalizeWixImageUrl 逻辑规范化 URL
+      let normalizedUrl = normalizeWixImageUrlFrontend(url);
+      if (!normalizedUrl) return null;
+      
+      // 如果是 Wix 图片，添加压缩参数（缩略图用小尺寸）
+      if (normalizedUrl.includes('wixstatic.com') || normalizedUrl.includes('wix.com') || normalizedUrl.includes('wixmp.com')) {
+        const separator = normalizedUrl.includes('?') ? '&' : '?';
+        return `${normalizedUrl}${separator}w=80&q=10`; // 缩略图：宽度80px，质量30%
+      }
+      
+      return normalizedUrl;
+    }
+
+    /**
+     * 前端版本的 normalizeWixImageUrl（与后端逻辑保持一致）
+     * @param {*} value - 图片 URL 或对象
+     * @returns {string} 规范化后的 URL
+     */
+    function normalizeWixImageUrlFrontend(value) {
+      if (!value) {
+        return "";
+      }
+
+      if (typeof value === "object") {
+        const candidates = [value.url, value.src, value.fileUrl];
+        for (const candidate of candidates) {
+          const normalized = normalizeWixImageUrlFrontend(candidate);
+          if (normalized) {
+            return normalized;
+          }
+        }
+        return "";
+      }
+
+      if (typeof value !== "string") {
+        return "";
+      }
+
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return "";
+      }
+
+      if (/^https?:\/\//i.test(trimmed)) {
+        return trimmed;
+      }
+
+      if (trimmed.startsWith("wix:image://")) {
+        const match = trimmed.match(
+          /^wix:image:\/\/v1\/([^/#]+)(?:\/[^#]*)?(?:#.*)?$/
+        );
+        return match ? `https://static.wixstatic.com/media/${match[1]}` : "";
+      }
+
+      return trimmed;
     }
 
     function createActionButtons(comment) {

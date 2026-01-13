@@ -44,6 +44,78 @@ let userQualityCache = {};
 const DEFAULT_PAGE_SIZE = 500;
 
 /**
+ * 规范化 Wix 媒体 URL，适配图片/文件字段的多种格式
+ * @param {*} value - 图片 URL 或对象
+ * @returns {string} 规范化后的 URL
+ */
+function normalizeWixImageUrl(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "object") {
+    const candidates = [value.url, value.src, value.fileUrl];
+    for (const candidate of candidates) {
+      const normalized = normalizeWixImageUrl(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("wix:image://")) {
+    const match = trimmed.match(
+      /^wix:image:\/\/v1\/([^/#]+)(?:\/[^#]*)?(?:#.*)?$/
+    );
+    return match ? `https://static.wixstatic.com/media/${match[1]}` : "";
+  }
+
+  return trimmed;
+}
+
+/**
+ * 尝试提取作品封面
+ * 优先使用已存在的封面/缩略图字段，兜底为空字符串
+ * @param {Object} work - 作品对象
+ * @returns {string} 封面图片 URL
+ */
+function pickCoverImage(work = {}) {
+  const candidateKeys = [
+    "coverImage",
+    "cover",
+    "thumbnail",
+    "封面",
+    "track的複本",
+    "bg的複本",
+    "上傳檔案欄",
+  ];
+
+  for (const key of candidateKeys) {
+    const value = work[key];
+    const normalized = normalizeWixImageUrl(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+/**
  * 基于 _createdDate 游标的全量分页查询，绕过 1000 条总上限
  * @param {() => wixData.WixDataQuery} buildQuery - 返回带好过滤条件的 query 构造函数
  * @param {number} [pageSize=DEFAULT_PAGE_SIZE] - 每页条数（上限 1000）
@@ -812,12 +884,14 @@ export async function getAllWorksWeightedRatingData() {
       fetchAllWorks(),
     ]);
 
-    // 3. 建立作品所有者和淘汰状态映射
+    // 3. 建立作品所有者、淘汰状态和封面映射
     const workOwnerMap = {};
     const workDQMap = {};
+    const workCoverMap = {};
     allWorks.forEach((work) => {
       workOwnerMap[work.sequenceId] = work._owner;
       workDQMap[work.sequenceId] = work.isDq === true;
+      workCoverMap[work.sequenceId] = pickCoverImage(work);
     });
 
     // 4. 获取所有评论者的用户权重
@@ -895,6 +969,7 @@ export async function getAllWorksWeightedRatingData() {
       workOwnerMap: workOwnerMap,
       workDQMap: workDQMap,
       commentCountMap: commentCountMap,
+      workCoverMap: workCoverMap,
     };
   } catch (error) {
     console.error("批量获取评分数据失败:", error);
@@ -904,6 +979,7 @@ export async function getAllWorksWeightedRatingData() {
       workOwnerMap: {},
       workDQMap: {},
       commentCountMap: {},
+      workCoverMap: {},
     };
   }
 }
