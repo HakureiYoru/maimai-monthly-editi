@@ -323,6 +323,8 @@
       transition: transform 0.5s ease;
       display: none;
       /* 默认隐藏，避免空src显示破图 */
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     .work-card:hover .cover-container img {
@@ -482,7 +484,7 @@
 
     .row {
       display: grid;
-      grid-template-columns: 50px 1fr 100px 90px 110px;
+      grid-template-columns: 50px 48px 1fr 100px 90px 110px;
       align-items: center;
       gap: 16px;
       padding: 12px 20px;
@@ -493,7 +495,34 @@
     }
 
     .row.no-rating {
-      grid-template-columns: 50px 1fr 110px;
+      grid-template-columns: 50px 48px 1fr 90px 110px;
+    }
+
+    .row .cover-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      position: relative;
+    }
+
+    .row .cover-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    .row .cover-thumb .thumb-placeholder {
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.3);
     }
 
     .row:hover {
@@ -588,23 +617,34 @@
       }
 
       .row {
-        grid-template-columns: 40px 1fr auto;
+        grid-template-columns: 40px 40px 1fr auto;
         grid-template-areas:
-          "rank name rating"
-          "rank name details";
+          "rank cover name rating"
+          "rank cover name details";
         gap: 4px 12px;
         padding: 12px;
       }
 
       .row.no-rating {
-        grid-template-columns: 40px 1fr auto;
+        grid-template-columns: 40px 40px 1fr auto;
         grid-template-areas:
-          "rank name details";
+          "rank cover name rating"
+          "rank cover name details";
       }
 
       .row .rank {
         grid-area: rank;
         font-size: 16px;
+      }
+
+      .row .cover-thumb {
+        grid-area: cover;
+        width: 40px;
+        height: 40px;
+      }
+
+      .row .cover-thumb .thumb-placeholder {
+        font-size: 12px;
       }
 
       .row .name-col {
@@ -623,15 +663,43 @@
       .row.no-rating .stat-col.rating-only {
         display: none;
       }
+
+      .row.no-rating .stat-col.win-rate-col {
+        display: block;
+        grid-area: rating;
+        text-align: right;
+      }
+
+      .row.no-rating .stat-col.record-col {
+        display: none;
+      }
     }
 
     @media (max-width: 600px) {
       .row {
-        grid-template-columns: 30px 1fr auto;
+        grid-template-columns: 30px 36px 1fr auto;
+        grid-template-areas:
+          "rank cover name rating";
       }
 
-      .row>div:nth-child(4),
-      .row>div:nth-child(5) {
+      .row.no-rating {
+        grid-template-columns: 30px 36px 1fr auto;
+        grid-template-areas:
+          "rank cover name rating";
+      }
+
+      .row .cover-thumb {
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+      }
+
+      .row .cover-thumb .thumb-placeholder {
+        font-size: 11px;
+      }
+
+      .row>div:nth-child(5),
+      .row>div:nth-child(6) {
         display: none;
       }
     }
@@ -818,7 +886,15 @@
         const coverEl = prefix === "A" ? els.coverA : els.coverB;
         const placeholder = prefix === "A" ? els.placeholderA : els.placeholderB;
         if (data.coverImage) {
-          coverEl.src = data.coverImage;
+          // 优化图片加载：添加压缩参数和懒加载
+          let optimizedUrl = data.coverImage;
+          // 如果是 Wix 图片，添加压缩参数
+          if (optimizedUrl.includes('wixmp.com') || optimizedUrl.includes('wix.com')) {
+            const separator = optimizedUrl.includes('?') ? '&' : '?';
+            optimizedUrl = `${optimizedUrl}${separator}w=400&q=75`; // 宽度400px，质量75%
+          }
+          coverEl.src = optimizedUrl;
+          coverEl.loading = "lazy"; // 懒加载
           coverEl.style.display = "block";
           placeholder.style.display = "none";
         } else {
@@ -977,9 +1053,27 @@
         return;
       }
 
-      targetEl.innerHTML = items.map((item, idx) => `
+      // 辅助函数：优化图片 URL（添加压缩参数）
+      const optimizeCoverUrl = (url) => {
+        if (!url) return null;
+        // 如果是 Wix 图片，添加压缩参数（缩略图用更小尺寸）
+        if (url.includes('wixmp.com') || url.includes('wix.com')) {
+          const separator = url.includes('?') ? '&' : '?';
+          return `${url}${separator}w=100&q=70`; // 缩略图：宽度100px，质量70%
+        }
+        return url;
+      };
+
+      targetEl.innerHTML = items.map((item, idx) => {
+        const optimizedCover = optimizeCoverUrl(item.coverImage);
+        const coverHtml = optimizedCover 
+          ? `<img src="${optimizedCover}" loading="lazy" alt="${item.title || `#${item.workNumber}`}" />` 
+          : `<div class="thumb-placeholder">#${item.workNumber}</div>`;
+        
+        return `
         <div class="row ${showRating ? "" : "no-rating"}">
           <div class="rank">#${idx + 1}</div>
+          <div class="cover-thumb">${coverHtml}</div>
           <div class="name-col">
             <div class="name">${item.title || `作品 #${item.workNumber}`}</div>
             <div class="sub">ID: ${item.workNumber}</div>
@@ -987,13 +1081,14 @@
           ${showRating ? `<div class="stat-col rating-only">
             <div class="stat-val" style="color:#fbbf24">${Math.round(item.rating || 0)}</div>
           </div>` : ""}
-          <div class="stat-col">
+          <div class="stat-col ${showRating ? "" : "win-rate-col"}">
             <div class="stat-val">${formatWinRate(item.winRate)}</div>
           </div>
-          <div class="stat-col">
+          <div class="stat-col ${showRating ? "" : "record-col"}">
             <div class="stat-val" style="font-size:13px;opacity:0.8">${item.wins || 0}W / ${item.losses || 0}L</div>
           </div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
     }
 
     function requestStatus() { post("REQUEST_STATUS"); }
