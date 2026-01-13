@@ -539,10 +539,56 @@ function pickMatchPair(
       if (diff === 0) return Math.random() - 0.5;
       return diff;
     });
-    anchor = sorted[0];
-
+    
+    // 🔒 硬性隔绝模式：智能选择有未配对候选者的anchor
+    let anchorIndex = 0;
+    let foundValidAnchor = false;
+    
+    if (hasPairPenalty) {
+      // 尝试找到至少有一个未配对候选者的anchor
+      for (let i = 0; i < Math.min(sorted.length, 10); i++) {
+        const potentialAnchor = sorted[i];
+        const potentialAnchorId = Number(potentialAnchor.sequenceId);
+        
+        const hasUnpairedCandidate = works.some((w) => {
+          if (w.sequenceId === potentialAnchor.sequenceId) return false;
+          const wId = Number(w.sequenceId);
+          const key = potentialAnchorId < wId 
+            ? `${potentialAnchorId}-${wId}` 
+            : `${wId}-${potentialAnchorId}`;
+          return pairCounts(key) === 0;
+        });
+        
+        if (hasUnpairedCandidate) {
+          anchorIndex = i;
+          foundValidAnchor = true;
+          break;
+        }
+      }
+    }
+    
+    anchor = sorted[anchorIndex];
     candidates = works.filter((w) => w.sequenceId !== anchor.sequenceId);
-    // 基于 Elo 动态分位段位（20/40/60/80 分位）
+    
+    // 🔒 硬性隔绝：优先过滤掉已经出现过的配对（在 Elo 筛选之前）
+    if (hasPairPenalty && candidates.length > 0) {
+      const anchorId = Number(anchor.sequenceId);
+      const unpairedCandidates = candidates.filter((w) => {
+        const wId = Number(w.sequenceId);
+        const key =
+          anchorId < wId ? `${anchorId}-${wId}` : `${wId}-${anchorId}`;
+        const times = pairCounts(key);
+        return times === 0; // 只保留从未配对过的作品
+      });
+
+      // 如果存在未配对过的候选者，使用它们作为后续筛选的基础
+      if (unpairedCandidates.length > 0) {
+        candidates = unpairedCandidates;
+      }
+      // 否则保留所有候选者（允许重复，避免无法生成对决）
+    }
+    
+    // 基于 Elo 动态分位段位（20/40/60/80 分位）- 在未配对的候选者中筛选
     const anchorRating = getRatingValue(anchor.sequenceId);
     const anchorTier = getTier(anchorRating);
     const anchorTierIdx = tierIndex(anchorTier);
@@ -571,29 +617,6 @@ function pickMatchPair(
     );
     if (personalClose.length > 0) {
       candidates = personalClose;
-    }
-
-    // 对已出现过的组合施加权重惩罚，减少重复
-    if (hasPairPenalty && candidates.length > 1) {
-      const anchorId = Number(anchor.sequenceId);
-      const weighted = candidates.map((w) => {
-        const wId = Number(w.sequenceId);
-        const key =
-          anchorId < wId ? `${anchorId}-${wId}` : `${wId}-${anchorId}`;
-        const times = pairCounts(key);
-        const weight = Math.pow(0.3, times); // 指数衰减：0次=100%, 1次=30%, 2次=9%, 3次=3%
-        return { w, weight };
-      });
-
-      const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
-      let rnd = Math.random() * totalWeight;
-      for (const item of weighted) {
-        rnd -= item.weight;
-        if (rnd <= 0) {
-          candidates = [item.w];
-          break;
-        }
-      }
     }
   } else {
     // 基于 Elo 动态分位段位（20/40/60/80 分位）
