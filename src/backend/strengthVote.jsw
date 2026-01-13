@@ -1153,10 +1153,12 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
   const voteState = await ensureUserSummaryIfNeeded(userId);
   let voteCountMap = {};
   let lossCountMap = {};
+  let personalEloMap = {};
 
   if (voteState.summary) {
     voteCountMap = voteState.summary.winsMap || {};
     lossCountMap = voteState.summary.lossesMap || {};
+    personalEloMap = voteState.summary.eloMap || {};
   } else {
     const logs = await fetchUserLogs(userId);
     if (logs.length === 0) {
@@ -1173,6 +1175,9 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
         lossCountMap[loser] = (lossCountMap[loser] || 0) + 1;
       }
     });
+    
+    // 如果从logs重建，也计算个人Elo
+    personalEloMap = buildPersonalEloMap(logs);
   }
 
   const voteWorkNumbers = Object.keys(voteCountMap).map((n) => Number(n));
@@ -1202,27 +1207,32 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     const userTotal = userWins + userLosses;
     const userWinRate =
       userTotal > 0 ? Number((userWins / userTotal).toFixed(4)) : 0;
+    const personalElo = personalEloMap[work.sequenceId] || DEFAULT_RATING;
+    
     return {
       ...payload,
       votesByUser: voteCountMap[work.sequenceId] || 0,
       userWins,
       userLosses,
       userWinRate,
+      personalElo,
       wins: userWins,
       losses: userLosses,
       winRate: userWinRate,
+      rating: personalElo, // 用个人Elo替换全站rating，前端将显示个人Elo
     };
   });
 
+  // 优先按个人Elo排序
   ranking.sort((a, b) => {
-    if (b.votesByUser !== a.votesByUser) {
-      return b.votesByUser - a.votesByUser;
+    if (b.personalElo !== a.personalElo) {
+      return b.personalElo - a.personalElo; // 主排序：个人Elo（你心中的强度）
     }
     if (b.userWinRate !== a.userWinRate) {
-      return b.userWinRate - a.userWinRate;
+      return b.userWinRate - a.userWinRate; // 次排序：个人胜率
     }
     if (b.userWins !== a.userWins) {
-      return b.userWins - a.userWins;
+      return b.userWins - a.userWins; // 第三排序：个人胜场
     }
     return a.workNumber - b.workNumber;
   });
