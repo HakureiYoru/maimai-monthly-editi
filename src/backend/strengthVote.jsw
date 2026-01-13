@@ -120,6 +120,72 @@ function calculateWinRate(wins = 0, losses = 0) {
   return Number((Number(wins || 0) / total).toFixed(4));
 }
 
+async function fetchUserLogs(userId, limit = 5000) {
+  if (!userId) return [];
+  const logs = [];
+  try {
+    let result = await wixData
+      .query(COLLECTION_MAP.LOGS)
+      .eq("userId", userId)
+      .limit(1000)
+      .find();
+
+    logs.push(...(result.items || []));
+    while (result.hasNext()) {
+      result = await result.next();
+      logs.push(...(result.items || []));
+      if (logs.length >= limit) break;
+    }
+  } catch (error) {
+    logError("strengthVote.fetchUserLogs", error, { userId });
+    return [];
+  }
+
+  return logs;
+}
+
+function buildPersonalEloMap(logs = []) {
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return {};
+  }
+
+  const sorted = [...logs].sort((a, b) => {
+    const ta = new Date(a.createdAt || a._createdDate || 0).getTime();
+    const tb = new Date(b.createdAt || b._createdDate || 0).getTime();
+    return ta - tb;
+  });
+
+  const ratingMap = {};
+  const matchMap = {};
+
+  sorted.forEach((log) => {
+    const winner = Number(log.winnerWorkNumber);
+    const loser = Number(log.loserWorkNumber);
+    if (!Number.isFinite(winner) || !Number.isFinite(loser)) return;
+
+    const winnerRating = Number(ratingMap[winner] || DEFAULT_RATING);
+    const loserRating = Number(ratingMap[loser] || DEFAULT_RATING);
+    const winnerMatches = Number(matchMap[winner] || 0);
+    const loserMatches = Number(matchMap[loser] || 0);
+
+    const expectedWinner = 1 / (1 + 10 ** ((loserRating - winnerRating) / 400));
+    const expectedLoser = 1 - expectedWinner;
+
+    const winnerK = calculateKFactor(winnerMatches);
+    const loserK = calculateKFactor(loserMatches);
+
+    const winnerDelta = Math.round(winnerK * (1 - expectedWinner));
+    const loserDelta = Math.round(loserK * (0 - expectedLoser));
+
+    ratingMap[winner] = Math.max(0, winnerRating + winnerDelta);
+    ratingMap[loser] = Math.max(0, loserRating + loserDelta);
+    matchMap[winner] = winnerMatches + 1;
+    matchMap[loser] = loserMatches + 1;
+  });
+
+  return ratingMap;
+}
+
 async function checkEligibility(userId) {
   if (!userId) {
     return {
@@ -291,13 +357,20 @@ async function ensureStats(work, existingStats) {
   }
 }
 
-function pickMatchPair(works, statsMap, userWorkCounts = {}) {
+function pickMatchPair(
+  works,
+  statsMap,
+  userWorkCounts = {},
+  personalRatings = {}
+) {
   if (!works || works.length < 2) {
     throw new Error("作品数量不足，无法生成对决");
   }
 
   const hasPersonalData =
     userWorkCounts && Object.keys(userWorkCounts).length > 0;
+  const hasPersonalRatings =
+    personalRatings && Object.keys(personalRatings).length > 0;
   const hasPairPenalty =
     userWorkCounts && userWorkCounts.__pairCounts && Object.keys(userWorkCounts.__pairCounts).length > 0;
 
@@ -310,8 +383,18 @@ function pickMatchPair(works, statsMap, userWorkCounts = {}) {
   const tierIndex = (tier) => tiers.indexOf(tier);
 
   // 基于全站 Elo 动态分位段位（低/中/高：30%、70% 分位）
-  const ratingValues = Object.values(statsMap || {})
-    .map((v) => Number(v?.rating) || DEFAULT_RATING)
+  const getRatingValue = (seqId) => {
+    if (hasPersonalRatings) {
+      return Number(personalRatings[seqId] || DEFAULT_RATING);
+    }
+    return Number(statsMap?.[seqId]?.rating || DEFAULT_RATING);
+  };
+
+  const ratingValues = (hasPersonalRatings
+    ? Object.values(personalRatings)
+    : works.map((w) => getRatingValue(w.sequenceId))
+  )
+    .map((v) => Number(v))
     .filter((v) => Number.isFinite(v));
   if (ratingValues.length === 0) {
     ratingValues.push(DEFAULT_RATING);
@@ -349,18 +432,17 @@ function pickMatchPair(works, statsMap, userWorkCounts = {}) {
 
     candidates = works.filter((w) => w.sequenceId !== anchor.sequenceId);
     // 先确定全站 Elo 分段，强强优先
-    const anchorStats = statsMap[anchor.sequenceId];
-    const anchorRating = anchorStats?.rating || DEFAULT_RATING;
+    const anchorRating = getRatingValue(anchor.sequenceId);
     const anchorTier = getTier(anchorRating);
     const anchorTierIdx = tierIndex(anchorTier);
 
     const sameTier = candidates.filter((w) => {
-      const r = statsMap[w.sequenceId]?.rating || DEFAULT_RATING;
+      const r = getRatingValue(w.sequenceId);
       return getTier(r) === anchorTier;
     });
 
     const neighborTier = candidates.filter((w) => {
-      const r = statsMap[w.sequenceId]?.rating || DEFAULT_RATING;
+      const r = getRatingValue(w.sequenceId);
       const t = getTier(r);
       return Math.abs(tierIndex(t) - anchorTierIdx) === 1;
     });
@@ -510,8 +592,15 @@ export async function requestStrengthComparison(userId) {
 
   // 个人投票参与次数映射
   const userWorkCounts = await getUserWorkCounts(userId);
+  const userLogs = await fetchUserLogs(userId);
+  const personalRatings = buildPersonalEloMap(userLogs);
 
-  const { workA, workB } = pickMatchPair(works, statsMap, userWorkCounts);
+  const { workA, workB } = pickMatchPair(
+    works,
+    statsMap,
+    userWorkCounts,
+    personalRatings
+  );
 
   const sessionId = generateSessionId();
   const now = new Date();
