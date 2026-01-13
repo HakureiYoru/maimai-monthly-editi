@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 强度榜二选一投票 - 后端服务
  * - 仅允许已完成 10 个评分任务的用户参与
  * - 作品来源：enterContest034，排除 isDq=true 的作品
@@ -14,7 +14,7 @@ const COLLECTION_MAP = {
   WORKS: COLLECTIONS.ENTER_CONTEST_034,
   SESSIONS: "StrengthVoteSessions",
   STATS: "StrengthVoteStats",
-  LOGS: "StrengthVoteLogs",
+  // LOGS: "StrengthVoteLogs", // 已移除：直接使用 Summary 即可
   SUMMARY: "StrengthVoteUserSummary",
 };
 
@@ -123,71 +123,10 @@ function calculateWinRate(wins = 0, losses = 0) {
   return Number((Number(wins || 0) / total).toFixed(4));
 }
 
-async function fetchUserLogs(userId, limit = 5000) {
-  if (!userId) return [];
-  const logs = [];
-  try {
-    let result = await wixData
-      .query(COLLECTION_MAP.LOGS)
-      .eq("userId", userId)
-      .limit(1000)
-      .find();
+// 已移除 fetchUserLogs：不再需要查询 logs
+// Summary 包含所有必要信息
 
-    logs.push(...(result.items || []));
-    while (result.hasNext()) {
-      result = await result.next();
-      logs.push(...(result.items || []));
-      if (logs.length >= limit) break;
-    }
-  } catch (error) {
-    logError("strengthVote.fetchUserLogs", error, { userId });
-    return [];
-  }
-
-  return logs;
-}
-
-function buildPersonalEloMap(logs = []) {
-  if (!Array.isArray(logs) || logs.length === 0) {
-    return {};
-  }
-
-  const sorted = [...logs].sort((a, b) => {
-    const ta = new Date(a.createdAt || a._createdDate || 0).getTime();
-    const tb = new Date(b.createdAt || b._createdDate || 0).getTime();
-    return ta - tb;
-  });
-
-  const ratingMap = {};
-  const matchMap = {};
-
-  sorted.forEach((log) => {
-    const winner = Number(log.winnerWorkNumber);
-    const loser = Number(log.loserWorkNumber);
-    if (!Number.isFinite(winner) || !Number.isFinite(loser)) return;
-
-    const winnerRating = Number(ratingMap[winner] || DEFAULT_RATING);
-    const loserRating = Number(ratingMap[loser] || DEFAULT_RATING);
-    const winnerMatches = Number(matchMap[winner] || 0);
-    const loserMatches = Number(matchMap[loser] || 0);
-
-    const expectedWinner = 1 / (1 + 10 ** ((loserRating - winnerRating) / 400));
-    const expectedLoser = 1 - expectedWinner;
-
-    const winnerK = calculateKFactor(winnerMatches);
-    const loserK = calculateKFactor(loserMatches);
-
-    const winnerDelta = Math.round(winnerK * (1 - expectedWinner));
-    const loserDelta = Math.round(loserK * (0 - expectedLoser));
-
-    ratingMap[winner] = Math.max(0, winnerRating + winnerDelta);
-    ratingMap[loser] = Math.max(0, loserRating + loserDelta);
-    matchMap[winner] = winnerMatches + 1;
-    matchMap[loser] = loserMatches + 1;
-  });
-
-  return ratingMap;
-}
+// 已移除 buildPersonalEloMap：个人 Elo 直接在 Summary 中增量更新
 
 async function getUserSummary(userId) {
   if (!userId) return null;
@@ -240,29 +179,7 @@ async function saveUserSummary(payload, existingSummary = null) {
   }
 }
 
-async function clearUserLogs(userId) {
-  if (!userId) return;
-  try {
-    let result = await wixData
-      .query(COLLECTION_MAP.LOGS)
-      .eq("userId", userId)
-      .limit(1000)
-      .find();
-
-    while (result.items && result.items.length > 0) {
-      const ids = result.items.map((item) => item._id).filter(Boolean);
-      if (ids.length > 0) {
-        await wixData.bulkRemove(COLLECTION_MAP.LOGS, ids);
-      }
-      if (!result.hasNext()) {
-        break;
-      }
-      result = await result.next();
-    }
-  } catch (error) {
-    logError("strengthVote.clearUserLogs", error, { userId });
-  }
-}
+// 已移除 clearUserLogs：不再需要清理 logs
 
 async function clearUserSessions(userId) {
   if (!userId) return;
@@ -288,37 +205,7 @@ async function clearUserSessions(userId) {
   }
 }
 
-function buildSummaryFromLogs(userId, logs = []) {
-  const winsMap = {};
-  const lossesMap = {};
-  const pairCounts = {};
-
-  logs.forEach((log) => {
-    const winner = Number(log.winnerWorkNumber);
-    const loser = Number(log.loserWorkNumber);
-    if (Number.isFinite(winner)) {
-      winsMap[winner] = (winsMap[winner] || 0) + 1;
-    }
-    if (Number.isFinite(loser)) {
-      lossesMap[loser] = (lossesMap[loser] || 0) + 1;
-    }
-    if (Number.isFinite(winner) && Number.isFinite(loser)) {
-      const key = winner < loser ? `${winner}-${loser}` : `${loser}-${winner}`;
-      pairCounts[key] = (pairCounts[key] || 0) + 1;
-    }
-  });
-
-  return {
-    userId,
-    totalVotes: logs.length,
-    winsMap,
-    lossesMap,
-    eloMap: buildPersonalEloMap(logs),
-    pairCounts,
-    logsCleared: false,
-    updatedAt: new Date(),
-  };
-}
+// 已移除 buildSummaryFromLogs：Summary 直接增量更新，无需从 logs 重建
 
 function buildCountMapFromSummary(summary) {
   const countMap = {};
@@ -400,20 +287,14 @@ async function updateUserSummaryWithVote(userId, winner, loser) {
     lossesMap,
     eloMap,
     pairCounts,
-    logsCleared: existingSummary?.logsCleared || false,
     updatedAt: new Date(),
   };
 
   const saved = await saveUserSummary(payload, existingSummary);
+  
+  // 达到上限时清理 Sessions（减少无用数据）
   if (payload.totalVotes >= MAX_VOTES) {
-    await clearUserLogs(userId);
     await clearUserSessions(userId);
-    if (!saved?.logsCleared) {
-      await saveUserSummary(
-        { ...payload, logsCleared: true, updatedAt: new Date() },
-        saved || payload
-      );
-    }
   }
 
   return {
@@ -433,33 +314,11 @@ async function ensureUserSummaryIfNeeded(userId) {
   const existingSummary = await getUserSummary(userId);
   if (existingSummary) {
     const summaryVotes = Number(existingSummary.totalVotes || 0);
-    if (summaryVotes >= MAX_VOTES && !existingSummary.logsCleared) {
-      await clearUserLogs(userId);
-      await clearUserSessions(userId);
-      await saveUserSummary(
-        { ...existingSummary, logsCleared: true, updatedAt: new Date() },
-        existingSummary
-      );
-    }
     return { summary: existingSummary, totalVotes: summaryVotes };
   }
 
-  const logs = await fetchUserLogs(userId);
-  if (logs.length === 0) {
-    return { summary: null, totalVotes: 0 };
-  }
-
-  const payload = buildSummaryFromLogs(userId, logs);
-  const saved = await saveUserSummary(payload, null);
-  if (payload.totalVotes >= MAX_VOTES) {
-    await clearUserLogs(userId);
-    await clearUserSessions(userId);
-    await saveUserSummary(
-      { ...payload, logsCleared: true, updatedAt: new Date() },
-      saved || payload
-    );
-  }
-  return { summary: saved || payload, totalVotes: payload.totalVotes };
+  // Summary 不存在，说明是新用户，返回空状态
+  return { summary: null, totalVotes: 0 };
 }
 
 async function checkEligibility(userId) {
@@ -881,11 +740,8 @@ export async function requestStrengthComparison(userId) {
 
   // 个人投票参与次数映射
   const userWorkCounts = await getUserWorkCounts(userId);
-  let personalRatings = voteState.summary?.eloMap || {};
-  if (!personalRatings || Object.keys(personalRatings).length === 0) {
-    const userLogs = await fetchUserLogs(userId);
-    personalRatings = buildPersonalEloMap(userLogs);
-  }
+  // 从 Summary 获取个人 Elo 评分（新用户为空对象）
+  const personalRatings = voteState.summary?.eloMap || {};
 
   const { workA, workB } = pickMatchPair(
     works,
@@ -1066,20 +922,7 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
       loserWorkNumber: loser,
     });
 
-    await wixData.insert(COLLECTION_MAP.LOGS, {
-      sessionId,
-      userId,
-      winnerWorkNumber: winner,
-      loserWorkNumber: loser,
-      winnerBefore: winnerRating,
-      loserBefore: loserRating,
-      winnerAfter: updatedWinner.rating,
-      loserAfter: updatedLoser.rating,
-      winnerDelta,
-      loserDelta,
-      createdAt: now,
-    });
-
+    // ✅ 直接更新 Summary，无需写入 Log
     const userSummaryResult = await updateUserSummaryWithVote(userId, winner, loser);
 
     return {
@@ -1197,24 +1040,8 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     lossCountMap = voteState.summary.lossesMap || {};
     personalEloMap = voteState.summary.eloMap || {};
   } else {
-    const logs = await fetchUserLogs(userId);
-    if (logs.length === 0) {
-      return [];
-    }
-
-    logs.forEach((log) => {
-      const winner = Number(log.winnerWorkNumber);
-      const loser = Number(log.loserWorkNumber);
-      if (Number.isFinite(winner)) {
-        voteCountMap[winner] = (voteCountMap[winner] || 0) + 1;
-      }
-      if (Number.isFinite(loser)) {
-        lossCountMap[loser] = (lossCountMap[loser] || 0) + 1;
-      }
-    });
-    
-    // 如果从logs重建，也计算个人Elo
-    personalEloMap = buildPersonalEloMap(logs);
+    // 新用户或无投票记录
+    return [];
   }
 
   const voteWorkNumbers = Object.keys(voteCountMap).map((n) => Number(n));
@@ -1290,44 +1117,8 @@ export async function getUserVoteCount(userId) {
     };
   }
 
-  try {
-    const count = await wixData
-      .query(COLLECTION_MAP.LOGS)
-      .eq("userId", userId)
-      .count();
-
-    const coverageSet = new Set();
-    let result = await wixData
-      .query(COLLECTION_MAP.LOGS)
-      .eq("userId", userId)
-      .limit(1000)
-      .find();
-
-    const collect = (items) => {
-      (items || []).forEach((item) => {
-        const add = (num) => {
-          if (num === undefined || num === null) return;
-          const key = Number(num);
-          if (!Number.isFinite(key)) return;
-          coverageSet.add(key);
-        };
-        add(item.winnerWorkNumber);
-        add(item.loserWorkNumber);
-      });
-    };
-
-    collect(result.items);
-    while (result.hasNext()) {
-      result = await result.next();
-      collect(result.items);
-      if (coverageSet.size > 5000) break;
-    }
-
-    return { count, coverage: coverageSet.size };
-  } catch (error) {
-    logError("strengthVote.getUserVoteCount", error, { userId });
-    return { count: 0, coverage: 0 };
-  }
+  // 新用户，无投票记录
+  return { count: 0, coverage: 0 };
 }
 
 async function getUserWorkCounts(userId) {
@@ -1338,47 +1129,8 @@ async function getUserWorkCounts(userId) {
     return buildCountMapFromSummary(voteState.summary);
   }
 
-  const countMap = {};
-  const pairCountMap = {};
-  try {
-    let result = await wixData
-      .query(COLLECTION_MAP.LOGS)
-      .eq("userId", userId)
-      .limit(1000)
-      .find();
-
-    const collect = (items) => {
-      (items || []).forEach((item) => {
-        const add = (num) => {
-          if (num === undefined || num === null) return;
-          const key = Number(num);
-          if (!Number.isFinite(key)) return;
-          countMap[key] = (countMap[key] || 0) + 1;
-        };
-        add(item.winnerWorkNumber);
-        add(item.loserWorkNumber);
-
-        const a = Number(item.winnerWorkNumber);
-        const b = Number(item.loserWorkNumber);
-        if (Number.isFinite(a) && Number.isFinite(b)) {
-          const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-          pairCountMap[key] = (pairCountMap[key] || 0) + 1;
-        }
-      });
-    };
-
-    collect(result.items);
-    while (result.hasNext()) {
-      result = await result.next();
-      collect(result.items);
-      if (Object.keys(countMap).length > 5000) break;
-    }
-  } catch (error) {
-    logError("strengthVote.getUserWorkCounts", error, { userId });
-  }
-
-  countMap.__pairCounts = pairCountMap;
-  return countMap;
+  // 新用户，返回空映射
+  return {};
 }
 
 
