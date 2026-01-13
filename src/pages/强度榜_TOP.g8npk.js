@@ -15,7 +15,7 @@ let htmlComponent = null;
 let currentUserId = null;
 let isAdmin = false;
 let userVoteCount = 0;
-const MAX_VOTES = 100;
+const MAX_VOTES = 80;
 
 $w.onReady(function () {
   currentUserId = wixUsers.currentUser.id || null;

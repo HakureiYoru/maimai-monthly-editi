@@ -19,7 +19,7 @@ const COLLECTION_MAP = {
 };
 
 const REQUIRED_TASKS = 10;
-const MAX_VOTES = 100;
+const MAX_VOTES = 80;
 const DEFAULT_RATING = 1500;
 const MATCH_WINDOW = 180;
 const EXTENDED_WINDOW = 320;

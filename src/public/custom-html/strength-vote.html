@@ -755,7 +755,7 @@
         <span class="dot warn"></span>
         <span>正在检查权限...</span>
       </div>
-      <div class="progress" id="voteProgress">已投 0 / 100</div>
+      <div class="progress" id="voteProgress">已投 0 / 80</div>
     </section>
 
     <section class="glass-card" id="resultCard" style="display:none;">
@@ -829,7 +829,7 @@
       <div class="leaderboard-header">
         <div>
           <div class="title" style="font-size:20px;">全站实时榜单</div>
-          <div class="subtitle" id="globalRequirement" style="font-size:13px; margin-top:4px;">管理员或完成 100 次投票可查看</div>
+          <div class="subtitle" id="globalRequirement" style="font-size:13px; margin-top:4px;">完成 80 次投票可查看</div>
         </div>
       </div>
       <div class="list" id="globalLeaderboardList">
@@ -841,7 +841,7 @@
   <div class="intro-overlay" id="introOverlay">
     <div class="intro-card">
       <h3>须知</h3>
-      <p>请您确保您已经看过参与本投票的大部分谱面。我们希望选手们都能得到合理的参赛体验，感谢您的热情！</p>
+      <p>请您确保您已经看过参与本投票的大部分谱面。我们希望选手们都能得到合理的参赛体验，感谢您的热情！当您完成80次投票后，您将自动获得查看全站榜单的权限。</p>
       <button id="introConfirmBtn">我已了解，进入投票</button>
     </div>
   </div>
@@ -856,7 +856,7 @@
   <script>
     const DEFAULT_RATING = 1500;
     const REQUIRED_TASKS = 10;
-    let maxVotes = 100;
+    let maxVotes = 80;
     const VOTE_COUNT_KEY = "strengthVoteUserVoteCount";
     let isAdmin = false;
 
