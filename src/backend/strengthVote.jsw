@@ -19,11 +19,8 @@ const COLLECTION_MAP = {
 };
 
 const REQUIRED_TASKS = 10;
-const MAX_VOTES = 80;
+const MAX_VOTES = 100;
 const DEFAULT_RATING = 1500;
-const MATCH_WINDOW = 180;
-const EXTENDED_WINDOW = 320;
-const SESSION_TTL_MINUTES = 10;
 const MAX_LEADERBOARD_SIZE = 100;
 const STATS_QUERY_CHUNK = 50;
 // 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
@@ -475,38 +472,33 @@ function pickMatchPair(
     throw new Error("作品数量不足，无法生成对决");
   }
 
-  const hasPersonalData =
-    userWorkCounts && Object.keys(userWorkCounts).length > 0;
-  const hasPersonalRatings =
-    personalRatings && Object.keys(personalRatings).length > 0;
-  const hasPairPenalty =
-    userWorkCounts && userWorkCounts.__pairCounts && Object.keys(userWorkCounts.__pairCounts).length > 0;
-
-  // 计算个人参与次数
+  // 1. 数据准备
   const personalCount = (seqId) => Number(userWorkCounts[seqId] || 0);
   const pairCounts = (pairKey) =>
-    hasPairPenalty ? Number(userWorkCounts.__pairCounts[pairKey] || 0) : 0;
-  // 五档分段：弱/偏弱/中/偏强/强
-  const tiers = ["LOW", "LOW_MID", "MID", "HIGH_MID", "HIGH"];
-  const tierIndex = (tier) => tiers.indexOf(tier);
-  // 基于 Elo 动态分位段位（20/40/60/80 分位）
-  const getRatingValue = (seqId) => {
-    if (hasPersonalRatings) {
-      return Number(personalRatings[seqId] || DEFAULT_RATING);
-    }
-    return Number(statsMap?.[seqId]?.rating || DEFAULT_RATING);
+    userWorkCounts?.__pairCounts ? Number(userWorkCounts.__pairCounts[pairKey] || 0) : 0;
+
+  /**
+   * 核心：加权 Rating 逻辑
+   * 为了提高匹配效率，在用户对某个作品了解较少时，微量参考全站 Elo。
+   * - 没见过 (0次): 20% 全站参考，轻微引导到合适的段位。
+   * - 见过 1 次: 5% 全站参考，极速回归个人审美。
+   * - 见过 2 次+: 0% 全站参考，完全基于个人 Elo 进行同层匹配。
+   */
+  const getWeightedRating = (seqId) => {
+    const pRating = Number(personalRatings[seqId] || DEFAULT_RATING);
+    const gRating = Number(statsMap?.[seqId]?.rating || DEFAULT_RATING);
+    const mCount = personalCount(seqId);
+
+    if (mCount === 0) return pRating * 0.8 + gRating * 0.2;
+    if (mCount === 1) return pRating * 0.95 + gRating * 0.05;
+    return pRating;
   };
 
-  const ratingValues = (hasPersonalRatings
-    ? Object.values(personalRatings)
-    : works.map((w) => getRatingValue(w.sequenceId))
-  )
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v));
-  if (ratingValues.length === 0) {
-    ratingValues.push(DEFAULT_RATING);
-  }
-  ratingValues.sort((a, b) => a - b);
+  // 2. 动态分位段位计算（基于加权后的 Rating）
+  const ratingValues = works
+    .map((w) => getWeightedRating(w.sequenceId))
+    .sort((a, b) => a - b);
+
   const pickPercentile = (p) => {
     const idx = Math.max(
       0,
@@ -514,14 +506,16 @@ function pickMatchPair(
     );
     return ratingValues[idx];
   };
+
   const thresholds = {
     lowMid: pickPercentile(0.2),
     mid: pickPercentile(0.4),
     highMid: pickPercentile(0.6),
     high: pickPercentile(0.8),
   };
-  const getTier = (rating) => {
-    const r = rating || DEFAULT_RATING;
+
+  const tiers = ["LOW", "LOW_MID", "MID", "HIGH_MID", "HIGH"];
+  const getTier = (r) => {
     if (r >= thresholds.high) return "HIGH";
     if (r >= thresholds.highMid) return "HIGH_MID";
     if (r >= thresholds.mid) return "MID";
@@ -529,145 +523,70 @@ function pickMatchPair(
     return "LOW";
   };
 
-  let anchor;
-  let candidates;
+  // 3. 选择 Anchor (优先出场最少的作品)
+  const sortedByPersonal = [...works].sort((a, b) => {
+    const diff = personalCount(a.sequenceId) - personalCount(b.sequenceId);
+    if (diff !== 0) return diff;
+    // 如果个人出场次数相同，参考全站出场次数，帮助系统冷启动
+    const gMatchesA = getMatchesCount(statsMap[a.sequenceId]);
+    const gMatchesB = getMatchesCount(statsMap[b.sequenceId]);
+    return gMatchesA - gMatchesB;
+  });
 
-  if (hasPersonalData) {
-    // 个人偏好：优先让个人参与次数少的作品出场
-    const sorted = [...works].sort((a, b) => {
-      const diff = personalCount(a.sequenceId) - personalCount(b.sequenceId);
-      if (diff === 0) return Math.random() - 0.5;
-      return diff;
+  // 尝试从出场最少的作品中找一个“有新对手可配对”的作为 Anchor
+  let anchor = sortedByPersonal[0];
+  const anchorLimit = Math.min(sortedByPersonal.length, 10);
+  for (let i = 0; i < anchorLimit; i++) {
+    const potential = sortedByPersonal[i];
+    const pId = Number(potential.sequenceId);
+    const hasUnpaired = works.some((w) => {
+      if (w.sequenceId === potential.sequenceId) return false;
+      const wId = Number(w.sequenceId);
+      const key = pId < wId ? `${pId}-${wId}` : `${wId}-${pId}`;
+      return pairCounts(key) === 0;
     });
-    
-    // 🔒 硬性隔绝模式：智能选择有未配对候选者的anchor
-    let anchorIndex = 0;
-    let foundValidAnchor = false;
-    
-    if (hasPairPenalty) {
-      // 尝试找到至少有一个未配对候选者的anchor
-      for (let i = 0; i < Math.min(sorted.length, 10); i++) {
-        const potentialAnchor = sorted[i];
-        const potentialAnchorId = Number(potentialAnchor.sequenceId);
-        
-        const hasUnpairedCandidate = works.some((w) => {
-          if (w.sequenceId === potentialAnchor.sequenceId) return false;
-          const wId = Number(w.sequenceId);
-          const key = potentialAnchorId < wId 
-            ? `${potentialAnchorId}-${wId}` 
-            : `${wId}-${potentialAnchorId}`;
-          return pairCounts(key) === 0;
-        });
-        
-        if (hasUnpairedCandidate) {
-          anchorIndex = i;
-          foundValidAnchor = true;
-          break;
-        }
-      }
-    }
-    
-    anchor = sorted[anchorIndex];
-    candidates = works.filter((w) => w.sequenceId !== anchor.sequenceId);
-    
-    // 🔒 硬性隔绝：优先过滤掉已经出现过的配对（在 Elo 筛选之前）
-    if (hasPairPenalty && candidates.length > 0) {
-      const anchorId = Number(anchor.sequenceId);
-      const unpairedCandidates = candidates.filter((w) => {
-        const wId = Number(w.sequenceId);
-        const key =
-          anchorId < wId ? `${anchorId}-${wId}` : `${wId}-${anchorId}`;
-        const times = pairCounts(key);
-        return times === 0; // 只保留从未配对过的作品
-      });
-
-      // 如果存在未配对过的候选者，使用它们作为后续筛选的基础
-      if (unpairedCandidates.length > 0) {
-        candidates = unpairedCandidates;
-      }
-      // 否则保留所有候选者（允许重复，避免无法生成对决）
-    }
-    
-    // 基于 Elo 动态分位段位（20/40/60/80 分位）- 在未配对的候选者中筛选
-    const anchorRating = getRatingValue(anchor.sequenceId);
-    const anchorTier = getTier(anchorRating);
-    const anchorTierIdx = tierIndex(anchorTier);
-
-    const sameTier = candidates.filter((w) => {
-      const r = getRatingValue(w.sequenceId);
-      return getTier(r) === anchorTier;
-    });
-
-    const neighborTier = candidates.filter((w) => {
-      const r = getRatingValue(w.sequenceId);
-      const t = getTier(r);
-      return Math.abs(tierIndex(t) - anchorTierIdx) === 1;
-    });
-
-    if (sameTier.length > 0) {
-      candidates = sameTier;
-    } else if (neighborTier.length > 0) {
-      candidates = neighborTier;
-    }
-
-    // 再按个人出场次数接近筛选（扩大覆盖度）
-    const anchorCount = personalCount(anchor.sequenceId);
-    const personalClose = candidates.filter(
-      (w) => Math.abs(personalCount(w.sequenceId) - anchorCount) <= 2
-    );
-    if (personalClose.length > 0) {
-      candidates = personalClose;
-    }
-  } else {
-    // 基于 Elo 动态分位段位（20/40/60/80 分位）
-    const shuffled = [...works].sort((a, b) => {
-      const matchesA = getMatchesCount(statsMap[a.sequenceId]);
-      const matchesB = getMatchesCount(statsMap[b.sequenceId]);
-      if (matchesA === matchesB) {
-        return Math.random() - 0.5;
-      }
-      return matchesA - matchesB;
-    });
-
-    const anchorIndex = Math.min(
-      shuffled.length - 1,
-      Math.floor(Math.random() * Math.min(3, shuffled.length))
-    );
-    anchor = shuffled[anchorIndex];
-    const anchorStats = statsMap[anchor.sequenceId];
-    const anchorRating = anchorStats?.rating || DEFAULT_RATING;
-    const anchorMatches = getMatchesCount(anchorStats);
-
-    candidates = works.filter(
-      (item) => item.sequenceId !== anchor.sequenceId
-    );
-
-    if (anchorMatches >= 3) {
-      const close = candidates.filter((item) => {
-        const stats = statsMap[item.sequenceId];
-        const rating = stats?.rating || DEFAULT_RATING;
-        const matches = getMatchesCount(stats);
-        if (matches < 3) {
-          return false;
-        }
-        return Math.abs(rating - anchorRating) <= MATCH_WINDOW;
-      });
-
-      if (close.length > 0) {
-        candidates = close;
-      } else {
-        const extended = candidates.filter((item) => {
-          const stats = statsMap[item.sequenceId];
-          const rating = stats?.rating || DEFAULT_RATING;
-          return Math.abs(rating - anchorRating) <= EXTENDED_WINDOW;
-        });
-        if (extended.length > 0) {
-          candidates = extended;
-        }
-      }
+    if (hasUnpaired) {
+      anchor = potential;
+      break;
     }
   }
 
+  // 4. 筛选 Candidate (对手)
+  let candidates = works.filter((w) => w.sequenceId !== anchor.sequenceId);
+  const anchorId = Number(anchor.sequenceId);
+
+  // 🔒 强制隔绝：优先选择从未配对过的组合
+  const unpaired = candidates.filter((w) => {
+    const wId = Number(w.sequenceId);
+    const key = anchorId < wId ? `${anchorId}-${wId}` : `${wId}-${anchorId}`;
+    return pairCounts(key) === 0;
+  });
+  if (unpaired.length > 0) {
+    candidates = unpaired;
+  }
+
+  // 🔒 势均力敌：在段位内寻找对手
+  const anchorRating = getWeightedRating(anchor.sequenceId);
+  const anchorTier = getTier(anchorRating);
+  const anchorTierIdx = tiers.indexOf(anchorTier);
+
+  const sameTier = candidates.filter(
+    (w) => getTier(getWeightedRating(w.sequenceId)) === anchorTier
+  );
+  if (sameTier.length > 0) {
+    candidates = sameTier;
+  } else {
+    // 降级寻找相邻段位
+    const neighbors = candidates.filter((w) => {
+      const tIdx = tiers.indexOf(getTier(getWeightedRating(w.sequenceId)));
+      return Math.abs(tIdx - anchorTierIdx) === 1;
+    });
+    if (neighbors.length > 0) {
+      candidates = neighbors;
+    }
+  }
+
+  // 5. 随机抽取
   const opponent =
     candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
 
