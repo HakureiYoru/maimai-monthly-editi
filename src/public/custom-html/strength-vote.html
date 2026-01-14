@@ -102,77 +102,31 @@
       transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
       border-radius: 25px;
       
-      /* 浅蓝色渐变背景 */
-      background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 30%, #93c5fd 60%, #60a5fa 100%);
-      
-      /* 水波动画效果 */
-      animation: wave 4s ease-in-out infinite;
+      /* 简洁的渐变背景 */
+      background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
       background-size: 200% 100%;
       
-      /* 添加内阴影营造深度感 */
-      box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.2), 
-                  inset 0 -2px 8px rgba(0, 0, 0, 0.2);
+      /* 简单的平滑渐变动画 */
+      animation: gradient-move 3s linear infinite;
+      
+      /* 轻微的内阴影 */
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1), 
+                  inset 0 -2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    /* 水波流动动画 */
-    @keyframes wave {
-      0%, 100% {
+    @keyframes gradient-move {
+      0% {
         background-position: 0% 50%;
       }
-      50% {
-        background-position: 100% 50%;
-      }
-    }
-    
-    /* 进度条上的光泽效果 */
-    .status-progress-bar::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, 
-        transparent, 
-        rgba(255, 255, 255, 0.4), 
-        transparent);
-      animation: shimmer 3s infinite;
-    }
-    
-    @keyframes shimmer {
-      0% {
-        left: -100%;
-      }
       100% {
-        left: 100%;
+        background-position: 200% 50%;
       }
     }
     
-    /* 水波纹理叠加层 */
+    /* 移除冗余的波纹和光泽层 */
+    .status-progress-bar::before,
     .status-progress-bar::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: repeating-linear-gradient(
-        90deg,
-        transparent 0px,
-        rgba(255, 255, 255, 0.05) 10px,
-        transparent 20px
-      );
-      animation: wave-texture 2s linear infinite;
-      border-radius: 25px;
-    }
-    
-    @keyframes wave-texture {
-      0% {
-        transform: translateX(0);
-      }
-      100% {
-        transform: translateX(20px);
-      }
+      display: none;
     }
 
     .status .message {
@@ -329,7 +283,7 @@
       position: absolute;
       left: 50%;
       top: 50%;
-      transform: translate(-50%, 32px);
+      transform: translate(-50%, 48px);
       z-index: 11;
     }
 
@@ -341,33 +295,40 @@
       color: #fff;
     }
 
-    .work-card {
-      display: flex;
-      flex-direction: column;
-      padding: 0;
+    .entry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto 220px;
+      padding: 0 !important; /* 覆盖 glass-card 的默认内边距 */
       overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
       transition: transform 0.3s ease, box-shadow 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    .work-card:hover {
+    .entry:hover {
       transform: translateY(-4px);
       box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.5);
       border-color: rgba(255, 255, 255, 0.3);
     }
 
-    .entry {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 220px;
-      gap: 12px;
-      align-items: stretch;
+    .vertical-divider {
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.2) 20%, rgba(255, 255, 255, 0.2) 80%, transparent);
+      margin: 20px 0;
+      align-self: stretch;
     }
 
-    .desc-card {
+    .work-part {
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .desc-part {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      padding: 16px;
+      padding: 20px 16px;
+      background: rgba(255, 255, 255, 0.02);
     }
 
     .desc-title {
@@ -387,7 +348,7 @@
       max-height: 9em;
     }
 
-    .desc-card.expanded .desc-text {
+    .desc-part.expanded .desc-text {
       -webkit-line-clamp: unset;
       max-height: none;
     }
@@ -398,7 +359,7 @@
       padding: 6px 12px;
     }
 
-    .work-card .cover-container {
+    .cover-container {
       position: relative;
       width: 100%;
       padding-top: 100%;
@@ -423,12 +384,11 @@
       object-fit: cover;
       transition: transform 0.5s ease;
       display: none;
-      /* 默认隐藏，避免空src显示破图 */
       image-rendering: -webkit-optimize-contrast;
       image-rendering: crisp-edges;
     }
 
-    .work-card:hover .cover-container img {
+    .entry:hover .cover-container img {
       transform: scale(1.05);
     }
 
@@ -742,12 +702,19 @@
         transform: translate(-50%, 46px);
       }
 
-      .work-card .cover-container {
-        padding-top: 100%;
-      }
-
       .entry {
         grid-template-columns: 1fr;
+      }
+
+      .vertical-divider {
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+        margin: 0;
+      }
+
+      .work-part .cover-container {
+        padding-top: 100%;
       }
 
       .row {
@@ -871,8 +838,9 @@
       <div class="pair-actions">
         <button id="newCompareBtn" class="skip-btn" disabled>开始</button>
       </div>
-      <div class="entry" id="entryA">
-        <div class="glass-card work-card" id="cardA">
+      
+      <div class="entry glass-card" id="entryA">
+        <div class="work-part" id="cardA">
           <div class="cover-wrap">
             <div class="cover-container">
               <img id="coverA" src="" alt="" />
@@ -885,15 +853,16 @@
             <button class="vote-btn" id="voteA" disabled>投给 TA</button>
           </div>
         </div>
-        <div class="glass-card desc-card" id="descCardA">
+        <div class="vertical-divider"></div>
+        <div class="desc-part" id="descCardA">
           <div class="desc-title">作品描述</div>
           <div class="desc-text" id="descTextA">暂无描述</div>
           <button class="secondary desc-toggle" id="descToggleA" disabled>展开</button>
         </div>
       </div>
 
-      <div class="entry" id="entryB">
-        <div class="glass-card work-card" id="cardB">
+      <div class="entry glass-card" id="entryB">
+        <div class="work-part" id="cardB">
           <div class="cover-wrap">
             <div class="cover-container">
               <img id="coverB" src="" alt="" />
@@ -906,7 +875,8 @@
             <button class="vote-btn" id="voteB" disabled>投给 TA</button>
           </div>
         </div>
-        <div class="glass-card desc-card" id="descCardB">
+        <div class="vertical-divider"></div>
+        <div class="desc-part" id="descCardB">
           <div class="desc-title">作品描述</div>
           <div class="desc-text" id="descTextB">暂无描述</div>
           <button class="secondary desc-toggle" id="descToggleB" disabled>展开</button>
@@ -1033,7 +1003,7 @@
           // 如果是 Wix 图片，添加压缩参数
           if (optimizedUrl.includes('wixmp.com') || optimizedUrl.includes('wix.com')) {
             const separator = optimizedUrl.includes('?') ? '&' : '?';
-            optimizedUrl = `${optimizedUrl}${separator}w=400&q=75`; // 宽度400px，质量75%
+            optimizedUrl = `${optimizedUrl}${separator}w=400&q=30`; // 宽度400px，质量30%
           }
           coverEl.src = optimizedUrl;
           coverEl.loading = "lazy"; // 懒加载
@@ -1059,11 +1029,11 @@
 
     function setDescription(prefix, text) {
       const descText = prefix === "A" ? els.descTextA : els.descTextB;
-      const descCard = prefix === "A" ? els.descCardA : els.descCardB;
+      const descPart = prefix === "A" ? els.descCardA : els.descCardB;
       const descToggle = prefix === "A" ? els.descToggleA : els.descToggleB;
       const normalized = (text || "").trim();
       descText.textContent = normalized || "暂无描述";
-      descCard.classList.remove("expanded");
+      descPart.classList.remove("expanded");
       if (normalized) {
         descToggle.disabled = false;
         descToggle.textContent = "展开";
@@ -1074,9 +1044,9 @@
     }
 
     function toggleDescription(prefix) {
-      const descCard = prefix === "A" ? els.descCardA : els.descCardB;
+      const descPart = prefix === "A" ? els.descCardA : els.descCardB;
       const descToggle = prefix === "A" ? els.descToggleA : els.descToggleB;
-      const isExpanded = descCard.classList.toggle("expanded");
+      const isExpanded = descPart.classList.toggle("expanded");
       descToggle.textContent = isExpanded ? "收起" : "展开";
     }
 
@@ -1231,7 +1201,7 @@
         // 如果是 Wix 图片，添加压缩参数（缩略图用更小尺寸）
         if (url.includes('wixmp.com') || url.includes('wix.com')) {
           const separator = url.includes('?') ? '&' : '?';
-          return `${url}${separator}w=100&q=70`; // 缩略图：宽度100px，质量70%
+          return `${url}${separator}w=100&q=30`; // 缩略图：宽度100px，质量30%
         }
         return url;
       };

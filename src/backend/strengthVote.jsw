@@ -23,6 +23,7 @@ const MAX_VOTES = 100;
 const DEFAULT_RATING = 1500;
 const MAX_LEADERBOARD_SIZE = 100;
 const STATS_QUERY_CHUNK = 50;
+const SESSION_TTL_MINUTES = 10;
 // 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
 const ENFORCE_TASK_COMPLETION = false;
 
