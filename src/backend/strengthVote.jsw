@@ -19,13 +19,32 @@ const COLLECTION_MAP = {
 };
 
 const REQUIRED_TASKS = 10;
-const MAX_VOTES = 100;
+const MAX_VOTES = 80;
 const DEFAULT_RATING = 1500;
 const MAX_LEADERBOARD_SIZE = 100;
 const STATS_QUERY_CHUNK = 50;
 const SESSION_TTL_MINUTES = 10;
+const CONTESTANT_WEIGHT = 0.2;
 // 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
 const ENFORCE_TASK_COMPLETION = false;
+
+/**
+ * 检查用户是否为参赛选手（在作品库中有作品）
+ */
+async function isUserContestant(userId) {
+  if (!userId) return false;
+  try {
+    const count = await wixData
+      .query(COLLECTION_MAP.WORKS)
+      .eq("_owner", userId)
+      .limit(1)
+      .count();
+    return count > 0;
+  } catch (error) {
+    logError("strengthVote.isUserContestant", error, { userId });
+    return false;
+  }
+}
 
 /**
  * 规范化 Wix 媒体 URL，适配图片/文件字段的多种格式
@@ -808,8 +827,15 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
     const winnerK = calculateKFactor(winnerMatches);
     const loserK = calculateKFactor(loserMatches);
 
-    const winnerDelta = Math.round(winnerK * (1 - expectedWinner));
-    const loserDelta = Math.round(loserK * (0 - expectedLoser));
+    const rawWinnerDelta = Math.round(winnerK * (1 - expectedWinner));
+    const rawLoserDelta = Math.round(loserK * (0 - expectedLoser));
+
+    // 🔒 选手权重缩放：如果是参赛选手，对全站 Elo 的影响减半
+    const isContestant = await isUserContestant(userId);
+    const weight = isContestant ? CONTESTANT_WEIGHT : 1.0;
+    
+    const winnerDelta = Math.round(rawWinnerDelta * weight);
+    const loserDelta = Math.round(rawLoserDelta * weight);
 
     const updatedWinner = {
       ...winnerStats,
@@ -846,9 +872,13 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
       message: "投票成功，排名已更新",
       winner: buildWorkPayload(winnerWork, updatedWinner),
       loser: buildWorkPayload(loserWork, updatedLoser),
+      isContestant,
+      weight,
       deltas: {
         winnerDelta,
         loserDelta,
+        rawWinnerDelta,
+        rawLoserDelta,
       },
       personalDeltas: userSummaryResult?.personalDeltas || {
         winnerDelta: 0,
