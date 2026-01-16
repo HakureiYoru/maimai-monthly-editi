@@ -26,7 +26,7 @@ const STATS_QUERY_CHUNK = 50;
 const SESSION_TTL_MINUTES = 10;
 const CONTESTANT_WEIGHT = 0.2;
 // 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
-const ENFORCE_TASK_COMPLETION = false;
+const ENFORCE_TASK_COMPLETION = true;
 
 /**
  * 检查用户是否为参赛选手（在作品库中有作品）
