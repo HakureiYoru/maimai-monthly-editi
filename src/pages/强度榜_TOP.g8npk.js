@@ -214,7 +214,7 @@ async function pushLeaderboard() {
     postToHtml("LEADERBOARD_PERSONAL", { items: personalItems });
 
     // 全站榜单（仅管理员可见）
-    const canViewGlobal = isAdmin || userVoteCount >= MAX_VOTES;
+    const canViewGlobal = isAdmin;
     if (canViewGlobal) {
       const items = await getStrengthLeaderboard(50);
       postToHtml("LEADERBOARD_GLOBAL", { items, isAdmin, canViewGlobal: true });
