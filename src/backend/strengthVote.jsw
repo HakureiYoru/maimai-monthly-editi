@@ -101,7 +101,6 @@ function pickCoverImage(work = {}) {
     "track的複本",
     "bg的複本",
     "上傳檔案欄",
-
   ];
 
   for (const key of candidateKeys) {
@@ -167,7 +166,11 @@ async function saveUserSummary(payload, existingSummary = null) {
 
   try {
     if (existingSummary?._id) {
-      const updated = { ...existingSummary, ...payload, _id: existingSummary._id };
+      const updated = {
+        ...existingSummary,
+        ...payload,
+        _id: existingSummary._id,
+      };
       return await wixData.update(COLLECTION_MAP.SUMMARY, updated);
     }
     return await wixData.insert(COLLECTION_MAP.SUMMARY, payload);
@@ -228,10 +231,7 @@ function buildCountMapFromSummary(summary) {
 function buildCoverageCountFromSummary(summary) {
   const winsMap = summary?.winsMap || {};
   const lossesMap = summary?.lossesMap || {};
-  const keys = new Set([
-    ...Object.keys(winsMap),
-    ...Object.keys(lossesMap),
-  ]);
+  const keys = new Set([...Object.keys(winsMap), ...Object.keys(lossesMap)]);
   return keys.size;
 }
 
@@ -375,58 +375,49 @@ async function checkEligibility(userId) {
   }
 }
 
-
-
-// 正式用法
-// async function fetchActiveWorks() {
-//   const works = [];
-//   try {
-//     let result = await wixData
-//       .query(COLLECTION_MAP.WORKS)
-//       .ne("isDq", true)
-//       .limit(1000)
-//       .ascending("_createdDate")
-//       .find();
-
-//     works.push(...(result.items || []));
-
-//     while (result.hasNext()) {
-//       result = await result.next();
-//       works.push(...(result.items || []));
-//     }
-//   } catch (error) {
-//     logError("strengthVote.fetchActiveWorks", error);
-//   }
-
-//   return works.filter(
-//     (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
-//   );
-// }
-
-// 调试版：仅取 sequenceId 最大的 20 条，排除 isDq
 async function fetchActiveWorks() {
+  const works = [];
   try {
-    const result = await wixData
+    let result = await wixData
       .query(COLLECTION_MAP.WORKS)
       .ne("isDq", true)
-      .descending("sequenceId")
-      .limit(20)
+      .limit(1000)
+      .ascending("_createdDate")
       .find();
 
-    return (result.items || []).filter(
-      (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
-    );
+    works.push(...(result.items || []));
+
+    while (result.hasNext()) {
+      result = await result.next();
+      works.push(...(result.items || []));
+    }
   } catch (error) {
     logError("strengthVote.fetchActiveWorks", error);
-    return [];
   }
+
+  return works.filter(
+    (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
+  );
 }
 
+// // 调试版：仅取 sequenceId 最大的 20 条，排除 isDq
+// async function fetchActiveWorks() {
+//   try {
+//     const result = await wixData
+//       .query(COLLECTION_MAP.WORKS)
+//       .ne("isDq", true)
+//       .descending("sequenceId")
+//       .limit(20)
+//       .find();
 
-
-
-
-
+//     return (result.items || []).filter(
+//       (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
+//     );
+//   } catch (error) {
+//     logError("strengthVote.fetchActiveWorks", error);
+//     return [];
+//   }
+// }
 
 async function fetchStatsMap(workNumbers = []) {
   if (!Array.isArray(workNumbers) || workNumbers.length === 0) {
@@ -495,7 +486,9 @@ function pickMatchPair(
   // 1. 数据准备
   const personalCount = (seqId) => Number(userWorkCounts[seqId] || 0);
   const pairCounts = (pairKey) =>
-    userWorkCounts?.__pairCounts ? Number(userWorkCounts.__pairCounts[pairKey] || 0) : 0;
+    userWorkCounts?.__pairCounts
+      ? Number(userWorkCounts.__pairCounts[pairKey] || 0)
+      : 0;
 
   /**
    * 核心：加权 Rating 逻辑
@@ -522,7 +515,10 @@ function pickMatchPair(
   const pickPercentile = (p) => {
     const idx = Math.max(
       0,
-      Math.min(ratingValues.length - 1, Math.floor((ratingValues.length - 1) * p))
+      Math.min(
+        ratingValues.length - 1,
+        Math.floor((ratingValues.length - 1) * p)
+      )
     );
     return ratingValues[idx];
   };
@@ -660,7 +656,7 @@ export async function requestStrengthComparison(userId) {
 
   const allWorks = await fetchActiveWorks();
   // 过滤掉当前用户自己提交的作品
-  const works = allWorks.filter(item => item._owner !== userId);
+  const works = allWorks.filter((item) => item._owner !== userId);
 
   if (works.length < 2) {
     return {
@@ -833,7 +829,7 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
     // 🔒 选手权重缩放：如果是参赛选手，对全站 Elo 的影响减半
     const isContestant = await isUserContestant(userId);
     const weight = isContestant ? CONTESTANT_WEIGHT : 1.0;
-    
+
     const winnerDelta = Math.round(rawWinnerDelta * weight);
     const loserDelta = Math.round(rawLoserDelta * weight);
 
@@ -857,13 +853,19 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
     await wixData.update(COLLECTION_MAP.STATS, updatedLoser);
 
     // ✅ 直接更新 Summary，无需写入 Log
-    const userSummaryResult = await updateUserSummaryWithVote(userId, winner, loser);
+    const userSummaryResult = await updateUserSummaryWithVote(
+      userId,
+      winner,
+      loser
+    );
 
     // ✅ 投票成功后立即删除该 session（优化存储）
     try {
       await wixData.remove(COLLECTION_MAP.SESSIONS, session._id);
     } catch (error) {
-      logError("strengthVote.submitStrengthVote.removeSession", error, { sessionId });
+      logError("strengthVote.submitStrengthVote.removeSession", error, {
+        sessionId,
+      });
       // 删除失败不影响投票结果
     }
 
@@ -899,7 +901,10 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
 }
 
 export async function getStrengthLeaderboard(limit = 50) {
-  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+  const cappedLimit = Math.min(
+    limit || MAX_LEADERBOARD_SIZE,
+    MAX_LEADERBOARD_SIZE
+  );
   const works = await fetchActiveWorks();
   if (works.length === 0) {
     return [];
@@ -936,7 +941,10 @@ export async function getStrengthLeaderboardForUser(userId, limit = 50) {
     return [];
   }
 
-  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+  const cappedLimit = Math.min(
+    limit || MAX_LEADERBOARD_SIZE,
+    MAX_LEADERBOARD_SIZE
+  );
   const works = await fetchActiveWorks();
   const userWorks = works.filter(
     (item) => item._owner === userId && item.isDq !== true
@@ -974,7 +982,10 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     return [];
   }
 
-  const cappedLimit = Math.min(limit || MAX_LEADERBOARD_SIZE, MAX_LEADERBOARD_SIZE);
+  const cappedLimit = Math.min(
+    limit || MAX_LEADERBOARD_SIZE,
+    MAX_LEADERBOARD_SIZE
+  );
 
   const voteState = await ensureUserSummaryIfNeeded(userId);
   let voteCountMap = {};
@@ -1018,7 +1029,7 @@ export async function getStrengthUserPersonalRanking(userId, limit = 50) {
     const userWinRate =
       userTotal > 0 ? Number((userWins / userTotal).toFixed(4)) : 0;
     const personalElo = personalEloMap[work.sequenceId] || DEFAULT_RATING;
-    
+
     return {
       ...payload,
       votesByUser: voteCountMap[work.sequenceId] || 0,
@@ -1078,14 +1089,3 @@ async function getUserWorkCounts(userId) {
   // 新用户，返回空映射
   return {};
 }
-
-
-
-
-
-
-
-
-
-
-
