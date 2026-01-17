@@ -37,6 +37,7 @@ async function isUserContestant(userId) {
     const count = await wixData
       .query(COLLECTION_MAP.WORKS)
       .eq("_owner", userId)
+      .ne("isDq", true)
       .limit(1)
       .count();
     return count > 0;
