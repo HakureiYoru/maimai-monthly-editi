@@ -198,6 +198,55 @@ export const get_comments = asyncErrorHandler(async (request) => {
 });
 
 /**
+ * Get comments for a single work number.
+ * Returns only comment text, score, and comment type flags.
+ * @param {Object} request - HTTP request
+ * @returns {Promise<Object>} HTTP response
+ */
+export const get_comment = asyncErrorHandler(async (request) => {
+  const workNumber = validateNumberParam(request.path[0], "workNumber");
+
+  const query = wixData
+    .query(COLLECTIONS.BOF_COMMENT)
+    .eq("workNumber", workNumber)
+    .ascending("_createdDate");
+  const comments = await loadAllData(query);
+
+  if (comments.length === 0) {
+    return createSuccessResponse([]);
+  }
+
+  let workOwnerId = null;
+  try {
+    const workResult = await wixData
+      .query(COLLECTIONS.ENTER_CONTEST_034)
+      .eq("sequenceId", workNumber)
+      .limit(1)
+      .find();
+    if (workResult.items.length > 0) {
+      workOwnerId = workResult.items[0]._owner;
+    }
+  } catch (error) {
+    logError("get_comment", error, { workNumber });
+  }
+
+  const responseItems = comments.map((comment) => {
+    const isReply = Boolean(comment.replyTo);
+    const isSelfScComment =
+      !isReply && Boolean(workOwnerId) && comment._owner === workOwnerId;
+
+    return {
+      comment: comment.comment,
+      score: comment.score,
+      isReply: isReply,
+      isSelfScComment: isSelfScComment,
+    };
+  });
+
+  return createSuccessResponse(responseItems);
+});
+
+/**
  * 获取按帖子ID分组的帖子日志
  * @param {Object} request - 请求对象
  * @returns {Promise<Object>} HTTP响应
