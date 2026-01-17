@@ -1224,6 +1224,10 @@
           ? `<img src="${optimizedCover}" loading="lazy" alt="${item.title || `#${item.workNumber}`}" />` 
           : `<div class="thumb-placeholder">#${item.workNumber}</div>`;
         
+        // 计算相对1500的差值
+        const ratingDelta = Math.round((item.rating || 1500) - 1500);
+        const ratingDisplay = ratingDelta >= 0 ? `+${ratingDelta}` : `${ratingDelta}`;
+        
         return `
         <div class="row ${showRating ? "" : "no-rating"}">
           <div class="rank">#${idx + 1}</div>
@@ -1233,7 +1237,7 @@
             <div class="sub">ID: ${item.workNumber}</div>
           </div>
           ${showRating ? `<div class="stat-col rating-only">
-            <div class="stat-val" style="color:#fbbf24">${Math.round(item.rating || 0)}</div>
+            <div class="stat-val" style="color:#fbbf24">${ratingDisplay}</div>
           </div>` : ""}
           <div class="stat-col ${showRating ? "" : "win-rate-col"}">
             <div class="stat-val">${formatWinRate(item.winRate)}</div>
