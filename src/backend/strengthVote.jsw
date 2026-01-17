@@ -34,13 +34,19 @@ const ENFORCE_TASK_COMPLETION = true;
 async function isUserContestant(userId) {
   if (!userId) return false;
   try {
-    const count = await wixData
+    const result = await wixData
       .query(COLLECTION_MAP.WORKS)
       .eq("_owner", userId)
       .ne("isDq", true)
-      .limit(1)
-      .count();
-    return count > 0;
+      .limit(1000)
+      .find();
+    
+    // 🔒 与 fetchActiveWorks 保持一致：必须有有效的 sequenceId
+    const validWorks = (result.items || []).filter(
+      (item) => item && item.sequenceId !== undefined && item.sequenceId !== null
+    );
+    
+    return validWorks.length > 0;
   } catch (error) {
     logError("strengthVote.isUserContestant", error, { userId });
     return false;
