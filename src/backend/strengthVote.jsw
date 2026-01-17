@@ -655,6 +655,72 @@ export async function requestStrengthComparison(userId) {
     };
   }
 
+  // 🔒 防刷票：先检查用户是否有未使用的票据
+  try {
+    const existingSessionResult = await wixData
+      .query(COLLECTION_MAP.SESSIONS)
+      .eq("userId", userId)
+      .eq("used", false)
+      .limit(1)
+      .find();
+
+    if (existingSessionResult.items && existingSessionResult.items.length > 0) {
+      const existingSession = existingSessionResult.items[0];
+      const now = new Date();
+      
+      // 检查票据是否过期
+      if (existingSession.expiresAt && new Date(existingSession.expiresAt) > now) {
+        // 票据有效，返回现有的组合
+        const workNumbers = [Number(existingSession.workA), Number(existingSession.workB)];
+        
+        const workResult = await wixData
+          .query(COLLECTION_MAP.WORKS)
+          .hasSome("sequenceId", workNumbers)
+          .ne("isDq", true)
+          .limit(2)
+          .find();
+
+        if (workResult.items && workResult.items.length === 2) {
+          const statsMap = await fetchStatsMap(workNumbers);
+          const workMap = {};
+          workResult.items.forEach((item) => {
+            workMap[Number(item.sequenceId)] = item;
+          });
+
+          const workA = workMap[existingSession.workA];
+          const workB = workMap[existingSession.workB];
+
+          if (workA && workB) {
+            return {
+              success: true,
+              sessionId: existingSession.sessionId,
+              expiresAt: existingSession.expiresAt,
+              pair: [
+                buildWorkPayload(workA, statsMap[workA.sequenceId]),
+                buildWorkPayload(workB, statsMap[workB.sequenceId]),
+              ],
+            };
+          }
+        }
+      }
+      
+      // 如果票据过期或作品不可用，删除这个过期票据
+      try {
+        await wixData.remove(COLLECTION_MAP.SESSIONS, existingSession._id);
+      } catch (removeError) {
+        logError("strengthVote.requestStrengthComparison.removeExpiredSession", removeError, {
+          sessionId: existingSession.sessionId,
+        });
+      }
+    }
+  } catch (error) {
+    logError("strengthVote.requestStrengthComparison.checkExistingSession", error, {
+      userId,
+    });
+    // 查询失败不影响后续流程，继续生成新票据
+  }
+
+  // 没有有效的未使用票据，生成新的
   const allWorks = await fetchActiveWorks();
   // 过滤掉当前用户自己提交的作品
   const works = allWorks.filter((item) => item._owner !== userId);
