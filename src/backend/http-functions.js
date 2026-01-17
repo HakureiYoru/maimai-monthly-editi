@@ -19,6 +19,7 @@ import {
   safeJsonParse,
   groupByField,
 } from "backend/utils";
+import { fetchAllRegistrations } from "backend/ratingTaskManager.jsw";
 import {
   FILE_TYPES,
   APPROVAL_CONFIG,
@@ -230,16 +231,36 @@ export const get_comment = asyncErrorHandler(async (request) => {
     logError("get_comment", error, { workNumber });
   }
 
+  const ownerIdSet = new Set(
+    comments.map((comment) => comment._owner).filter(Boolean)
+  );
+  const highQualityMap = {};
+
+  if (ownerIdSet.size > 0) {
+    try {
+      const registrations = await fetchAllRegistrations();
+      registrations.forEach((reg) => {
+        if (ownerIdSet.has(reg._owner)) {
+          highQualityMap[reg._owner] = reg.isHighQuality === true;
+        }
+      });
+    } catch (error) {
+      logError("get_comment registrations", error, { workNumber });
+    }
+  }
+
   const responseItems = comments.map((comment) => {
     const isReply = Boolean(comment.replyTo);
     const isSelfScComment =
       !isReply && Boolean(workOwnerId) && comment._owner === workOwnerId;
+    const isHighQuality = highQualityMap[comment._owner] === true;
 
     return {
       comment: comment.comment,
       score: comment.score,
       isReply: isReply,
       isSelfScComment: isSelfScComment,
+      isHighQuality: isHighQuality,
     };
   });
 
