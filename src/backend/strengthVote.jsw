@@ -994,6 +994,80 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
   }
 }
 
+/**
+ * 统计每个作品的 W/L 中，有多少来自库中选手的投票
+ */
+async function calculateContestantContribution(workNumbers = []) {
+  if (!workNumbers || workNumbers.length === 0) {
+    return {};
+  }
+
+  const contributionMap = {};
+  workNumbers.forEach((num) => {
+    contributionMap[num] = {
+      contestantWins: 0,
+      nonContestantWins: 0,
+      contestantLosses: 0,
+      nonContestantLosses: 0,
+    };
+  });
+
+  try {
+    // 获取所有用户的 Summary
+    let summaries = [];
+    let result = await wixData
+      .query(COLLECTION_MAP.SUMMARY)
+      .limit(1000)
+      .find();
+    summaries.push(...(result.items || []));
+
+    while (result.hasNext()) {
+      result = await result.next();
+      summaries.push(...(result.items || []));
+    }
+
+    // 遍历每个用户的投票记录
+    for (const summary of summaries) {
+      if (!summary || !summary.userId) continue;
+
+      // 检查该用户是否为库中选手
+      const isContestant = await isUserContestant(summary.userId);
+
+      const winsMap = summary.winsMap || {};
+      const lossesMap = summary.lossesMap || {};
+
+      // 统计该用户对每个作品的投票贡献
+      Object.keys(winsMap).forEach((workKey) => {
+        const workNum = Number(workKey);
+        const wins = Number(winsMap[workKey] || 0);
+        if (contributionMap[workNum]) {
+          if (isContestant) {
+            contributionMap[workNum].contestantWins += wins;
+          } else {
+            contributionMap[workNum].nonContestantWins += wins;
+          }
+        }
+      });
+
+      Object.keys(lossesMap).forEach((workKey) => {
+        const workNum = Number(workKey);
+        const losses = Number(lossesMap[workKey] || 0);
+        if (contributionMap[workNum]) {
+          if (isContestant) {
+            contributionMap[workNum].contestantLosses += losses;
+          } else {
+            contributionMap[workNum].nonContestantLosses += losses;
+          }
+        }
+      });
+    }
+  } catch (error) {
+    logError("strengthVote.calculateContestantContribution", error);
+  }
+
+  return contributionMap;
+}
+
 export async function getStrengthLeaderboard(limit = 50) {
   const cappedLimit = Math.min(
     limit || MAX_LEADERBOARD_SIZE,
@@ -1007,9 +1081,26 @@ export async function getStrengthLeaderboard(limit = 50) {
   const workNumbers = works.map((item) => Number(item.sequenceId));
   const statsMap = await fetchStatsMap(workNumbers);
 
-  const leaderboard = works.map((work) =>
-    buildWorkPayload(work, statsMap[work.sequenceId])
-  );
+  // 🔒 统计每个作品的 W/L 中，有多少来自库中选手
+  const contributionMap = await calculateContestantContribution(workNumbers);
+
+  const leaderboard = works.map((work) => {
+    const payload = buildWorkPayload(work, statsMap[work.sequenceId]);
+    const workNum = Number(work.sequenceId);
+    const contribution = contributionMap[workNum] || {
+      contestantWins: 0,
+      nonContestantWins: 0,
+      contestantLosses: 0,
+      nonContestantLosses: 0,
+    };
+    return {
+      ...payload,
+      contestantWins: contribution.contestantWins,
+      nonContestantWins: contribution.nonContestantWins,
+      contestantLosses: contribution.contestantLosses,
+      nonContestantLosses: contribution.nonContestantLosses,
+    };
+  });
 
   leaderboard.sort((a, b) => {
     if (b.rating !== a.rating) {
