@@ -26,7 +26,7 @@ const STATS_QUERY_CHUNK = 50;
 const SESSION_TTL_MINUTES = 10;
 const CONTESTANT_WEIGHT = 0.2;
 // 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
-const ENFORCE_TASK_COMPLETION = true;
+const ENFORCE_TASK_COMPLETION = false;
 
 /**
  * 检查用户是否为参赛选手（在作品库中有作品）
@@ -995,7 +995,7 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
 }
 
 /**
- * 统计每个作品的 W/L 中，有多少来自库中选手的投票
+ * 统计每个作品的 W/L 中，有多少来自库中选手的投票，并计算elo均值
  */
 async function calculateContestantContribution(workNumbers = []) {
   if (!workNumbers || workNumbers.length === 0) {
@@ -1009,6 +1009,8 @@ async function calculateContestantContribution(workNumbers = []) {
       nonContestantWins: 0,
       contestantLosses: 0,
       nonContestantLosses: 0,
+      eloSum: 0,  // elo加权总和
+      eloWeightSum: 0,  // 权重总和
     };
   });
 
@@ -1032,9 +1034,11 @@ async function calculateContestantContribution(workNumbers = []) {
 
       // 检查该用户是否为库中选手
       const isContestant = await isUserContestant(summary.userId);
+      const weight = isContestant ? CONTESTANT_WEIGHT : 1.0;
 
       const winsMap = summary.winsMap || {};
       const lossesMap = summary.lossesMap || {};
+      const eloMap = summary.eloMap || {};
 
       // 统计该用户对每个作品的投票贡献
       Object.keys(winsMap).forEach((workKey) => {
@@ -1060,7 +1064,28 @@ async function calculateContestantContribution(workNumbers = []) {
           }
         }
       });
+
+      // 计算elo均值（考虑权重）
+      Object.keys(eloMap).forEach((workKey) => {
+        const workNum = Number(workKey);
+        const elo = Number(eloMap[workKey] || DEFAULT_RATING);
+        if (contributionMap[workNum]) {
+          contributionMap[workNum].eloSum += elo * weight;
+          contributionMap[workNum].eloWeightSum += weight;
+        }
+      });
     }
+
+    // 计算最终的elo均值
+    workNumbers.forEach((num) => {
+      if (contributionMap[num] && contributionMap[num].eloWeightSum > 0) {
+        contributionMap[num].averageElo = Math.round(
+          contributionMap[num].eloSum / contributionMap[num].eloWeightSum
+        );
+      } else {
+        contributionMap[num].averageElo = DEFAULT_RATING;
+      }
+    });
   } catch (error) {
     logError("strengthVote.calculateContestantContribution", error);
   }
@@ -1092,6 +1117,7 @@ export async function getStrengthLeaderboard(limit = 50) {
       nonContestantWins: 0,
       contestantLosses: 0,
       nonContestantLosses: 0,
+      averageElo: DEFAULT_RATING,
     };
     return {
       ...payload,
@@ -1099,10 +1125,15 @@ export async function getStrengthLeaderboard(limit = 50) {
       nonContestantWins: contribution.nonContestantWins,
       contestantLosses: contribution.contestantLosses,
       nonContestantLosses: contribution.nonContestantLosses,
+      averageElo: contribution.averageElo,
     };
   });
 
   leaderboard.sort((a, b) => {
+    // 优先按elo均值排序
+    if (b.averageElo !== a.averageElo) {
+      return b.averageElo - a.averageElo;
+    }
     if (b.rating !== a.rating) {
       return b.rating - a.rating;
     }

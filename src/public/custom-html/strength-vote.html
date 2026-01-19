@@ -578,7 +578,7 @@
 
     .row {
       display: grid;
-      grid-template-columns: 50px 48px 1fr 100px 90px 110px;
+      grid-template-columns: 50px 48px 1fr 100px 100px 100px 90px 110px;
       align-items: center;
       gap: 16px;
       padding: 12px 20px;
@@ -718,11 +718,11 @@
       }
 
       .row {
-        grid-template-columns: 40px 40px 1fr auto;
+        grid-template-columns: 40px 40px 1fr auto auto;
         grid-template-areas:
-          "rank cover name rating"
-          "rank cover name details";
-        gap: 4px 12px;
+          "rank cover name rating avgelo"
+          "rank cover name details details";
+        gap: 4px 8px;
         padding: 12px;
       }
 
@@ -761,7 +761,17 @@
         grid-area: rating;
       }
 
+      .row .stat-col.avgelo-col {
+        display: block;
+        grid-area: avgelo;
+        font-size: 12px;
+      }
+
       .row.no-rating .stat-col.rating-only {
+        display: none;
+      }
+
+      .row.no-rating .stat-col.avgelo-col {
         display: none;
       }
 
@@ -799,8 +809,13 @@
         font-size: 11px;
       }
 
+      .row .stat-col.avgelo-col {
+        display: none;
+      }
+
       .row>div:nth-child(5),
-      .row>div:nth-child(6) {
+      .row>div:nth-child(6),
+      .row>div:nth-child(7) {
         display: none;
       }
     }
@@ -902,8 +917,9 @@
         <div>
           <div class="title" style="font-size:20px;">全站实时榜单</div>
           <div class="subtitle" id="globalRequirement" style="font-size:13px; margin-top:4px;">仅管理员可查看</div>
-          <div style="font-size:11px; margin-top:8px; display:flex; gap:16px; opacity:0.6;">
+          <div style="font-size:11px; margin-top:8px; display:flex; flex-direction:column; gap:4px; opacity:0.6;">
             <span>颜色说明：<span style="color:#a78bfa;font-weight:700;">库中选手</span> / <span style="color:#60a5fa;font-weight:700;">非库选手</span></span>
+            <span><span style="color:#4ade80;font-weight:700;">Elo均值</span>：基于所有用户的个人评价计算（库中选手权重20%）</span>
           </div>
         </div>
       </div>
@@ -1231,9 +1247,14 @@
         const ratingDelta = Math.round((item.rating || 1500) - 1500);
         const ratingDisplay = ratingDelta >= 0 ? `+${ratingDelta}` : `${ratingDelta}`;
         
+        // 计算elo均值相对1500的差值
+        const averageEloDelta = Math.round((item.averageElo || 1500) - 1500);
+        const averageEloDisplay = averageEloDelta >= 0 ? `+${averageEloDelta}` : `${averageEloDelta}`;
+        
         // 构建 W/L 显示（全站榜单时分开显示库中选手和非库中选手的贡献）
         let recordHtml;
         let winRateHtml;
+        let averageEloHtml;
         
         if (showRating && typeof item.contestantWins !== 'undefined') {
           // 全站榜单：分开显示库中选手（紫色）vs 非库中选手（蓝色）
@@ -1249,6 +1270,11 @@
           const nonContestantTotal = nonContestantWins + nonContestantLosses;
           const contestantWinRate = contestantTotal > 0 ? Math.round((contestantWins / contestantTotal) * 100) : 0;
           const nonContestantWinRate = nonContestantTotal > 0 ? Math.round((nonContestantWins / nonContestantTotal) * 100) : 0;
+          
+          // elo均值（全站榜单显示）
+          averageEloHtml = `<div class="stat-col avgelo-col">
+            <div class="stat-val" style="color:#4ade80">${averageEloDisplay}</div>
+          </div>`;
           
           recordHtml = `
             <div class="stat-val" style="font-size:11px;line-height:1.6;">
@@ -1284,9 +1310,10 @@
             </div>
           `;
         } else {
-          // 个人榜单：正常显示
+          // 个人榜单：正常显示，不显示elo均值
           recordHtml = `<div class="stat-val" style="font-size:13px;opacity:0.8">${item.wins || 0}W / ${item.losses || 0}L</div>`;
           winRateHtml = `<div class="stat-val">${formatWinRate(item.winRate)}</div>`;
+          averageEloHtml = ''; // 个人榜单不显示elo均值
         }
         
         return `
@@ -1300,6 +1327,7 @@
           ${showRating ? `<div class="stat-col rating-only">
             <div class="stat-val" style="color:#fbbf24">${ratingDisplay}</div>
           </div>` : ""}
+          ${showRating ? averageEloHtml : ""}
           <div class="stat-col ${showRating ? "" : "win-rate-col"}">
             ${winRateHtml}
           </div>
