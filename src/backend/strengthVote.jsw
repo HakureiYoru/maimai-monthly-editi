@@ -9,6 +9,7 @@ import wixData from "wix-data";
 import { getUserTaskData } from "backend/ratingTaskManager.jsw";
 import { COLLECTIONS } from "backend/constants.js";
 import { logError } from "backend/errorHandler.js";
+import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 
 const COLLECTION_MAP = {
   WORKS: COLLECTIONS.ENTER_CONTEST_034,
@@ -1304,4 +1305,82 @@ async function getUserWorkCounts(userId) {
 
   // 新用户，返回空映射
   return {};
+}
+
+/**
+ * 获取已投票用户清单（仅管理员）
+ * 返回所有在Summary中有记录的用户ID和投票数
+ */
+export async function getVotedUsersList() {
+  try {
+    let summaries = [];
+    let result = await wixData
+      .query(COLLECTION_MAP.SUMMARY)
+      .limit(1000)
+      .find();
+    summaries.push(...(result.items || []));
+
+    while (result.hasNext()) {
+      result = await result.next();
+      summaries.push(...(result.items || []));
+    }
+
+    // 批量获取用户信息
+    const userIds = [...new Set(summaries.map(s => s.userId).filter(Boolean))];
+    const userInfoMap = {};
+    
+    // 并行获取用户信息（分批处理以避免超时）
+    const batchSize = 20;
+    for (let i = 0; i < userIds.length; i += batchSize) {
+      const batch = userIds.slice(i, i + batchSize);
+      await Promise.allSettled(
+        batch.map(async (userId) => {
+          try {
+            const userInfo = await getUserPublicInfo(userId);
+            if (userInfo) {
+              userInfoMap[userId] = {
+                userName: userInfo.name || "未知用户",
+                userSlug: userInfo.userslug || "",
+              };
+            } else {
+              userInfoMap[userId] = {
+                userName: "未知用户",
+                userSlug: "",
+              };
+            }
+          } catch (error) {
+            logError("strengthVote.getVotedUsersList.getUserInfo", error, { userId });
+            userInfoMap[userId] = {
+              userName: "未知用户",
+              userSlug: "",
+            };
+          }
+        })
+      );
+    }
+
+    // 返回简化的用户列表
+    const userList = summaries.map((summary) => {
+      const userId = summary.userId || "";
+      const userInfo = userInfoMap[userId] || {
+        userName: "未知用户",
+        userSlug: "",
+      };
+      
+      return {
+        userId: userId,
+        userName: userInfo.userName,
+        userSlug: userInfo.userSlug,
+        totalVotes: Number(summary.totalVotes || 0),
+      };
+    });
+
+    // 按投票数降序排序
+    userList.sort((a, b) => b.totalVotes - a.totalVotes);
+
+    return userList;
+  } catch (error) {
+    logError("strengthVote.getVotedUsersList", error);
+    return [];
+  }
 }

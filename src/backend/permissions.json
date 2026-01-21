@@ -740,6 +740,17 @@
         "anonymous": {
           "invoke": false
         }
+      },
+      "getVotedUsersList": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": false
+        },
+        "anonymous": {
+          "invoke": false
+        }
       }
     }
   }

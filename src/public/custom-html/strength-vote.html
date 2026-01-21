@@ -927,6 +927,19 @@
         <div class="empty">暂无权限或暂无数据</div>
       </div>
     </section>
+
+    <section class="glass-card leaderboard" id="votedUsersSection" style="display:none;">
+      <div class="leaderboard-header">
+        <div>
+          <div class="title" style="font-size:20px;">已投票用户清单</div>
+          <div class="subtitle" style="font-size:13px; margin-top:4px;">仅管理员可查看</div>
+        </div>
+        <button class="secondary" id="refreshUsersBtn" style="padding: 6px 12px; font-size:12px;">🔄 刷新</button>
+      </div>
+      <div class="list" id="votedUsersList">
+        <div class="empty">加载中...</div>
+      </div>
+    </section>
   </div>
 
   <div class="intro-overlay" id="introOverlay">
@@ -978,6 +991,9 @@
       placeholderB: document.getElementById("placeholderB"),
       coverA: document.getElementById("coverA"),
       coverB: document.getElementById("coverB"),
+      votedUsersSection: document.getElementById("votedUsersSection"),
+      votedUsersList: document.getElementById("votedUsersList"),
+      refreshUsersBtn: document.getElementById("refreshUsersBtn"),
     };
 
     function loadVoteCount() {
@@ -1382,9 +1398,17 @@
             isAdmin = !!data?.isAdmin;
             els.globalLeaderboardSection.style.display = "block";
             renderLeaderboard(data?.items || [], els.globalLeaderboardList, true);
+            // 如果是管理员，显示用户清单区域并自动加载
+            if (isAdmin && els.votedUsersSection) {
+              els.votedUsersSection.style.display = "block";
+              post("REQUEST_VOTED_USERS");
+            }
           } else {
             isAdmin = false;
             els.globalLeaderboardSection.style.display = "none";
+            if (els.votedUsersSection) {
+              els.votedUsersSection.style.display = "none";
+            }
           }
           break;
         case "VOTE_COUNT":
@@ -1403,6 +1427,9 @@
           setStatus(data?.message || "发生错误", "danger");
           toggleVoteButtons(false);
           break;
+        case "VOTED_USERS_LIST":
+          renderVotedUsersList(data?.userList || []);
+          break;
         default:
           break;
       }
@@ -1419,6 +1446,47 @@
       }
     });
     document.getElementById("refreshBoardBtn").addEventListener("click", requestLeaderboard);
+    
+    if (els.refreshUsersBtn) {
+      els.refreshUsersBtn.addEventListener("click", () => {
+        if (!isAdmin) {
+          setStatus("仅管理员可查看用户清单", "warn");
+          return;
+        }
+        post("REQUEST_VOTED_USERS");
+      });
+    }
+
+    function renderVotedUsersList(userList) {
+      if (!els.votedUsersList) return;
+      
+      if (!userList || userList.length === 0) {
+        els.votedUsersList.innerHTML = `<div class="empty">暂无用户数据</div>`;
+        return;
+      }
+
+      els.votedUsersList.innerHTML = userList.map((user, idx) => {
+        const userLink = user.userSlug 
+          ? `/profile/${user.userSlug}` 
+          : '#';
+        
+        const userNameHtml = user.userSlug
+          ? `<a href="${userLink}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 600;">${user.userName || '未知用户'}</a>`
+          : `<span style="font-weight: 600;">${user.userName || '未知用户'}</span>`;
+        
+        return `
+        <div class="row" style="grid-template-columns: 50px 1fr auto; padding: 16px 20px;">
+          <div class="rank">#${idx + 1}</div>
+          <div class="name-col">
+            <div class="name">${userNameHtml}</div>
+            <div class="sub" style="font-family: monospace; color: #94a3b8;">用户ID: ${user.userId}</div>
+          </div>
+          <div class="stat-col">
+            <div class="stat-val" style="color: #4ade80;">${user.totalVotes} 票</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
 
     post("STRENGTH_VOTE_READY");
     requestStatus();

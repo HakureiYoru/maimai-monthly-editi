@@ -7,6 +7,7 @@ import {
   getStrengthLeaderboardForUser,
   getStrengthUserPersonalRanking,
   getUserVoteCount,
+  getVotedUsersList,
 } from "backend/strengthVote.jsw";
 import { getCurrentMemberRoles } from "backend/auditorManagement.jsw";
 
@@ -78,6 +79,9 @@ function setupHtmlBridge() {
         break;
       case "REQUEST_LEADERBOARD":
         await pushLeaderboard();
+        break;
+      case "REQUEST_VOTED_USERS":
+        await handleGetVotedUsers();
         break;
       default:
         break;
@@ -245,5 +249,20 @@ async function pushVoteCount() {
   } catch (error) {
     console.error("[强度榜] 获取用户投票次数失败", error);
     postToHtml("VOTE_COUNT", { count: 0, coverage: 0 });
+  }
+}
+
+async function handleGetVotedUsers() {
+  if (!isAdmin) {
+    postToHtml("ERROR", { message: "仅管理员可查看用户清单" });
+    return;
+  }
+
+  try {
+    const userList = await getVotedUsersList();
+    postToHtml("VOTED_USERS_LIST", { userList });
+  } catch (error) {
+    console.error("[强度榜] 获取用户清单失败", error);
+    postToHtml("ERROR", { message: "获取用户清单失败，请稍后重试" });
   }
 }
