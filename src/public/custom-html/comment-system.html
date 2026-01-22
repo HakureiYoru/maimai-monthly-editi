@@ -909,6 +909,18 @@
       background: rgba(244, 67, 54, 0.6);
     }
 
+    .action-btn.report {
+      background: rgba(217, 119, 6, 0.35);
+      border-color: rgba(245, 158, 11, 0.6);
+      padding: 8px 12px;
+      min-width: 32px;
+      font-weight: 700;
+    }
+
+    .action-btn.report:hover:not(:disabled) {
+      background: rgba(245, 158, 11, 0.55);
+    }
+
     .reply-count {
       font-size: 12px;
       color: rgba(255, 255, 255, 0.8);
@@ -2282,6 +2294,11 @@
         buttons.push(`<button class="action-btn delete delete-btn">删除</button>`);
       }
 
+      // 检举按钮（仅正式评分）
+      if (!comment.isReply && !comment.isAuthorComment) {
+        buttons.push(`<button class="action-btn report report-btn" title="检举评论">!</button>`);
+      }
+
       return buttons.join('');
     }
 
@@ -2385,6 +2402,24 @@
               score: comment.score,
               comment: comment.commentText,
               isSelfScComment: comment.isSelfScComment,
+              _owner: comment._owner
+            }
+          }, '*');
+        });
+      }
+
+      // 检举评论
+      const reportBtn = element.querySelector('.report-btn');
+      if (reportBtn) {
+        reportBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 防止触发评论展开
+
+          window.parent.postMessage({
+            type: 'REPORT_COMMENT',
+            data: {
+              commentId: comment.commentId,
+              workNumber: comment.workNumber,
+              comment: comment.commentText,
               _owner: comment._owner
             }
           }, '*');

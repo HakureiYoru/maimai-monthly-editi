@@ -79,6 +79,7 @@ export const COLLECTIONS = {
   ENTER_CONTEST_034: "enterContest034",
   BOF_COMMENT: "BOFcomment",
   DELETE_INFOR: "deleteInfor",
+  REPORT_INFOR: "reportInfor",
   FORUM_POSTS: "Forum/Posts",
   FORUM_COMMENTS: "Forum/Comments",
   MEMBERS_PUBLIC_DATA: "Members/PublicData",

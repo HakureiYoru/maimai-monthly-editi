@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检举审核处</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            background: rgba(42, 42, 42, 0.92);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 2px solid #555;
+            flex-shrink: 0;
+        }
+
+        .header h2 {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .search-filter-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .search-input::placeholder {
+            color: #888;
+        }
+
+        .search-btn {
+            padding: 10px 25px;
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-btn:hover {
+            background: #666;
+            border-color: #777;
+        }
+
+        .filters-box {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            color: #999;
+            padding-left: 5px;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .filter-select option {
+            background: #333;
+            color: #fff;
+        }
+
+        .clear-filters-btn {
+            padding: 8px 20px;
+            background: #444;
+            color: #ccc;
+            border: 1px solid #555;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .clear-filters-btn:hover {
+            background: #555;
+            border-color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .filters-box {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .records-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .record-item {
+            background: #333;
+            border-left: 3px solid #666;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .record-item:hover {
+            background: #3a3a3a;
+            border-left-color: #888;
+        }
+
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .work-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .report-time {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .record-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .info-item {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .info-label {
+            color: #888;
+            margin-right: 5px;
+        }
+
+        .reason-box {
+            background: #2a2a2a;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.5;
+        }
+
+        .process-box {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #ddd;
+        }
+
+        .process-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .view-btn {
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 8px 20px;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .view-btn:hover {
+            background: #666;
+            border-color: #777;
+        }
+
+        .comment-content {
+            background: #2a2a2a;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            border: 1px solid #444;
+        }
+
+        .comment-content.show {
+            display: block;
+        }
+
+        .comment-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .comment-content::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .comment-content::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .no-records {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 15px;
+            margin: 10px 20px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-message.error {
+            background: #4a2a2a;
+            border-color: #7a4a4a;
+            color: #cf8f8f;
+        }
+
+        .status-message.success {
+            background: #294a2a;
+            border-color: #4a7a4a;
+            color: #9fd39f;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>检举审核处</h2>
+            <div class="search-filter-container">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        class="search-input"
+                        id="searchInput"
+                        placeholder="搜索作品编号、检举理由或评论内容..."
+                    />
+                    <button class="search-btn" id="searchBtn">搜索</button>
+                </div>
+                <div class="filters-box">
+                    <div class="filter-group">
+                        <label class="filter-label">原评论用户</label>
+                        <select class="filter-select" id="userFilter">
+                            <option value="">全部用户</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">检举人</label>
+                        <select class="filter-select" id="reporterFilter">
+                            <option value="">全部检举人</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">作品编号</label>
+                        <select class="filter-select" id="workFilter">
+                            <option value="">全部作品</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="clear-filters-btn" id="clearFiltersBtn">清除所有筛选</button>
+            </div>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div class="records-container" id="recordsContainer">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script>
+        let allRecords = [];
+        let userCache = {};
+        let workTitleCache = {};
+        let pendingUpdates = new Map();
+        let currentFilters = {
+            search: '',
+            user: '',
+            reporter: '',
+            work: ''
+        };
+
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+
+            if (data.action === 'init') {
+                allRecords = data.records || [];
+                await initializeFilters();
+                await applyFilters();
+            } else if (data.action === 'userInfo') {
+                if (data.userId && data.userName) {
+                    userCache[data.userId] = data.userName;
+                }
+            } else if (data.action === 'workTitle') {
+                if (data.workNumber && data.workTitle) {
+                    workTitleCache[data.workNumber] = data.workTitle;
+                }
+            } else if (data.action === 'updateProcessedResult') {
+                handleProcessedUpdateResult(data);
+            }
+        });
+
+        async function initializeFilters() {
+            const userSet = new Set();
+            const reporterSet = new Set();
+            const workSet = new Set();
+
+            for (const record of allRecords) {
+                if (record.originalCommentOwner) {
+                    userSet.add(record.originalCommentOwner);
+                }
+                if (record.reportedBy) {
+                    reporterSet.add(record.reportedBy);
+                }
+                if (record.workNumber) {
+                    workSet.add(record.workNumber);
+                }
+            }
+
+            const userFilter = document.getElementById('userFilter');
+            userFilter.innerHTML = '<option value="">全部用户</option>';
+            for (const userId of Array.from(userSet).sort()) {
+                const userName = await getUserNickname(userId);
+                const option = document.createElement('option');
+                option.value = userId;
+                option.textContent = userName;
+                userFilter.appendChild(option);
+            }
+
+            const reporterFilter = document.getElementById('reporterFilter');
+            reporterFilter.innerHTML = '<option value="">全部检举人</option>';
+            for (const userId of Array.from(reporterSet).sort()) {
+                const userName = await getUserNickname(userId);
+                const option = document.createElement('option');
+                option.value = userId;
+                option.textContent = userName;
+                reporterFilter.appendChild(option);
+            }
+
+            const workFilter = document.getElementById('workFilter');
+            workFilter.innerHTML = '<option value="">全部作品</option>';
+            for (const workNumber of Array.from(workSet).sort((a, b) => a - b)) {
+                const workTitle = await getWorkTitle(workNumber);
+                const option = document.createElement('option');
+                option.value = workNumber;
+                option.textContent = `#${workNumber} - ${workTitle}`;
+                workFilter.appendChild(option);
+            }
+        }
+
+        async function applyFilters() {
+            let filteredRecords = [...allRecords];
+
+            if (currentFilters.search) {
+                const searchLower = currentFilters.search.toLowerCase();
+                filteredRecords = filteredRecords.filter(record => {
+                    const workNumber = String(record.workNumber || '').toLowerCase();
+                    const reportReason = String(record.reportReason || '').toLowerCase();
+                    const reportedComment = String(record.reportedComment || '').toLowerCase();
+
+                    return workNumber.includes(searchLower) ||
+                           reportReason.includes(searchLower) ||
+                           reportedComment.includes(searchLower);
+                });
+            }
+
+            if (currentFilters.user) {
+                filteredRecords = filteredRecords.filter(record =>
+                    record.originalCommentOwner === currentFilters.user
+                );
+            }
+
+            if (currentFilters.reporter) {
+                filteredRecords = filteredRecords.filter(record =>
+                    record.reportedBy === currentFilters.reporter
+                );
+            }
+
+            if (currentFilters.work) {
+                filteredRecords = filteredRecords.filter(record =>
+                    String(record.workNumber) === String(currentFilters.work)
+                );
+            }
+
+            await displayRecords(filteredRecords);
+
+            const activeFiltersCount = Object.values(currentFilters).filter(v => v).length;
+            if (activeFiltersCount > 0 && filteredRecords.length === 0) {
+                showMessage('没有符合筛选条件的记录', 'error');
+            }
+        }
+
+        async function displayRecords(records) {
+            const container = document.getElementById('recordsContainer');
+
+            if (records.length === 0) {
+                container.innerHTML = '<div class="no-records">暂无检举记录</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            for (const record of records) {
+                const recordElement = await createRecordElement(record);
+                container.appendChild(recordElement);
+            }
+        }
+
+        async function createRecordElement(record) {
+            const div = document.createElement('div');
+            div.className = 'record-item';
+
+            const originalUserName = await getUserNickname(record.originalCommentOwner);
+            const reporterName = await getUserNickname(record.reportedBy);
+            const workTitle = await getWorkTitle(record.workNumber);
+
+            const reportDate = record.reportedAt ? new Date(record.reportedAt) : null;
+            const formattedDate = reportDate && !isNaN(reportDate.getTime())
+                ? `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, '0')}-${String(reportDate.getDate()).padStart(2, '0')} ${String(reportDate.getHours()).padStart(2, '0')}:${String(reportDate.getMinutes()).padStart(2, '0')}`
+                : '未知时间';
+
+            const processed = record.processed === true;
+
+            div.innerHTML = `
+                <div class="record-header">
+                    <div class="work-number">#${record.workNumber} - ${escapeHtml(workTitle)}</div>
+                    <div class="report-time">${formattedDate}</div>
+                </div>
+                <div class="record-info">
+                    <div class="info-item">
+                        <span class="info-label">原评论用户:</span>
+                        <strong>${escapeHtml(originalUserName)}</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">检举人:</span>
+                        <strong>${escapeHtml(reporterName)}</strong>
+                    </div>
+                </div>
+                <div class="reason-box">
+                    <span class="info-label">检举理由:</span>
+                    ${escapeHtml(record.reportReason || '未填写')}
+                </div>
+                <div class="process-box">
+                    <label>
+                        <input class="process-checkbox" type="checkbox" data-record-id="${record._id}" ${processed ? 'checked' : ''} />
+                        是否已处理
+                    </label>
+                </div>
+                <button class="view-btn">查看评论内容</button>
+                <div class="comment-content">
+                    ${escapeHtml(record.reportedComment || '评论内容获取失败').replace(/\\n/g, '<br>')}
+                </div>
+            `;
+
+            const viewBtn = div.querySelector('.view-btn');
+            const commentContent = div.querySelector('.comment-content');
+
+            viewBtn.addEventListener('click', () => {
+                commentContent.classList.toggle('show');
+                if (commentContent.classList.contains('show')) {
+                    viewBtn.textContent = '收起评论内容';
+                } else {
+                    viewBtn.textContent = '查看评论内容';
+                }
+            });
+
+            const checkbox = div.querySelector('.process-checkbox');
+            checkbox.addEventListener('change', () => {
+                const recordId = record._id;
+                const nextValue = checkbox.checked;
+                pendingUpdates.set(recordId, !nextValue);
+                window.parent.postMessage({
+                    action: 'updateProcessed',
+                    recordId: recordId,
+                    processed: nextValue
+                }, '*');
+            });
+
+            return div;
+        }
+
+        async function getUserNickname(userId) {
+            if (userCache[userId]) {
+                return userCache[userId];
+            }
+
+            window.parent.postMessage({
+                action: 'getUserInfo',
+                userId: userId
+            }, '*');
+
+            const startTime = Date.now();
+            while (!userCache[userId] && Date.now() - startTime < 2000) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return userCache[userId] || '失效账号';
+        }
+
+        async function getWorkTitle(workNumber) {
+            if (workTitleCache[workNumber]) {
+                return workTitleCache[workNumber];
+            }
+
+            window.parent.postMessage({
+                action: 'getWorkTitle',
+                workNumber: workNumber
+            }, '*');
+
+            const startTime = Date.now();
+            while (!workTitleCache[workNumber] && Date.now() - startTime < 2000) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return workTitleCache[workNumber] || '未知标题';
+        }
+
+        function handleProcessedUpdateResult(data) {
+            const recordId = data.recordId;
+            const success = data.success === true;
+
+            if (!recordId) {
+                return;
+            }
+
+            if (!success) {
+                const previousValue = pendingUpdates.get(recordId);
+                const checkbox = document.querySelector(`.process-checkbox[data-record-id="${recordId}"]`);
+                if (checkbox && typeof previousValue === 'boolean') {
+                    checkbox.checked = previousValue;
+                }
+                pendingUpdates.delete(recordId);
+                showMessage(`更新失败: ${data.message || '未知错误'}`, 'error');
+                return;
+            }
+
+            allRecords = allRecords.map(record => {
+                if (record._id === recordId) {
+                    return { ...record, processed: data.processed === true };
+                }
+                return record;
+            });
+            pendingUpdates.delete(recordId);
+            showMessage('处理状态已更新', 'success');
+        }
+
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            performSearch();
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        function performSearch() {
+            currentFilters.search = document.getElementById('searchInput').value.trim();
+            applyFilters();
+        }
+
+        document.getElementById('userFilter').addEventListener('change', (e) => {
+            currentFilters.user = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('reporterFilter').addEventListener('change', (e) => {
+            currentFilters.reporter = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('workFilter').addEventListener('change', (e) => {
+            currentFilters.work = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+            currentFilters = {
+                search: '',
+                user: '',
+                reporter: '',
+                work: ''
+            };
+
+            document.getElementById('searchInput').value = '';
+            document.getElementById('userFilter').value = '';
+            document.getElementById('reporterFilter').value = '';
+            document.getElementById('workFilter').value = '';
+
+            applyFilters();
+
+            showMessage('已清除所有筛选条件', 'success');
+        });
+
+        function showMessage(text, type = '') {
+            const message = document.getElementById('statusMessage');
+            message.textContent = text;
+            message.className = `status-message ${type}`;
+            message.style.display = 'block';
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>评论检举</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 90%;
+            background: rgba(42, 42, 42, 0.95);
+            border: 2px solid #666;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #555;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .comment-info {
+            background: #333;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-left: 3px solid #666;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .comment-info div {
+            margin-bottom: 5px;
+        }
+
+        .comment-info div:last-child {
+            margin-bottom: 0;
+        }
+
+        .comment-preview {
+            background: #3a3a3a;
+            padding: 10px;
+            margin-top: 8px;
+            border-radius: 4px;
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: #ddd;
+        }
+
+        .reason-section {
+            margin-bottom: 20px;
+        }
+
+        .reason-label {
+            font-size: 14px;
+            color: #fff;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .reason-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .reason-input:focus {
+            outline: none;
+            border-color: #777;
+            background: #3a3a3a;
+        }
+
+        .reason-input::placeholder {
+            color: #888;
+        }
+
+        .status-box {
+            background: #333;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid #666;
+            font-size: 14px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .status-box.loading {
+            display: block;
+            border-color: #64B5F6;
+            color: #64B5F6;
+        }
+
+        .status-box.success {
+            display: block;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .status-box.error {
+            display: block;
+            border-color: #f44336;
+            color: #f44336;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 25px;
+            font-size: 14px;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #555;
+            color: #fff;
+            border-color: #666;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #666;
+            border-color: #777;
+        }
+
+        .btn:disabled {
+            background: #3a3a3a;
+            color: #666;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-confirm {
+            background: #d97706;
+            border-color: #f59e0b;
+        }
+
+        .btn-confirm:hover:not(:disabled) {
+            background: #f59e0b;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>评论检举</h2>
+        </div>
+
+        <div class="comment-info" id="commentInfo">
+            <div>作品编号: <strong id="workNumber">-</strong></div>
+            <div class="comment-preview" id="commentPreview">加载中...</div>
+        </div>
+
+        <div class="reason-section" id="reasonSection">
+            <label class="reason-label">检举理由</label>
+            <textarea
+                class="reason-input"
+                id="reportReason"
+                placeholder="请填写检举理由..."
+                maxlength="500"
+            ></textarea>
+        </div>
+
+        <div class="status-box" id="statusBox"></div>
+
+        <div class="button-container" id="buttonContainer">
+            <button class="btn btn-confirm" id="confirmBtn">提交检举</button>
+            <button class="btn" id="cancelBtn">取消</button>
+        </div>
+    </div>
+
+    <script>
+        let commentData = null;
+        let isSubmitting = false;
+        let autoCloseInterval = null;
+        let autoCloseTimeout = null;
+
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+
+            if (data.action === 'init') {
+                resetPanel();
+                commentData = data.commentData;
+                displayCommentInfo();
+            } else if (data.action === 'reportResult') {
+                handleReportResult(data.result);
+            }
+        });
+
+        function resetPanel() {
+            isSubmitting = false;
+            clearAutoCloseCountdown();
+
+            const reportReasonInput = document.getElementById('reportReason');
+            reportReasonInput.value = '';
+
+            enableButtons();
+
+            const statusBox = document.getElementById('statusBox');
+            statusBox.style.display = 'none';
+            statusBox.className = 'status-box';
+            statusBox.textContent = '';
+
+            document.getElementById('workNumber').textContent = '-';
+            document.getElementById('commentPreview').textContent = '加载中...';
+        }
+
+        function clearAutoCloseCountdown() {
+            if (autoCloseInterval) {
+                clearInterval(autoCloseInterval);
+                autoCloseInterval = null;
+            }
+            if (autoCloseTimeout) {
+                clearTimeout(autoCloseTimeout);
+                autoCloseTimeout = null;
+            }
+        }
+
+        function startAutoCloseCountdown(seconds, baseMessage, statusType) {
+            clearAutoCloseCountdown();
+            let remaining = seconds;
+            const statusBox = document.getElementById('statusBox');
+
+            statusBox.className = `status-box ${statusType}`;
+            statusBox.style.display = '';
+
+            const update = () => {
+                statusBox.textContent = `${baseMessage}\n\n${remaining} 秒后关闭该窗口...`;
+            };
+            update();
+
+            autoCloseInterval = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearInterval(autoCloseInterval);
+                    autoCloseInterval = null;
+                    return;
+                }
+                update();
+            }, 1000);
+
+            autoCloseTimeout = setTimeout(() => {
+                clearAutoCloseCountdown();
+                window.parent.postMessage({ action: 'closeReportConfirmation' }, '*');
+            }, seconds * 1000);
+        }
+
+        function displayCommentInfo() {
+            if (!commentData) return;
+            document.getElementById('workNumber').textContent = commentData.workNumber || '-';
+
+            const comment = commentData.comment || '无内容';
+            const preview = comment.length > 200 ? comment.substring(0, 200) + '...' : comment;
+            document.getElementById('commentPreview').textContent = preview;
+        }
+
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            if (isSubmitting) return;
+
+            const reportReason = document.getElementById('reportReason').value.trim();
+            if (!reportReason) {
+                showStatus('请填写检举理由', 'error');
+                return;
+            }
+
+            isSubmitting = true;
+            showStatus('正在提交检举，请稍候...', 'loading');
+            disableButtons();
+
+            window.parent.postMessage({
+                action: 'confirmReport',
+                commentData: commentData,
+                reportReason: reportReason
+            }, '*');
+        });
+
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            if (isSubmitting) return;
+            window.parent.postMessage({ action: 'cancelReport' }, '*');
+        });
+
+        function showStatus(message, type) {
+            const statusBox = document.getElementById('statusBox');
+            statusBox.textContent = message;
+            statusBox.className = `status-box ${type}`;
+            statusBox.style.display = '';
+        }
+
+        function disableButtons() {
+            document.getElementById('confirmBtn').disabled = true;
+            document.getElementById('cancelBtn').disabled = true;
+        }
+
+        function enableButtons() {
+            document.getElementById('confirmBtn').disabled = false;
+            document.getElementById('cancelBtn').disabled = false;
+        }
+
+        function handleReportResult(result) {
+            isSubmitting = false;
+
+            if (result.success) {
+                const message = `检举已提交！\n作品: #${commentData.workNumber}\n检举理由: ${result.reportReason}`;
+                startAutoCloseCountdown(4, message, 'success');
+            } else {
+                showStatus(`检举失败\n${result.message || '未知错误'}`, 'error');
+                enableButtons();
+            }
+        }
+    </script>
+</body>
+</html>

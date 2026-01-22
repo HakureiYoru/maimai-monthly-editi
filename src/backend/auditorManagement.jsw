@@ -222,6 +222,56 @@ export async function deleteComment(
 }
 
 /**
+ * 提交评论检举
+ * @param {string} commentId - 评论ID
+ * @param {string} reporterId - 检举人ID（可为空）
+ * @param {string} reportReason - 检举理由
+ * @returns {Promise<Object>} 提交结果
+ */
+export async function reportComment(commentId, reporterId, reportReason = "") {
+  return safeExecute(
+    async () => {
+      if (!commentId) {
+        throw new Error("缺少评论ID");
+      }
+
+      const comment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId);
+      if (!comment) {
+        throw new Error("未找到评论");
+      }
+
+      const reportRecord = {
+        workNumber: comment.workNumber,
+        reportedComment: comment.comment,
+        reportReason: reportReason || "未填写检举理由",
+        reportedBy: reporterId || "guest",
+        reportedAt: new Date(),
+        originalCommentId: commentId,
+        originalCommentOwner: comment._owner,
+        processed: false,
+      };
+
+      const insertResult = await wixData.insert(
+        COLLECTIONS.REPORT_INFOR,
+        reportRecord
+      );
+
+      return {
+        success: true,
+        message: "检举已提交",
+        reportRecordId: insertResult?._id || null,
+      };
+    },
+    "reportComment",
+    {
+      success: false,
+      message: "检举提交失败",
+      reportRecordId: null,
+    }
+  );
+}
+
+/**
  * 检查当前用户是否为海选组成员
  * @returns {Promise<boolean>} 是否为海选组成员
  */

@@ -6,6 +6,7 @@ import { updateUserPoints } from "backend/forumPoints.jsw";
 import {
   deleteComment,
   checkIsSeaSelectionMember,
+  reportComment,
 } from "backend/auditorManagement.jsw";
 import {
   markTaskCompleted,
@@ -212,6 +213,9 @@ $w.onReady(async function () {
   // 初始化删除确认面板
   initDeleteConfirmationPanel();
 
+  // 初始化检举确认面板
+  initReportConfirmationPanel();
+
   // 【新增】初始化评论系统HTML元件
   initCommentSystemPanel();
 
@@ -388,6 +392,76 @@ function closeDeleteConfirmation() {
   }
 }
 
+// 显示检举确认面板
+async function handleReportComment(data) {
+  try {
+    if (!$w("#reportConfirmation")) {
+      console.error("检举确认面板HTML元件未找到");
+      return;
+    }
+
+    $w("#reportConfirmation").show();
+    $w("#reportConfirmation").postMessage({
+      action: "init",
+      commentData: {
+        commentId: data.commentId,
+        workNumber: data.workNumber,
+        comment: data.comment,
+        _owner: data._owner,
+      },
+    });
+  } catch (error) {
+    console.error("显示检举确认面板失败:", error);
+  }
+}
+
+// 关闭检举确认面板
+function closeReportConfirmation() {
+  try {
+    $w("#reportConfirmation").hide();
+  } catch (error) {
+    console.error("关闭检举确认面板失败:", error);
+  }
+}
+
+// 执行检举操作
+async function executeReport(commentData, reportReason) {
+  try {
+    const reportResult = await reportComment(
+      commentData.commentId,
+      currentUserId || null,
+      reportReason
+    );
+
+    if (reportResult.success) {
+      $w("#reportConfirmation").postMessage({
+        action: "reportResult",
+        result: {
+          success: true,
+          reportReason: reportReason,
+        },
+      });
+    } else {
+      $w("#reportConfirmation").postMessage({
+        action: "reportResult",
+        result: {
+          success: false,
+          message: reportResult.message || "检举提交失败",
+        },
+      });
+    }
+  } catch (error) {
+    console.error("执行检举操作失败:", error);
+    $w("#reportConfirmation").postMessage({
+      action: "reportResult",
+      result: {
+        success: false,
+        message: error.message || "检举时发生异常",
+      },
+    });
+  }
+}
+
 // 执行删除操作
 async function executeDelete(commentData, deleteReason) {
   try {
@@ -487,7 +561,33 @@ function initDeleteConfirmationPanel() {
   }
 }
 
-// 初始化自定义HTML楼中楼回复面板
+// 初始化检举确认面板
+function initReportConfirmationPanel() {
+  try {
+    if (!$w("#reportConfirmation")) {
+      console.error("检举确认面板HTML元件未找到");
+      return;
+    }
+
+    $w("#reportConfirmation").hide();
+
+    $w("#reportConfirmation").onMessage(async (event) => {
+      const action = event.data.action;
+
+      if (action === "confirmReport") {
+        await executeReport(event.data.commentData, event.data.reportReason);
+      } else if (action === "cancelReport") {
+        closeReportConfirmation();
+      } else if (action === "closeReportConfirmation") {
+        closeReportConfirmation();
+      }
+    });
+  } catch (error) {
+    console.error("初始化检举确认面板失败:", error);
+  }
+}
+
+// 初始化楼中楼回复面板
 function initCommentRepliesPanel() {
   // 确保HTML元件存在（需要在Wix编辑器中添加名为 commentRepliesPanel 的HTML元件）
   try {
@@ -1651,6 +1751,9 @@ function initCommentSystemPanel() {
           break;
         case "DELETE_COMMENT":
           await handleDeleteComment(data, data.isSelfScComment);
+          break;
+        case "REPORT_COMMENT":
+          await handleReportComment(data);
           break;
         default:
       
