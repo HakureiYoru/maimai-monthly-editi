@@ -96,6 +96,274 @@
       cursor: not-allowed;
     }
 
+    .rating-input {
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+
+    .rating-input:disabled {
+      cursor: not-allowed;
+    }
+
+    .rating-summary {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* 评分弹窗 */
+    .rating-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 9999;
+    }
+
+    .rating-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .rating-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(2px);
+    }
+
+    .rating-dialog {
+      position: relative;
+      z-index: 1;
+      width: min(520px, 92vw);
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 20px;
+      padding: 20px;
+      color: #fff;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      transform: translateY(10px) scale(0.98);
+      transition: transform 0.2s ease;
+    }
+
+    .rating-modal.show .rating-dialog {
+      transform: translateY(0) scale(1);
+    }
+
+    .rating-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .rating-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .rating-note {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 12px;
+    }
+
+    .rating-close {
+      border: none;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 18px;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .rating-close:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .rating-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .rating-dimension {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .rating-dimension-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .rating-weight {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 215, 0, 0.2);
+      border: 1px solid rgba(255, 215, 0, 0.4);
+    }
+
+    .rating-stars {
+      display: flex;
+      gap: 8px;
+    }
+
+    .rating-star {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.35);
+      cursor: pointer;
+      transition: transform 0.15s ease, color 0.2s ease, text-shadow 0.2s ease;
+    }
+
+    .rating-star:hover {
+      transform: scale(1.15);
+      color: #FFE58A;
+    }
+
+    .rating-star.active {
+      color: #FFD700;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+    }
+
+    .rating-star:focus-visible {
+      outline: 2px solid rgba(255, 215, 0, 0.7);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .rating-star.pulse {
+      animation: starPulse 0.25s ease;
+    }
+
+    .rating-summary-panel {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .rating-score {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .rating-detail {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      margin-top: 4px;
+    }
+
+    .rating-warning {
+      font-size: 12px;
+      color: #FFC107;
+      min-height: 16px;
+      margin-top: 6px;
+    }
+
+    .rating-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .rating-footer-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .rating-btn {
+      border: none;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .rating-btn.primary {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.9) 0%, rgba(255, 165, 0, 0.9) 100%);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(255, 165, 0, 0.3);
+    }
+
+    .rating-btn.primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .rating-btn.secondary {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .rating-btn.ghost {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px dashed rgba(255, 255, 255, 0.35);
+    }
+
+    .rating-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    @keyframes starPulse {
+      0% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.25);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .rating-dialog {
+        padding: 16px;
+      }
+
+      .rating-footer {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .rating-footer-actions {
+        width: 100%;
+        flex-direction: column;
+      }
+
+      .rating-btn {
+        width: 100%;
+      }
+    }
+
     select.input-field {
       cursor: pointer;
     }
@@ -1158,9 +1426,10 @@
           </select>
         </div>
         <div class="input-group">
-          <label class="input-label">评分 (100-1000)</label>
-          <input type="number" class="input-field" id="inputScore" 
-                 placeholder="输入评分" min="100" max="1000" step="1" required>
+          <label class="input-label">评分（点击打星）</label>
+          <input type="text" class="input-field rating-input" id="inputScore" 
+                 placeholder="点击评分" readonly>
+          <div class="rating-summary" id="ratingSummary">A: - / B: - / C: -</div>
         </div>
       </div>
 
@@ -1238,6 +1507,14 @@
           <span>评论机制说明</span>
         </div>
         <div class="info-content" id="mechanismContent">
+          <h4>评分方式</h4>
+          <ul>
+            <li><strong>维度A：</strong>1-3星，占比15%</li>
+            <li><strong>维度B：</strong>1-3星，占比25%</li>
+            <li><strong>维度C：</strong>1-5星，占比60%</li>
+            <li><strong>自动换算：</strong>按权重计算后映射到100-1000分</li>
+          </ul>
+
           <h4>评分显示规则</h4>
           <ul>
             <li><span class="badge-demo score">500</span> <strong>正式评分：</strong>当你已对该作品提交正式评分时显示（100-1000，红色渐变）</li>
@@ -1339,6 +1616,66 @@
     </div>
   </div>
 
+  <div class="rating-modal" id="ratingModal" aria-hidden="true">
+    <div class="rating-backdrop" id="ratingBackdrop"></div>
+    <div class="rating-dialog" role="dialog" aria-modal="true" aria-labelledby="ratingTitle">
+      <div class="rating-header">
+        <div class="rating-title" id="ratingTitle">星级评分</div>
+        <button type="button" class="rating-close" id="ratingCloseBtn">×</button>
+      </div>
+      <div class="rating-note">系统自动按权重换算到 100-1000（C 维度权重最高）</div>
+      <div class="rating-body">
+        <div class="rating-dimension" data-dimension="A">
+          <div class="rating-dimension-label">
+            <span>维度A</span>
+            <span class="rating-weight">15%</span>
+          </div>
+          <div class="rating-stars" role="group" aria-label="维度A评分">
+            <button type="button" class="rating-star" data-value="1" aria-label="维度A 1星">★</button>
+            <button type="button" class="rating-star" data-value="2" aria-label="维度A 2星">★</button>
+            <button type="button" class="rating-star" data-value="3" aria-label="维度A 3星">★</button>
+          </div>
+        </div>
+        <div class="rating-dimension" data-dimension="B">
+          <div class="rating-dimension-label">
+            <span>维度B</span>
+            <span class="rating-weight">25%</span>
+          </div>
+          <div class="rating-stars" role="group" aria-label="维度B评分">
+            <button type="button" class="rating-star" data-value="1" aria-label="维度B 1星">★</button>
+            <button type="button" class="rating-star" data-value="2" aria-label="维度B 2星">★</button>
+            <button type="button" class="rating-star" data-value="3" aria-label="维度B 3星">★</button>
+          </div>
+        </div>
+        <div class="rating-dimension" data-dimension="C">
+          <div class="rating-dimension-label">
+            <span>维度C</span>
+            <span class="rating-weight">60%</span>
+          </div>
+          <div class="rating-stars" role="group" aria-label="维度C评分">
+            <button type="button" class="rating-star" data-value="1" aria-label="维度C 1星">★</button>
+            <button type="button" class="rating-star" data-value="2" aria-label="维度C 2星">★</button>
+            <button type="button" class="rating-star" data-value="3" aria-label="维度C 3星">★</button>
+            <button type="button" class="rating-star" data-value="4" aria-label="维度C 4星">★</button>
+            <button type="button" class="rating-star" data-value="5" aria-label="维度C 5星">★</button>
+          </div>
+        </div>
+      </div>
+      <div class="rating-summary-panel">
+        <div class="rating-score" id="ratingComputedScore">评分：--</div>
+        <div class="rating-detail" id="ratingDetail">A: - / B: - / C: -</div>
+        <div class="rating-warning" id="ratingWarning"></div>
+      </div>
+      <div class="rating-footer">
+        <button type="button" class="rating-btn ghost" id="ratingResetBtn">重置</button>
+        <div class="rating-footer-actions">
+          <button type="button" class="rating-btn secondary" id="ratingCancelBtn">取消</button>
+          <button type="button" class="rating-btn primary" id="ratingConfirmBtn" disabled>确认评分</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==================== 状态管理 ====================
     let currentUserId = null;
@@ -1351,6 +1688,12 @@
     let currentWorkFilter = '';
     let isSubmitting = false;
     let loadingTimeout = null; // 加载超时计时器
+    const ratingConfig = {
+      A: { max: 3, weight: 0.15 },
+      B: { max: 3, weight: 0.25 },
+      C: { max: 5, weight: 0.6 }
+    };
+    let ratingState = { A: null, B: null, C: null };
 
     // ==================== 初始化 ====================
     window.addEventListener('message', async (event) => {
@@ -1562,6 +1905,8 @@
       
       // 【新增】取消加载状态
       setInputLoadingState(false);
+      closeRatingModal();
+      resetRatingState();
       
       // 根据状态更新UI
       if (data.isAlreadyCommented && data.existingComment) {
@@ -1601,6 +1946,8 @@
         submitBtn.textContent = '提交评论';
         console.log('[评论系统] 正常状态，可以评论');
       }
+
+      updateRatingSummary();
     }
 
     // 【新增】处理设置作品筛选器的请求（来自"跳转到作品"按钮）
@@ -1646,6 +1993,8 @@
       // 清空输入
       commentField.value = '';
       inputScore.value = '';
+      resetRatingState();
+      closeRatingModal();
       
       // 隐藏作品状态信息
       workStatusInfo.style.display = 'none';
@@ -1694,6 +2043,8 @@
         inputNumber.value = '';
         inputScore.value = '';
         commentField.value = '';
+        resetRatingState();
+        closeRatingModal();
         
         // 隐藏作品状态信息
         workStatusInfo.style.display = 'none';
@@ -1788,6 +2139,226 @@
       }, 3000);
     }
 
+    // ==================== 评分弹窗 ====================
+    function computeWeightedScore(state) {
+      if (!state.A || !state.B || !state.C) {
+        return null;
+      }
+
+      const aNorm = (state.A - 1) / (ratingConfig.A.max - 1);
+      const bNorm = (state.B - 1) / (ratingConfig.B.max - 1);
+      const cNorm = (state.C - 1) / (ratingConfig.C.max - 1);
+      const weightedNorm = (ratingConfig.A.weight * aNorm) +
+        (ratingConfig.B.weight * bNorm) +
+        (ratingConfig.C.weight * cNorm);
+      const rawScore = 100 + weightedNorm * 900;
+      const score = Math.round(rawScore);
+      const clampedScore = Math.min(1000, Math.max(100, score));
+
+      return { score: clampedScore, weightedNorm: weightedNorm };
+    }
+
+    function updateRatingSummary() {
+      const summaryEl = document.getElementById('ratingSummary');
+      const inputScore = document.getElementById('inputScore');
+      if (!summaryEl) return;
+
+      const hasAnyRating = ratingState.A || ratingState.B || ratingState.C;
+      if (hasAnyRating) {
+        const aText = ratingState.A ? `${ratingState.A}★` : '-';
+        const bText = ratingState.B ? `${ratingState.B}★` : '-';
+        const cText = ratingState.C ? `${ratingState.C}★` : '-';
+        summaryEl.textContent = `A: ${aText} / B: ${bText} / C: ${cText}`;
+        return;
+      }
+
+      if (inputScore && inputScore.value) {
+        summaryEl.textContent = `评分：${inputScore.value}`;
+        return;
+      }
+
+      summaryEl.textContent = 'A: - / B: - / C: -';
+    }
+
+    function updateRatingUI() {
+      const modal = document.getElementById('ratingModal');
+      if (!modal) return;
+
+      modal.querySelectorAll('.rating-dimension').forEach((dimensionEl) => {
+        const dimension = dimensionEl.dataset.dimension;
+        const value = ratingState[dimension];
+        dimensionEl.querySelectorAll('.rating-star').forEach((star) => {
+          const starValue = parseInt(star.dataset.value, 10);
+          const isActive = value && starValue <= value;
+          star.classList.toggle('active', Boolean(isActive));
+          star.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+      });
+
+      const computed = computeWeightedScore(ratingState);
+      const scoreEl = document.getElementById('ratingComputedScore');
+      const detailEl = document.getElementById('ratingDetail');
+      const warningEl = document.getElementById('ratingWarning');
+      const confirmBtn = document.getElementById('ratingConfirmBtn');
+
+      if (warningEl) {
+        warningEl.textContent = '';
+      }
+
+      if (computed) {
+        if (scoreEl) {
+          scoreEl.textContent = `评分：${computed.score}`;
+        }
+        if (detailEl) {
+          detailEl.textContent = `A: ${ratingState.A}★ / B: ${ratingState.B}★ / C: ${ratingState.C}★`;
+        }
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+        }
+      } else {
+        if (scoreEl) {
+          scoreEl.textContent = '评分：--';
+        }
+        if (detailEl) {
+          const aText = ratingState.A ? `${ratingState.A}★` : '-';
+          const bText = ratingState.B ? `${ratingState.B}★` : '-';
+          const cText = ratingState.C ? `${ratingState.C}★` : '-';
+          detailEl.textContent = `A: ${aText} / B: ${bText} / C: ${cText}`;
+        }
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+        }
+      }
+
+      updateRatingSummary();
+    }
+
+    function resetRatingState(options = {}) {
+      const { keepScoreInput = false } = options;
+      ratingState = { A: null, B: null, C: null };
+      if (!keepScoreInput) {
+        const inputScore = document.getElementById('inputScore');
+        if (inputScore) {
+          inputScore.value = '';
+        }
+      }
+      updateRatingUI();
+    }
+
+    function openRatingModal() {
+      const inputScore = document.getElementById('inputScore');
+      const modal = document.getElementById('ratingModal');
+      if (!modal || !inputScore || inputScore.disabled) {
+        return;
+      }
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      updateRatingUI();
+    }
+
+    function closeRatingModal() {
+      const modal = document.getElementById('ratingModal');
+      if (!modal) return;
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function confirmRatingSelection() {
+      const computed = computeWeightedScore(ratingState);
+      const warningEl = document.getElementById('ratingWarning');
+      if (!computed) {
+        if (warningEl) {
+          warningEl.textContent = '请为三个维度选择星级';
+        }
+        return;
+      }
+
+      const inputScore = document.getElementById('inputScore');
+      if (inputScore) {
+        inputScore.value = computed.score;
+      }
+      updateRatingSummary();
+      closeRatingModal();
+    }
+
+    function initRatingModal() {
+      const modal = document.getElementById('ratingModal');
+      if (!modal) return;
+
+      const inputScore = document.getElementById('inputScore');
+      if (inputScore) {
+        inputScore.addEventListener('click', openRatingModal);
+        inputScore.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openRatingModal();
+          }
+        });
+      }
+
+      modal.querySelectorAll('.rating-star').forEach((star) => {
+        star.addEventListener('click', () => {
+          const dimensionEl = star.closest('.rating-dimension');
+          if (!dimensionEl) return;
+          const dimension = dimensionEl.dataset.dimension;
+          const value = parseInt(star.dataset.value, 10);
+          if (!dimension || Number.isNaN(value)) return;
+
+          ratingState = { ...ratingState, [dimension]: value };
+          star.classList.remove('pulse');
+          void star.offsetWidth;
+          star.classList.add('pulse');
+          updateRatingUI();
+        });
+
+        star.addEventListener('animationend', () => {
+          star.classList.remove('pulse');
+        });
+      });
+
+      const closeBtn = document.getElementById('ratingCloseBtn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', closeRatingModal);
+      }
+
+      const cancelBtn = document.getElementById('ratingCancelBtn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeRatingModal);
+      }
+
+      const backdrop = document.getElementById('ratingBackdrop');
+      if (backdrop) {
+        backdrop.addEventListener('click', closeRatingModal);
+      }
+
+      const resetBtn = document.getElementById('ratingResetBtn');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          resetRatingState();
+          const warningEl = document.getElementById('ratingWarning');
+          if (warningEl) {
+            warningEl.textContent = '';
+          }
+        });
+      }
+
+      const confirmBtn = document.getElementById('ratingConfirmBtn');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmRatingSelection);
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          const isOpen = modal.classList.contains('show');
+          if (isOpen) {
+            closeRatingModal();
+          }
+        }
+      });
+
+      updateRatingUI();
+    }
+
     // ==================== 事件监听 ====================
     // 实时Markdown预览
     document.getElementById('Comment').addEventListener('input', updateMarkdownPreview);
@@ -1801,8 +2372,13 @@
       const comment = document.getElementById('Comment').value;
 
       // 验证输入完整性
-      if (!workNumber || !score || !comment) {
+      if (!workNumber || !comment) {
         showStatus('❌ 请填写完整信息', 'error');
+        return;
+      }
+
+      if (!score) {
+        showStatus('请先完成星级评分', 'error');
         return;
       }
 
@@ -1844,6 +2420,9 @@
     // 作品编号选择 - 完整的状态处理
     document.getElementById('inputNumber').addEventListener('change', async (e) => {
       const workNumber = e.target.value;
+
+      resetRatingState();
+      closeRatingModal();
       
       if (workNumber) {
         // 【新增】立即禁用输入组件并显示加载状态
@@ -2573,6 +3152,8 @@
         // 清空输入框内容（避免显示旧数据）
         inputScore.value = '';
         commentField.value = '';
+        resetRatingState();
+        closeRatingModal();
         
         // 显示加载状态提示（带spinner动画）
         if (message) {
@@ -2827,6 +3408,7 @@
 
     // ==================== 页面加载 ====================
     // 初始化信息区域展开/收起功能
+    initRatingModal();
     initInfoToggles();
     
     // 显示初始加载状态
