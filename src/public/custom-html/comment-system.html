@@ -115,8 +115,10 @@
       position: fixed;
       inset: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      padding-top: 5vh;
+      padding-bottom: 4vh;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s ease;
@@ -223,6 +225,13 @@
     .rating-stars {
       display: flex;
       gap: 8px;
+    }
+
+    .rating-dimension-desc {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.85);
     }
 
     .rating-star {
@@ -1509,10 +1518,25 @@
         <div class="info-content" id="mechanismContent">
           <h4>评分方式</h4>
           <ul>
-            <li><strong>维度A：</strong>1-3星，占比15%</li>
-            <li><strong>维度B：</strong>1-3星，占比25%</li>
-            <li><strong>维度C：</strong>1-5星，占比60%</li>
+            <li><strong>合理性：</strong>1-3星，占比15%</li>
+            <li><strong>可玩性：</strong>1-3星，占比25%</li>
+            <li><strong>创意性：</strong>1-5星，占比60%</li>
             <li><strong>自动换算：</strong>按权重计算后映射到100-1000分</li>
+          </ul>
+
+          <h4>维度说明</h4>
+          <ul>
+            <li><strong>合理性：</strong>是否存在违和谱音，或多押难度不合理的情况。</li>
+            <li><strong>可玩性：</strong>手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。</li>
+            <li><strong>创意性：</strong>是否让人眼前一亮、脱颖而出，配置是否有新意。</li>
+          </ul>
+
+          <h4>评分区间参考</h4>
+          <ul>
+            <li><strong>100-400（miss）：</strong>整体未达参赛水平。</li>
+            <li><strong>400-600（good）：</strong>存在争议点或完成度一般，缺乏竞争力（亮眼之处）。</li>
+            <li><strong>600-800：</strong>没有明显缺点但仍可提升，800以上基本说明是活动里的优秀作品。</li>
+            <li><strong>800-1000（perfect）：</strong>让人眼前一亮、脱颖而出的谱面，看完心里有答案。</li>
           </ul>
 
           <h4>评分显示规则</h4>
@@ -1627,7 +1651,7 @@
       <div class="rating-body">
         <div class="rating-dimension" data-dimension="A">
           <div class="rating-dimension-label">
-            <span>维度A</span>
+            <span>维度A（合理性）</span>
             <span class="rating-weight">15%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度A评分">
@@ -1635,10 +1659,11 @@
             <button type="button" class="rating-star" data-value="2" aria-label="维度A 2星">★</button>
             <button type="button" class="rating-star" data-value="3" aria-label="维度A 3星">★</button>
           </div>
+          <div class="rating-dimension-desc">手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。</div>
         </div>
         <div class="rating-dimension" data-dimension="B">
           <div class="rating-dimension-label">
-            <span>维度B</span>
+            <span>维度B（可玩性）</span>
             <span class="rating-weight">25%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度B评分">
@@ -1646,10 +1671,11 @@
             <button type="button" class="rating-star" data-value="2" aria-label="维度B 2星">★</button>
             <button type="button" class="rating-star" data-value="3" aria-label="维度B 3星">★</button>
           </div>
+          <div class="rating-dimension-desc">是否存在违和谱音，或多押难度不合理的情况。</div>
         </div>
         <div class="rating-dimension" data-dimension="C">
           <div class="rating-dimension-label">
-            <span>维度C</span>
+            <span>维度C（创意）</span>
             <span class="rating-weight">60%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度C评分">
@@ -1659,6 +1685,7 @@
             <button type="button" class="rating-star" data-value="4" aria-label="维度C 4星">★</button>
             <button type="button" class="rating-star" data-value="5" aria-label="维度C 5星">★</button>
           </div>
+          <div class="rating-dimension-desc">是否让人眼前一亮、脱颖而出，配置是否有新意。</div>
         </div>
       </div>
       <div class="rating-summary-panel">
