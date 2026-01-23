@@ -126,10 +126,9 @@ async function handleHtmlMessage(event) {
         }
 
         try {
-            await wixData.update('reportInfor', {
-                _id: recordId,
-                processed: processed
-            });
+            const existingRecord = await wixData.get('reportInfor', recordId);
+            existingRecord.processed = processed;
+            await wixData.update('reportInfor', existingRecord);
 
             const htmlElement = $w('#reportRecordsHtml');
             if (htmlElement && htmlElement.postMessage) {
