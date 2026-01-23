@@ -1,6 +1,7 @@
 // API Reference: https://www.wix.com/velo/reference/api-overview/introduction
 
 import wixData from 'wix-data';
+import wixUsers from 'wix-users';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
 /**
@@ -127,7 +128,41 @@ async function handleHtmlMessage(event) {
 
         try {
             const existingRecord = await wixData.get('reportInfor', recordId);
-            existingRecord.processed = processed;
+            if (existingRecord.processed === true) {
+                const htmlElement = $w('#reportRecordsHtml');
+                if (htmlElement && htmlElement.postMessage) {
+                    htmlElement.postMessage({
+                        action: 'updateProcessedResult',
+                        recordId: recordId,
+                        processed: existingRecord.processed === true,
+                        processedByName: existingRecord.processedByName || '',
+                        success: false,
+                        message: '该条目已处理，无法修改'
+                    });
+                }
+                return;
+            }
+
+            if (!processed) {
+                const htmlElement = $w('#reportRecordsHtml');
+                if (htmlElement && htmlElement.postMessage) {
+                    htmlElement.postMessage({
+                        action: 'updateProcessedResult',
+                        recordId: recordId,
+                        processed: false,
+                        success: false,
+                        message: '已处理状态不可取消'
+                    });
+                }
+                return;
+            }
+
+            const currentUserId = wixUsers.currentUser.id || 'guest';
+            const processedByName = await getUserNickname(currentUserId);
+
+            existingRecord.processed = true;
+            existingRecord.processedBy = currentUserId;
+            existingRecord.processedByName = processedByName;
             await wixData.update('reportInfor', existingRecord);
 
             const htmlElement = $w('#reportRecordsHtml');
@@ -135,7 +170,8 @@ async function handleHtmlMessage(event) {
                 htmlElement.postMessage({
                     action: 'updateProcessedResult',
                     recordId: recordId,
-                    processed: processed,
+                    processed: true,
+                    processedByName: processedByName,
                     success: true
                 });
             }

@@ -533,6 +533,7 @@
                 : '未知时间';
 
             const processed = record.processed === true;
+            const processedByName = record.processedByName || '';
 
             div.innerHTML = `
                 <div class="record-header">
@@ -548,6 +549,10 @@
                         <span class="info-label">检举人:</span>
                         <strong>${escapeHtml(reporterName)}</strong>
                     </div>
+                    <div class="info-item">
+                        <span class="info-label">处理人:</span>
+                        <strong class="processed-by" data-record-id="${record._id}">${processed ? escapeHtml(processedByName || '未知') : '未处理'}</strong>
+                    </div>
                 </div>
                 <div class="reason-box">
                     <span class="info-label">检举理由:</span>
@@ -555,7 +560,7 @@
                 </div>
                 <div class="process-box">
                     <label>
-                        <input class="process-checkbox" type="checkbox" data-record-id="${record._id}" ${processed ? 'checked' : ''} />
+                        <input class="process-checkbox" type="checkbox" data-record-id="${record._id}" ${processed ? 'checked disabled' : ''} />
                         是否已处理
                     </label>
                 </div>
@@ -581,7 +586,9 @@
             checkbox.addEventListener('change', () => {
                 const recordId = record._id;
                 const nextValue = checkbox.checked;
-                pendingUpdates.set(recordId, !nextValue);
+                const previousValue = record.processed === true;
+                pendingUpdates.set(recordId, { previousValue: previousValue });
+                checkbox.disabled = true;
                 window.parent.postMessage({
                     action: 'updateProcessed',
                     recordId: recordId,
@@ -637,11 +644,36 @@
             }
 
             if (!success) {
-                const previousValue = pendingUpdates.get(recordId);
                 const checkbox = document.querySelector(`.process-checkbox[data-record-id="${recordId}"]`);
-                if (checkbox && typeof previousValue === 'boolean') {
-                    checkbox.checked = previousValue;
+                const processedByEl = document.querySelector(`.processed-by[data-record-id="${recordId}"]`);
+                const processedFromServer = data.processed === true;
+
+                if (processedFromServer) {
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        checkbox.disabled = true;
+                    }
+                    if (processedByEl) {
+                        processedByEl.textContent = data.processedByName || '未知';
+                    }
+                    allRecords = allRecords.map(record => {
+                        if (record._id === recordId) {
+                            return {
+                                ...record,
+                                processed: true,
+                                processedByName: data.processedByName || record.processedByName
+                            };
+                        }
+                        return record;
+                    });
+                } else {
+                    const previousState = pendingUpdates.get(recordId);
+                    if (checkbox && previousState && typeof previousState.previousValue === 'boolean') {
+                        checkbox.checked = previousState.previousValue;
+                        checkbox.disabled = false;
+                    }
                 }
+
                 pendingUpdates.delete(recordId);
                 showMessage(`更新失败: ${data.message || '未知错误'}`, 'error');
                 return;
@@ -649,10 +681,23 @@
 
             allRecords = allRecords.map(record => {
                 if (record._id === recordId) {
-                    return { ...record, processed: data.processed === true };
+                    return {
+                        ...record,
+                        processed: data.processed === true,
+                        processedByName: data.processedByName || record.processedByName
+                    };
                 }
                 return record;
             });
+            const processedByEl = document.querySelector(`.processed-by[data-record-id="${recordId}"]`);
+            if (processedByEl) {
+                processedByEl.textContent = data.processedByName || processedByEl.textContent;
+            }
+            const checkbox = document.querySelector(`.process-checkbox[data-record-id="${recordId}"]`);
+            if (checkbox) {
+                checkbox.checked = data.processed === true;
+                checkbox.disabled = data.processed === true;
+            }
             pendingUpdates.delete(recordId);
             showMessage('处理状态已更新', 'success');
         }
