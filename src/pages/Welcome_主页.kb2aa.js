@@ -1,6 +1,6 @@
 import wixData from 'wix-data';
 import { getOngakiImageUrls } from 'backend/mediaManagement.jsw';
-import { getApplicationStats } from 'backend/pageUtils.jsw';
+import { getApplicationStats, getLeaderboardData } from 'backend/pageUtils.jsw';
 
 $w.onReady(async function () {
     // 并行加载数据
@@ -9,7 +9,26 @@ $w.onReady(async function () {
         displayRandomOngakiImage(),
         loadApplicationStats(),
     ]);
+
+    // 积分榜：等 HTML 组件就绪后再发数据
+    $w('#htmlLeaderboard').onMessage(msg => {
+        // 可在此处理 HTML 组件回传的消息（如就绪通知）
+        if (msg.data && msg.data.type === 'ready') {
+            sendLeaderboardData();
+        }
+    });
+    // 同时主动发送一次，兼容组件比页面代码更早就绪的情况
+    sendLeaderboardData();
 });
+
+async function sendLeaderboardData() {
+    try {
+        const users = await getLeaderboardData(50);
+        $w('#htmlLeaderboard').postMessage({ type: 'leaderboard', users });
+    } catch (err) {
+        console.error('积分榜数据加载失败:', err);
+    }
+}
 
 async function loadApplicationStats() {
     try {

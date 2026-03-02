@@ -20,7 +20,6 @@ import {
   groupByField,
 } from "backend/utils";
 import { fetchAllRegistrations } from "backend/ratingTaskManager.jsw";
-import { getLeaderboardData } from "backend/pageUtils.jsw";
 import {
   FILE_TYPES,
   APPROVAL_CONFIG,
@@ -270,13 +269,47 @@ export const get_comment = asyncErrorHandler(async (request) => {
 
 /**
  * 积分排行榜数据（供 HTML 嵌入组件直接 fetch）
+ * 注意：直接在函数体内查询，避免通过 jsw 调用产生权限上下文问题
  */
 export function options_leaderboard(request) {
   return createOptionsResponse();
 }
 
 export const get_leaderboard = asyncErrorHandler(async (request) => {
-  const users = await getLeaderboardData(50);
+  const AUTH_OPTS = { suppressAuth: true };
+  const LIMIT = 50;
+
+  const pointsResult = await wixData
+    .query(COLLECTIONS.USER_POINTS)
+    .descending("points")
+    .limit(LIMIT)
+    .find(AUTH_OPTS);
+
+  const items = pointsResult.items;
+  if (!items.length) return createSuccessResponse([]);
+
+  const userIds = items.map((i) => i.userId).filter(Boolean);
+
+  const memberResult = await wixData
+    .query("Members/PublicData")
+    .hasSome("_id", userIds)
+    .limit(LIMIT)
+    .find(AUTH_OPTS);
+
+  const memberMap = {};
+  memberResult.items.forEach((m) => { memberMap[m._id] = m; });
+
+  const users = items.map((item, i) => {
+    const m = memberMap[item.userId] || null;
+    return {
+      rank: i + 1,
+      name: (m && m.nickname) ? m.nickname : "—",
+      points: item.points != null ? item.points : 0,
+      profilePhoto: (m && m.profilePhoto) ? m.profilePhoto : "",
+      slug: (m && m.slug) ? m.slug : "",
+    };
+  });
+
   return createSuccessResponse(users);
 });
 

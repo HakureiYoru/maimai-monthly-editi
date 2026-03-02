@@ -191,34 +191,15 @@
     }).join('');
   }
 
-  // 直接从 HTTP 函数拉取数据，无需页面 postMessage
-  var url = '/_functions/leaderboard';
-  console.log('[leaderboard] fetch start, url =', url);
-  console.log('[leaderboard] window.location.href =', window.location.href);
+  // 通知页面代码组件已就绪
+  window.parent.postMessage({ type: 'ready' }, '*');
 
-  fetch(url)
-    .then(function(r) {
-      console.log('[leaderboard] response status =', r.status, r.statusText);
-      console.log('[leaderboard] response url =', r.url);
-      if (!r.ok) {
-        return r.text().then(function(body) {
-          throw new Error('HTTP ' + r.status + ': ' + body);
-        });
-      }
-      return r.json();
-    })
-    .then(function(data) {
-      console.log('[leaderboard] data received, type =', typeof data, ', isArray =', Array.isArray(data));
-      console.log('[leaderboard] raw data =', JSON.stringify(data).slice(0, 300));
-      // HTTP 函数返回 { body, ... } 还是直接数组，做兼容处理
-      var users = Array.isArray(data) ? data : (data && data.body ? JSON.parse(data.body) : []);
-      console.log('[leaderboard] users length =', users.length);
-      renderList(users);
-    })
-    .catch(function(err) {
-      console.error('[leaderboard] 加载失败:', err.message || err);
-      document.getElementById('list').innerHTML = '<div class="state">加载失败: ' + (err.message || err) + '</div>';
-    });
+  // 接收页面代码通过 $w('#htmlLeaderboard').postMessage() 传入的数据
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'leaderboard') {
+      renderList(e.data.users);
+    }
+  });
 </script>
 </body>
 </html>
