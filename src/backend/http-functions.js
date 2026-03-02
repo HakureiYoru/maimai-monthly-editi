@@ -20,6 +20,7 @@ import {
   groupByField,
 } from "backend/utils";
 import { fetchAllRegistrations } from "backend/ratingTaskManager.jsw";
+import { getLeaderboardData } from "backend/pageUtils.jsw";
 import {
   FILE_TYPES,
   APPROVAL_CONFIG,
@@ -265,6 +266,18 @@ export const get_comment = asyncErrorHandler(async (request) => {
   });
 
   return createSuccessResponse(responseItems);
+});
+
+/**
+ * 积分排行榜数据（供 HTML 嵌入组件直接 fetch）
+ */
+export function options_leaderboard(request) {
+  return createOptionsResponse();
+}
+
+export const get_leaderboard = asyncErrorHandler(async (request) => {
+  const users = await getLeaderboardData(50);
+  return createSuccessResponse(users);
 });
 
 /**

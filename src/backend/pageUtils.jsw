@@ -74,6 +74,51 @@ export async function getTopUsers(limit = QUERY_LIMITS.DISPLAY_TOP_USERS) {
 }
 
 /**
+ * 获取积分排行榜数据（批量查询，供 HTML 嵌入组件使用）
+ * @param {number} limit - 返回条数，默认 50
+ * @returns {Promise<Array<{rank, name, points, profilePhoto}>>}
+ */
+export async function getLeaderboardData(limit = 50) {
+  return safeExecute(
+    async () => {
+      const AUTH_OPTS = { suppressAuth: true };
+
+      const pointsResult = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .descending("points")
+        .limit(limit)
+        .find(AUTH_OPTS);
+
+      const items = pointsResult.items;
+      if (!items.length) return [];
+
+      const userIds = items.map((i) => i.userId).filter(Boolean);
+      const memberResult = await wixData
+        .query("Members/PublicData")
+        .hasSome("_id", userIds)
+        .limit(limit)
+        .find(AUTH_OPTS);
+
+      const memberMap = {};
+      memberResult.items.forEach((m) => { memberMap[m._id] = m; });
+
+      return items.map((item, i) => {
+        const m = memberMap[item.userId] || null;
+        return {
+          rank: i + 1,
+          name: m?.nickname || "—",
+          points: item.points ?? 0,
+          profilePhoto: m?.profilePhoto || "",
+          slug: m?.slug || "",
+        };
+      });
+    },
+    "getLeaderboardData",
+    []
+  );
+}
+
+/**
  * 获取用户排名信息
  * @param {string} userId - 用户ID
  * @returns {Promise<Object>} 用户排名信息

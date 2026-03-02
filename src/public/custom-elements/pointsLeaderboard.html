@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .panel {
+    width: 100%; height: 100%;
+    background: rgba(12, 12, 22, 0.74);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 18px 11px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+  }
+  .header-icon { font-size: 17px; }
+  .header-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.88);
+  }
+  .header-count {
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+  }
+
+  /* ── List ── */
+  .list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px 0;
+  }
+  .list::-webkit-scrollbar { width: 3px; }
+  .list::-webkit-scrollbar-track { background: transparent; }
+  .list::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
+  }
+
+  /* ── Row ── */
+  .item {
+    display: flex;
+    align-items: center;
+    padding: 6px 14px;
+    gap: 10px;
+    transition: background 0.12s;
+    cursor: default;
+  }
+  .item:hover { background: rgba(255,255,255,0.04); }
+  .item.top1 { background: rgba(255,210,50,0.06); }
+  .item.top2 { background: rgba(200,200,200,0.05); }
+  .item.top3 { background: rgba(190,120,55,0.06); }
+
+  .rank {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.25);
+  }
+  .rank.medal { font-size: 16px; }
+
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    overflow: hidden;
+    position: relative;
+  }
+  .avatar img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; border-radius: 50%;
+  }
+
+  .name {
+    flex: 1;
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255,255,255,0.82);
+  }
+
+  .pts {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    flex-shrink: 0;
+  }
+  .top1 .pts { color: rgba(255,210,50,0.75); }
+  .top2 .pts { color: rgba(200,200,200,0.65); }
+  .top3 .pts { color: rgba(205,140,75,0.75); }
+
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.05);
+    margin: 4px 14px;
+  }
+
+  .state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 0.3px;
+  }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="header">
+    <span class="header-title">积分排行榜</span>
+    <span class="header-count" id="count"></span>
+  </div>
+  <div class="list" id="list">
+    <div class="state">加载中…</div>
+  </div>
+</div>
+
+<script>
+  const MEDALS = ['🥇','🥈','🥉'];
+  const TOP_CLS = ['top1','top2','top3'];
+
+  function renderList(users) {
+    const list = document.getElementById('list');
+    const count = document.getElementById('count');
+
+    if (!users || !users.length) {
+      list.innerHTML = '<div class="state">暂无数据</div>';
+      return;
+    }
+
+    count.textContent = 'TOP ' + users.length;
+
+    list.innerHTML = users.map(function(u) {
+      var i = u.rank - 1;
+      var initial = u.name ? u.name.charAt(0).toUpperCase() : '?';
+
+      var rankHtml = i < 3
+        ? '<span class="rank medal">' + MEDALS[i] + '</span>'
+        : '<span class="rank">' + u.rank + '</span>';
+
+      var avatarInner = u.profilePhoto
+        ? '<img src="' + u.profilePhoto + '" alt="' + initial + '" onerror="this.remove()">'
+          + '<span>' + initial + '</span>'
+        : initial;
+
+      var divider = u.rank === 3 ? '<div class="divider"></div>' : '';
+
+      return '<div class="item ' + (TOP_CLS[i] || '') + '">'
+        + rankHtml
+        + '<div class="avatar">' + avatarInner + '</div>'
+        + '<span class="name">' + u.name + '</span>'
+        + '<span class="pts">' + u.points + '</span>'
+        + '</div>'
+        + divider;
+    }).join('');
+  }
+
+  // 直接从 HTTP 函数拉取数据，无需页面 postMessage
+  var url = '/_functions/leaderboard';
+  console.log('[leaderboard] fetch start, url =', url);
+  console.log('[leaderboard] window.location.href =', window.location.href);
+
+  fetch(url)
+    .then(function(r) {
+      console.log('[leaderboard] response status =', r.status, r.statusText);
+      console.log('[leaderboard] response url =', r.url);
+      if (!r.ok) {
+        return r.text().then(function(body) {
+          throw new Error('HTTP ' + r.status + ': ' + body);
+        });
+      }
+      return r.json();
+    })
+    .then(function(data) {
+      console.log('[leaderboard] data received, type =', typeof data, ', isArray =', Array.isArray(data));
+      console.log('[leaderboard] raw data =', JSON.stringify(data).slice(0, 300));
+      // HTTP 函数返回 { body, ... } 还是直接数组，做兼容处理
+      var users = Array.isArray(data) ? data : (data && data.body ? JSON.parse(data.body) : []);
+      console.log('[leaderboard] users length =', users.length);
+      renderList(users);
+    })
+    .catch(function(err) {
+      console.error('[leaderboard] 加载失败:', err.message || err);
+      document.getElementById('list').innerHTML = '<div class="state">加载失败: ' + (err.message || err) + '</div>';
+    });
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ $w.onReady(async function () {
     await Promise.all([
         loadMemberData(),
         displayRandomOngakiImage(),
-        loadApplicationStats()
+        loadApplicationStats(),
     ]);
 });
 

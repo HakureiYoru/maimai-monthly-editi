@@ -36,6 +36,17 @@
           "invoke": true
         }
       },
+      "getLeaderboardData": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": true
+        }
+      },
       "getUserRanking": {
         "siteOwner": {
           "invoke": true
