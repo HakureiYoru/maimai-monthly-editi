@@ -135,28 +135,6 @@
           "invoke": false
         }
       },
-      "getUserDetailedPointsInfo": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "checkUserSignInStatus": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
       "getTeamMemberInfo": {
         "siteOwner": {
           "invoke": true

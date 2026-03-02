@@ -6,12 +6,11 @@
 
 import wixData from "wix-data";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
-import { updateUserPoints } from "backend/forumPoints.jsw";
+import { updateUserPoints } from "backend/userPoints.jsw";
 import {
   COLLECTIONS,
   QUERY_LIMITS,
   PROGRESS_CONFIG,
-  POINTS_CONFIG,
   APPROVAL_CONFIG,
 } from "backend/constants";
 import { safeJsonParse, hasRole, isWorkApproved } from "backend/utils";
@@ -38,12 +37,10 @@ export async function getUserPointsInfo(userId) {
       return {
         userId,
         points: 0,
-        dailyPoints: 0,
-        lastSignedIn: new Date(),
       };
     },
     "getUserPointsInfo",
-    { userId, points: 0, dailyPoints: 0 }
+    { userId, points: 0 }
   );
 }
 
@@ -417,89 +414,6 @@ export async function getUserCommentStats() {
     },
     "getUserCommentStats",
     []
-  );
-}
-
-/**
- * 获取用户每日积分信息和徽章等级
- * @param {string} userId - 用户ID
- * @returns {Promise<Object>} 用户积分详细信息
- */
-export async function getUserDetailedPointsInfo(userId) {
-  return safeExecute(
-    async () => {
-      const userPointsInfo = await getUserPointsInfo(userId);
-
-      // 动态导入forumPoints函数
-      const { getUserPoints, getBadgeLevelByPoints, getPointsForBadgeLevel } =
-        await import("backend/forumPoints.jsw");
-
-      const userPoints = await getUserPoints(userId);
-
-      if (userPoints) {
-        const badgeLevel = await getBadgeLevelByPoints(userPoints.points);
-        const nextBadgeLevel = badgeLevel + 1;
-        const pointsForNextLevel = await getPointsForBadgeLevel(nextBadgeLevel);
-        const oldLevel = await getPointsForBadgeLevel(badgeLevel);
-        const pointsNeededForNextLevel = pointsForNextLevel - userPoints.points;
-        const progress =
-          (100 * (userPoints.points - oldLevel)) /
-          (pointsForNextLevel - oldLevel);
-        const remainingDailyPoints = Math.max(
-          POINTS_CONFIG.DAILY_LIMIT - userPoints.dailyPoints,
-          0
-        );
-
-        return {
-          ...userPointsInfo,
-          badgeLevel,
-          pointsNeededForNextLevel,
-          progress,
-          remainingDailyPoints,
-        };
-      }
-
-      return {
-        ...userPointsInfo,
-        badgeLevel: 0,
-        pointsNeededForNextLevel: 30,
-        progress: 0,
-        remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT,
-      };
-    },
-    "getUserDetailedPointsInfo",
-    {
-      points: 0,
-      badgeLevel: 0,
-      pointsNeededForNextLevel: 30,
-      progress: 0,
-      remainingDailyPoints: POINTS_CONFIG.DAILY_LIMIT,
-    }
-  );
-}
-
-/**
- * 检查用户今日签到状态
- * @param {string} userId - 用户ID
- * @returns {Promise<boolean>} 是否已签到
- */
-export async function checkUserSignInStatus(userId) {
-  return safeExecute(
-    async () => {
-      const userInfo = await getUserPointsInfo(userId);
-      if (userInfo && userInfo.lastSignedIn) {
-        const today = new Date();
-        const lastSignedInDate = new Date(userInfo.lastSignedIn);
-        return (
-          lastSignedInDate.getDate() === today.getDate() &&
-          lastSignedInDate.getMonth() === today.getMonth() &&
-          lastSignedInDate.getFullYear() === today.getFullYear()
-        );
-      }
-      return false;
-    },
-    "checkUserSignInStatus",
-    false
   );
 }
 

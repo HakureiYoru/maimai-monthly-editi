@@ -166,7 +166,9 @@ async function displayUserPointsAndRemaining() {
         
         // 更新文本显示
         $w('#userTotalPoints').text = `您的积分: ${userInfo.points}`;
-        $w('#userRemainingDailyPoints').text = `距离每日积分上限还剩: ${userInfo.remainingDailyPoints}分`;
+        $w('#userRemainingDailyPoints').text = userInfo.remainingDailyPoints != null
+  ? `距离每日积分上限还剩: ${userInfo.remainingDailyPoints}分`
+  : '无每日积分限制';
         $w('#pointsNeededForNextLevel').text = `您现在的等级是${userInfo.badgeLevel},距离下一个等级还差: ${userInfo.pointsNeededForNextLevel}分`;
     } catch (error) {
         console.error('显示用户积分信息时出错:', error);

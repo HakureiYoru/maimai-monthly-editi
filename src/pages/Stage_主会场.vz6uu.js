@@ -2,7 +2,7 @@ import wixUsers from "wix-users";
 import wixData from "wix-data";
 import wixWindow from "wix-window";
 import { getBatchDownloadUrls } from "backend/mediaManagement.jsw";
-import { updateUserPoints } from "backend/forumPoints.jsw";
+import { updateUserPoints } from "backend/userPoints.jsw";
 import {
   deleteComment,
   checkIsSeaSelectionMember,
@@ -2485,7 +2485,7 @@ async function handleCommentSubmit(data) {
     sendSubmitProgress("更新积分...", "updating");
 
     try {
-      await updateUserPoints(currentUserId, 1, false, false);
+      await updateUserPoints(currentUserId, 1);
     } catch (error) {
       console.error("更新积分失败:", error);
     }
