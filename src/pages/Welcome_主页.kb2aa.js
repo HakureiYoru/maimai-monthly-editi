@@ -1,6 +1,7 @@
 import wixData from "wix-data";
+import wixUsers from "wix-users";
 import { getOngakiImageUrls } from "backend/mediaManagement.jsw";
-import { getApplicationStats, getLeaderboardData } from "backend/pageUtils.jsw";
+import { getApplicationStats, getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 
 $w.onReady(async function () {
   // 并行加载数据
@@ -23,8 +24,12 @@ $w.onReady(async function () {
 
 async function sendLeaderboardData() {
   try {
-    const users = await getLeaderboardData(50);
-    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users });
+    const currentUserId = wixUsers.currentUser.loggedIn ? wixUsers.currentUser.id : null;
+    const [users, selfUser] = await Promise.all([
+      getLeaderboardData(100),
+      currentUserId ? getSelfLeaderboardEntry(currentUserId) : Promise.resolve(null),
+    ]);
+    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users, selfUser });
   } catch (err) {
     console.error("积分榜数据加载失败:", err);
   }

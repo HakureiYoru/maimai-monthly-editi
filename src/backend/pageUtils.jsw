@@ -74,6 +74,53 @@ export async function getTopUsers(limit = QUERY_LIMITS.DISPLAY_TOP_USERS) {
 }
 
 /**
+ * 获取当前用户在积分排行榜中的条目（含排名、积分、头像）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<{rank, name, points, profilePhoto}|null>}
+ */
+export async function getSelfLeaderboardEntry(userId) {
+  return safeExecute(
+    async () => {
+      if (!userId) return null;
+      const AUTH_OPTS = { suppressAuth: true };
+
+      const pointsResult = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .eq("userId", userId)
+        .find(AUTH_OPTS);
+
+      if (!pointsResult.items.length) return null;
+
+      const userPoints = pointsResult.items[0].points ?? 0;
+
+      // 统计积分严格高于自己的用户数，得出排名
+      const aboveCount = await wixData
+        .query(COLLECTIONS.USER_POINTS)
+        .gt("points", userPoints)
+        .count(AUTH_OPTS);
+
+      const rank = aboveCount + 1;
+
+      const memberResult = await wixData
+        .query("Members/PublicData")
+        .eq("_id", userId)
+        .find(AUTH_OPTS);
+
+      const m = memberResult.items[0] || null;
+
+      return {
+        rank,
+        name: m?.nickname || "—",
+        points: userPoints,
+        profilePhoto: m?.profilePhoto || "",
+      };
+    },
+    "getSelfLeaderboardEntry",
+    null
+  );
+}
+
+/**
  * 获取积分排行榜数据（批量查询，供 HTML 嵌入组件使用）
  * @param {number} limit - 返回条数，默认 50
  * @returns {Promise<Array<{rank, name, points, profilePhoto}>>}

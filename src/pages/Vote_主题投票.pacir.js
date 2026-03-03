@@ -12,7 +12,7 @@ import {
   getVote2Results,
 } from "backend/votingSystemLite.jsw";
 
-import { getLeaderboardData } from "backend/pageUtils.jsw";
+import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 
 let currentUserId = null;
 let isHtmlReady = false;
@@ -45,8 +45,11 @@ $w.onReady(function () {
 
 async function sendLeaderboardData() {
   try {
-    const users = await getLeaderboardData(50);
-    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users });
+    const [users, selfUser] = await Promise.all([
+      getLeaderboardData(100),
+      currentUserId ? getSelfLeaderboardEntry(currentUserId) : Promise.resolve(null),
+    ]);
+    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users, selfUser });
   } catch (err) {
     console.error("积分榜数据加载失败:", err);
   }

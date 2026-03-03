@@ -138,6 +138,69 @@
     color: rgba(255,255,255,0.25);
     letter-spacing: 0.3px;
   }
+
+  /* ── Self bar ── */
+  .self-bar {
+    flex-shrink: 0;
+    border-top: 1px solid rgba(100,140,255,0.18);
+    background: rgba(70,110,255,0.07);
+    padding: 7px 14px 8px;
+  }
+  .self-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    color: rgba(140,170,255,0.55);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .self-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .self-item .rank {
+    color: rgba(140,170,255,0.75);
+    font-size: 11px;
+    font-weight: 700;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .self-item .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(100,140,255,0.15);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(180,200,255,0.8);
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 0 1.5px rgba(100,140,255,0.3);
+  }
+  .self-item .avatar img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; border-radius: 50%;
+  }
+  .self-item .name {
+    flex: 1;
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(200,215,255,0.88);
+  }
+  .self-item .pts {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(140,170,255,0.75);
+    flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -148,6 +211,15 @@
   </div>
   <div class="list" id="list">
     <div class="state">加载中…</div>
+  </div>
+  <div class="self-bar" id="selfBar" style="display:none">
+    <div class="self-label">我的排名</div>
+    <div class="self-item">
+      <span class="rank" id="selfRank"></span>
+      <div class="avatar" id="selfAvatar"></div>
+      <span class="name" id="selfName"></span>
+      <span class="pts" id="selfPts"></span>
+    </div>
   </div>
 </div>
 
@@ -191,6 +263,27 @@
     }).join('');
   }
 
+  function renderSelfBar(selfUser) {
+    var bar = document.getElementById('selfBar');
+    if (!selfUser) { bar.style.display = 'none'; return; }
+
+    var initial = selfUser.name ? selfUser.name.charAt(0).toUpperCase() : '?';
+
+    document.getElementById('selfRank').textContent = '#' + selfUser.rank;
+    document.getElementById('selfName').textContent = selfUser.name;
+    document.getElementById('selfPts').textContent = selfUser.points;
+
+    var avatarEl = document.getElementById('selfAvatar');
+    if (selfUser.profilePhoto) {
+      avatarEl.innerHTML = '<img src="' + selfUser.profilePhoto + '" alt="' + initial + '" onerror="this.remove()">'
+        + '<span>' + initial + '</span>';
+    } else {
+      avatarEl.innerHTML = initial;
+    }
+
+    bar.style.display = '';
+  }
+
   // 通知页面代码组件已就绪
   window.parent.postMessage({ type: 'ready' }, '*');
 
@@ -198,6 +291,7 @@
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'leaderboard') {
       renderList(e.data.users);
+      renderSelfBar(e.data.selfUser || null);
     }
   });
 </script>
