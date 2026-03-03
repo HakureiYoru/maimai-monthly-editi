@@ -45,14 +45,12 @@ export async function checkIfUserVoted(userId) {
 // 获取投票选项
 export async function getVotingOptions() {
   try {
-    // 这里可以从数据库获取投票选项，或者直接返回硬编码的选项
-    // 为了演示，我们返回硬编码的选项
     return {
       options: [
-        { value: "theme1", label: "MMFC1-11回忆录" },
+        { value: "theme1", label: "BEMANI" },
         { value: "theme2", label: "BMS" },
-        { value: "theme3", label: "东方Project" },
-        { value: "theme4", label: "游戏音乐" },
+        { value: "theme3", label: "Vocaloid" },
+        { value: "theme4", label: "雷亚音游" },
       ],
     };
   } catch (error) {
