@@ -12,6 +12,7 @@
     font-family: 'Helvetica Neue', Arial, sans-serif;
   }
 
+  /* ── Panel ── */
   .panel {
     width: 100%; height: 100%;
     background: rgba(12, 12, 22, 0.74);
@@ -23,6 +24,13 @@
     flex-direction: column;
     color: #fff;
     overflow: hidden;
+    transform-origin: top right;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .panel.hiding {
+    opacity: 0;
+    transform: scale(0.88);
+    pointer-events: none;
   }
 
   /* ── Header ── */
@@ -34,7 +42,6 @@
     border-bottom: 1px solid rgba(255,255,255,0.07);
     flex-shrink: 0;
   }
-  .header-icon { font-size: 17px; }
   .header-title {
     flex: 1;
     font-size: 14px;
@@ -45,6 +52,26 @@
   .header-count {
     font-size: 11px;
     color: rgba(255,255,255,0.25);
+  }
+  .btn-minimize {
+    width: 22px; height: 22px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: rgba(255,255,255,0.28);
+    font-size: 17px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-minimize:hover {
+    color: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.08);
   }
 
   /* ── List ── */
@@ -201,13 +228,51 @@
     color: rgba(140,170,255,0.75);
     flex-shrink: 0;
   }
+
+  /* ── Ball ── */
+  .ball {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: rgba(12, 12, 22, 0.82);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 1px solid rgba(255,255,255,0.13);
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+    transition: transform 0.15s, box-shadow 0.15s;
+    user-select: none;
+  }
+  .ball:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.55);
+  }
+  .ball:active { transform: scale(0.95); }
+
+  @keyframes ballIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+  .ball.visible {
+    display: flex;
+    animation: ballIn 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  }
 </style>
 </head>
 <body>
-<div class="panel">
+<div class="panel" id="panel">
   <div class="header">
     <span class="header-title">积分排行榜</span>
     <span class="header-count" id="count"></span>
+    <button class="btn-minimize" id="btnMin" title="最小化">–</button>
   </div>
   <div class="list" id="list">
     <div class="state">加载中…</div>
@@ -223,13 +288,39 @@
   </div>
 </div>
 
+<div class="ball" id="ball">榜</div>
+
 <script>
   const MEDALS = ['🥇','🥈','🥉'];
   const TOP_CLS = ['top1','top2','top3'];
 
+  var panel = document.getElementById('panel');
+  var ball  = document.getElementById('ball');
+
+  function minimize() {
+    panel.classList.add('hiding');
+    setTimeout(function() {
+      panel.style.display = 'none';
+      panel.classList.remove('hiding');
+      ball.classList.add('visible');
+    }, 200);
+  }
+
+  function expand() {
+    ball.classList.remove('visible');
+    panel.style.display = 'flex';
+    // 触发回流以启动过渡
+    panel.offsetHeight;
+    panel.style.opacity = '1';
+    panel.style.transform = 'none';
+  }
+
+  document.getElementById('btnMin').addEventListener('click', minimize);
+  ball.addEventListener('click', expand);
+
   function renderList(users) {
-    const list = document.getElementById('list');
-    const count = document.getElementById('count');
+    var list  = document.getElementById('list');
+    var count = document.getElementById('count');
 
     if (!users || !users.length) {
       list.innerHTML = '<div class="state">暂无数据</div>';
