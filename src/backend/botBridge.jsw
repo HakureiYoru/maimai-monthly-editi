@@ -14,8 +14,6 @@ const SHOP_ITEMS = {
     name: "大喇叭",
     description: "让 Bot 在群里大声说一句话！",
     cost: 10,
-    message: "大喇叭测试哟！",
-    groupId: 129388307,
   },
 };
 
@@ -77,13 +75,12 @@ export async function purchaseItem(itemId, customMessage) {
     // 扣除积分
     await updateUserPoints(userId, -item.cost);
 
-    // 写入 BotQueue，等待 Bot 轮询处理
+    // 写入 BotQueue，等待 Bot 轮询处理（目标群号由 Bot 侧配置）
     await wixData.insert(COLLECTIONS.BOT_QUEUE, {
       userId,
       itemId: item.id,
       itemName: item.name,
       message: msgText,
-      groupId: item.groupId,
       status: "pending",
     });
 
