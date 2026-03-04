@@ -343,6 +343,10 @@ export function options_botQueueAck(request) {
   return createOptionsResponse();
 }
 
+export function options_botQueueHistory(request) {
+  return createOptionsResponse();
+}
+
 /**
  * Bot 轮询接口：获取所有 pending 状态的消息任务
  * 需要在 query string 中携带 secret=BOT_QUEUE_SECRET
@@ -366,6 +370,39 @@ export const get_botQueue = asyncErrorHandler(async (request) => {
     itemName: item.itemName,
     message: item.message,
     groupId: item.groupId,
+  }));
+
+  return createSuccessResponse(items);
+});
+
+/**
+ * 今日大喇叭历史查询：返回今天内 status=done 的记录
+ * 需要 ?secret=BOT_QUEUE_SECRET
+ */
+export const get_botQueueHistory = asyncErrorHandler(async (request) => {
+  const secret = request.query && request.query.secret;
+  if (secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  // 取今天 CST 00:00:00（UTC+8）对应的 UTC 时间戳
+  const nowUtc = new Date();
+  const cstOffset = 8 * 60 * 60 * 1000;
+  const cstMidnight = new Date(
+    Math.floor((nowUtc.getTime() + cstOffset) / 86400000) * 86400000 - cstOffset
+  );
+
+  const result = await wixData
+    .query(COLLECTIONS.BOT_QUEUE)
+    .eq("status", "done")
+    .ge("_createdDate", cstMidnight)
+    .ascending("_createdDate")
+    .limit(100)
+    .find({ suppressAuth: true });
+
+  const items = result.items.map((item) => ({
+    message: item.message,
+    createdDate: item._createdDate,
   }));
 
   return createSuccessResponse(items);
