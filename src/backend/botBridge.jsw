@@ -35,9 +35,10 @@ export function getShopItems() {
 /**
  * 购买商品：扣除积分并将 Bot 任务写入 BotQueue 集合
  * @param {string} itemId - 商品ID
+ * @param {string} customMessage - 用户自定义的发送内容
  * @returns {Promise<{success: boolean, message: string, remainingPoints?: number}>}
  */
-export async function purchaseItem(itemId) {
+export async function purchaseItem(itemId, customMessage) {
   try {
     // 获取当前登录用户
     const member = await currentMember.getMember();
@@ -50,6 +51,15 @@ export async function purchaseItem(itemId) {
 
     if (!item) {
       return { success: false, message: "商品不存在。" };
+    }
+
+    // 校验自定义内容
+    const msgText = (customMessage || "").trim();
+    if (!msgText) {
+      return { success: false, message: "发送内容不能为空。" };
+    }
+    if (msgText.length > 100) {
+      return { success: false, message: "内容超过 100 字限制。" };
     }
 
     // 查询当前积分
@@ -72,7 +82,7 @@ export async function purchaseItem(itemId) {
       userId,
       itemId: item.id,
       itemName: item.name,
-      message: item.message,
+      message: msgText,
       groupId: item.groupId,
       status: "pending",
     });

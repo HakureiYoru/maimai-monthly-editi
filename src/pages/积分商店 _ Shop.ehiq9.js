@@ -56,7 +56,7 @@ $w.onReady(async function () {
       }
 
       try {
-        const result = await purchaseItem(data.itemId);
+        const result = await purchaseItem(data.itemId, data.customMessage);
         $w("#htmlShop").postMessage({
           type: "purchaseResult",
           success: result.success,

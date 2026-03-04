@@ -301,6 +301,91 @@
       padding: 20px 0;
     }
 
+    /* 输入面板（购买第二步） */
+    .input-panel {
+      display: none;
+      margin-top: 14px;
+      position: relative;
+      z-index: 1;
+      animation: fadeSlideIn 0.25s ease;
+    }
+
+    .input-panel.open { display: block; }
+
+    .input-panel textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #fff;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+
+    .input-panel textarea::placeholder { color: rgba(255, 255, 255, 0.5); }
+    .input-panel textarea:focus { border-color: rgba(255, 255, 255, 0.8); }
+
+    .char-counter {
+      text-align: right;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.55);
+      margin-top: 4px;
+    }
+
+    .char-counter.over { color: rgba(239, 68, 68, 0.9); }
+
+    .input-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-cancel {
+      background: rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .btn-confirm {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+      color: #667eea;
+      border: none;
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+      background: #fff;
+      transform: translateY(-1px);
+    }
+
+    .btn-confirm:disabled {
+      background: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
     /* 响应式 */
     @media (max-width: 600px) {
       body { padding: 12px; }
@@ -393,15 +478,55 @@
     function renderItems() {
       const grid = document.getElementById("itemsGrid");
       grid.innerHTML = SHOP_ITEMS.map((item) => `
-        <div class="item-card">
+        <div class="item-card" id="card-${item.id}">
           <div class="item-name">${item.name}</div>
           <div class="item-desc">${item.description}</div>
           <div class="item-cost">${item.cost} 积分</div>
-          <button class="btn-buy" id="btn-${item.id}" onclick="handleBuy('${item.id}')">
+          <button class="btn-buy" id="btn-${item.id}" onclick="openInput('${item.id}')">
             购买
           </button>
+          <div class="input-panel" id="panel-${item.id}">
+            <textarea
+              id="text-${item.id}"
+              rows="3"
+              maxlength="100"
+              placeholder="输入要发送的内容（最多 100 字）"
+              oninput="onTextInput('${item.id}')"
+            ></textarea>
+            <div class="char-counter" id="counter-${item.id}">0 / 100</div>
+            <div class="input-actions">
+              <button class="btn-cancel" onclick="closeInput('${item.id}')">取消</button>
+              <button class="btn-confirm" id="confirm-${item.id}" onclick="handleBuy('${item.id}')" disabled>确认发送</button>
+            </div>
+          </div>
         </div>
       `).join("");
+    }
+
+    function openInput(itemId) {
+      if (isBuying) return;
+      document.getElementById("panel-" + itemId).classList.add("open");
+      document.getElementById("btn-" + itemId).style.display = "none";
+      document.getElementById("text-" + itemId).focus();
+    }
+
+    function closeInput(itemId) {
+      document.getElementById("panel-" + itemId).classList.remove("open");
+      document.getElementById("btn-" + itemId).style.display = "";
+      document.getElementById("text-" + itemId).value = "";
+      document.getElementById("counter-" + itemId).textContent = "0 / 100";
+      document.getElementById("counter-" + itemId).classList.remove("over");
+      document.getElementById("confirm-" + itemId).disabled = true;
+    }
+
+    function onTextInput(itemId) {
+      const ta = document.getElementById("text-" + itemId);
+      const counter = document.getElementById("counter-" + itemId);
+      const confirm = document.getElementById("confirm-" + itemId);
+      const len = ta.value.length;
+      counter.textContent = `${len} / 100`;
+      counter.classList.toggle("over", len > 100);
+      confirm.disabled = len === 0 || len > 100;
     }
 
     function updateButtonStates() {
@@ -424,11 +549,16 @@
     function handleBuy(itemId) {
       if (isBuying) return;
       const item = SHOP_ITEMS.find(i => i.id === itemId);
+      const customMessage = document.getElementById("text-" + itemId).value.trim();
+      if (!customMessage) return;
+
       isBuying = true;
+      // 关闭输入面板，锁定按钮
+      closeInput(itemId);
       updateButtonStates();
       addLog(`正在购买「${item ? item.name : itemId}」（-${item ? item.cost : "?"}积分）…`, "pending");
       window.parent.postMessage(
-        JSON.stringify({ action: "purchase", itemId }),
+        JSON.stringify({ action: "purchase", itemId, customMessage }),
         "*"
       );
     }
