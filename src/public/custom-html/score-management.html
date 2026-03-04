@@ -210,6 +210,21 @@
             color: #999;
         }
 
+        .owner-profile-link {
+            display: block;
+            color: #FFD700;
+            text-decoration: none;
+            font-size: 12px;
+            margin-top: 3px;
+            word-break: break-all;
+            opacity: 0.8;
+        }
+
+        .owner-profile-link:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
         .tier-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -626,7 +641,10 @@
             const ownerRegistration = work.ownerRegistrationName
                 ? `<span class="registration-id">（${work.ownerRegistrationName}）</span>`
                 : '';
-            const ownerHtml = `${ownerName}${ownerRegistration}`;
+            const ownerProfileLink = work.ownerSlug
+                ? `<a href="https://mmfc.majdata.net/profile/${work.ownerSlug}/profile" target="_blank" class="owner-profile-link">https://mmfc.majdata.net/profile/${work.ownerSlug}/profile</a>`
+                : '';
+            const ownerHtml = `${ownerName}${ownerRegistration}${ownerProfileLink}`;
 
             // 处理评论者信息，显示用户名和高权重标记
             const ratersHtml = work.raters.length > 0
@@ -641,7 +659,7 @@
                             : '👤');
 
                     const userLink = r.userSlug
-                        ? `/profile/${r.userSlug}`
+                        ? `https://mmfc.majdata.net/profile/${r.userSlug}/profile`
                         : '#';
 
                     const userNameHtml = isInvalidUser

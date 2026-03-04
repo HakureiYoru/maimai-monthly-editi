@@ -254,6 +254,7 @@ async function loadAllWorksData() {
         isDq: work.isDq === true,
         ownerId: work._owner,
         ownerName: ownerInfo.name || "未知投稿人",
+        ownerSlug: ownerInfo.slug || "",
         ownerRegistrationName: ownerRegistrationName,
         ...ratingData,
       });
