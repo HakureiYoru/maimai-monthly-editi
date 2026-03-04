@@ -1,0 +1,90 @@
+import wixData from "wix-data";
+import { currentMember } from "wix-members-backend";
+import { COLLECTIONS } from "backend/constants";
+import { getUserPoints, updateUserPoints } from "backend/userPoints";
+import { logError } from "backend/errorHandler";
+
+/**
+ * 积分商店商品定义
+ * 将来可以扩展更多商品
+ */
+const SHOP_ITEMS = {
+  da_laba: {
+    id: "da_laba",
+    name: "大喇叭",
+    description: "让 Bot 在群里大声说一句话！",
+    cost: 10,
+    message: "大喇叭测试哟！",
+    groupId: 129388307,
+  },
+};
+
+/**
+ * 获取积分商店商品列表（供前端展示）
+ * @returns {Array} 商品列表
+ */
+export function getShopItems() {
+  return Object.values(SHOP_ITEMS).map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    cost: item.cost,
+  }));
+}
+
+/**
+ * 购买商品：扣除积分并将 Bot 任务写入 BotQueue 集合
+ * @param {string} itemId - 商品ID
+ * @returns {Promise<{success: boolean, message: string, remainingPoints?: number}>}
+ */
+export async function purchaseItem(itemId) {
+  try {
+    // 获取当前登录用户
+    const member = await currentMember.getMember();
+    if (!member) {
+      return { success: false, message: "请先登录后再购买。" };
+    }
+
+    const userId = member._id;
+    const item = SHOP_ITEMS[itemId];
+
+    if (!item) {
+      return { success: false, message: "商品不存在。" };
+    }
+
+    // 查询当前积分
+    const pointsRecord = await getUserPoints(userId);
+    const currentPoints = pointsRecord ? (pointsRecord.points || 0) : 0;
+
+    if (currentPoints < item.cost) {
+      return {
+        success: false,
+        message: `积分不足！需要 ${item.cost} 积分，你当前有 ${currentPoints} 积分。`,
+        remainingPoints: currentPoints,
+      };
+    }
+
+    // 扣除积分
+    await updateUserPoints(userId, -item.cost);
+
+    // 写入 BotQueue，等待 Bot 轮询处理
+    await wixData.insert(COLLECTIONS.BOT_QUEUE, {
+      userId,
+      itemId: item.id,
+      itemName: item.name,
+      message: item.message,
+      groupId: item.groupId,
+      status: "pending",
+    });
+
+    const remainingPoints = currentPoints - item.cost;
+    return {
+      success: true,
+      message: `购买成功！消耗 ${item.cost} 积分，剩余 ${remainingPoints} 积分。`,
+      remainingPoints,
+    };
+  } catch (error) {
+    logError("purchaseItem", error, { itemId });
+    return { success: false, message: "购买失败，请稍后再试。" };
+  }
+}

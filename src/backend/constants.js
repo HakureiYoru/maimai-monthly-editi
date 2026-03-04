@@ -86,7 +86,11 @@ export const COLLECTIONS = {
   FORMS_ENTER_CONTEST_07: "Forms/enterContest07",
   ONGEKI_ALBUM: "OngekiAlbum",
   JOB_APPLICATION_089: "jobApplication089",
+  BOT_QUEUE: "BotQueue",
 };
+
+// Bot 消息队列安全密钥（Wix 后端 + mmfc_bot 共享）
+export const BOT_QUEUE_SECRET = "mmfc_bot_wix_bridge_2025";
 
 // 事件类型常量
 export const EVENT_TYPES = {

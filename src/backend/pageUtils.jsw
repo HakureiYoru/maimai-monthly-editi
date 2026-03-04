@@ -246,52 +246,7 @@ export async function checkUserTeamRegistration(userLink) {
   );
 }
 
-/**
- * 计算用户评论进度
- * @param {string} userId - 用户ID
- * @returns {Promise<Object>} 进度信息
- */
-export async function calculateUserCommentsProgress(userId) {
-  return safeExecute(
-    async () => {
-      // 获取用户评论
-      const userCommentsResults = await wixData
-        .query(COLLECTIONS.BOF_COMMENT)
-        .eq("userId", userId)
-        .find();
 
-      // 获取所有作品
-      const allWorksResults = await wixData
-        .query(COLLECTIONS.ENTER_CONTEST_034)
-        .limit(QUERY_LIMITS.CONTEST_QUERY_LIMIT)
-        .find();
-
-      const userCommentedWorks = new Set();
-      userCommentsResults.items.forEach((comment) => {
-        userCommentedWorks.add(comment.workNumber);
-      });
-
-      const totalWorks = allWorksResults.items.length;
-      const commentedWorks = userCommentedWorks.size;
-      const progressValue =
-        totalWorks > 0 ? (commentedWorks / totalWorks) * 100 : 0;
-
-      return {
-        totalWorks,
-        commentedWorks,
-        progressValue: Math.round(progressValue),
-        rewardMessage: formatProgressRewardMessage(progressValue),
-      };
-    },
-    "calculateUserCommentsProgress",
-    {
-      totalWorks: 0,
-      commentedWorks: 0,
-      progressValue: 0,
-      rewardMessage: "继续评论更多作品以获得更多奖励~",
-    }
-  );
-}
 
 /**
  * 获取用户评论数据
@@ -683,19 +638,3 @@ export function formatTimeDisplay(date) {
   return `${year}.${month}.${day}`;
 }
 
-/**
- * 格式化进度奖励消息
- * @param {number} progressValue - 进度百分比
- * @returns {string} 奖励消息
- */
-function formatProgressRewardMessage(progressValue) {
-  if (progressValue >= PROGRESS_CONFIG.HIGH_REWARD_THRESHOLD) {
-    return `您已经评论了绝大部分作品，小小蓝白会给予您${PROGRESS_CONFIG.HIGH_REWARD_POINTS}积分奖励~`;
-  } else if (progressValue >= PROGRESS_CONFIG.MEDIUM_REWARD_THRESHOLD) {
-    return `您的评论已过大半，小小蓝白会给予您${PROGRESS_CONFIG.MEDIUM_REWARD_POINTS}积分奖励~`;
-  } else if (progressValue >= PROGRESS_CONFIG.LOW_REWARD_THRESHOLD) {
-    return `您已评论了接近半数的作品，小小蓝白会给予您${PROGRESS_CONFIG.LOW_REWARD_POINTS}积分奖励~`;
-  } else {
-    return "继续评论更多作品以获得更多奖励~";
-  }
-}

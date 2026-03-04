@@ -25,6 +25,7 @@ import {
   APPROVAL_CONFIG,
   COLLECTIONS,
   CRYPTO_CONFIG,
+  BOT_QUEUE_SECRET,
 } from "backend/constants";
 
 /**
@@ -330,4 +331,73 @@ export const get_postLogs = asyncErrorHandler(async (request) => {
   const groupedByPostId = groupByField(allItems, "postId");
 
   return createSuccessResponse(groupedByPostId);
+});
+
+// ===================== Bot 消息队列接口 =====================
+
+export function options_botQueue(request) {
+  return createOptionsResponse();
+}
+
+export function options_botQueueAck(request) {
+  return createOptionsResponse();
+}
+
+/**
+ * Bot 轮询接口：获取所有 pending 状态的消息任务
+ * 需要在 query string 中携带 secret=BOT_QUEUE_SECRET
+ */
+export const get_botQueue = asyncErrorHandler(async (request) => {
+  const secret = request.query && request.query.secret;
+  if (secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  const result = await wixData
+    .query(COLLECTIONS.BOT_QUEUE)
+    .eq("status", "pending")
+    .ascending("_createdDate")
+    .limit(50)
+    .find({ suppressAuth: true });
+
+  const items = result.items.map((item) => ({
+    _id: item._id,
+    itemId: item.itemId,
+    itemName: item.itemName,
+    message: item.message,
+    groupId: item.groupId,
+  }));
+
+  return createSuccessResponse(items);
+});
+
+/**
+ * Bot 确认接口：将已处理的任务标记为 done
+ * Body: { secret: string, id: string }
+ */
+export const post_botQueueAck = asyncErrorHandler(async (request) => {
+  const body = await request.body.json();
+  if (!body || body.secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  const { id } = body;
+  if (!id) {
+    return createErrorResponse("Missing id", "badRequest");
+  }
+
+  const existing = await wixData.get(COLLECTIONS.BOT_QUEUE, id, {
+    suppressAuth: true,
+  });
+  if (!existing) {
+    return createErrorResponse("Item not found", "notFound");
+  }
+
+  await wixData.update(
+    COLLECTIONS.BOT_QUEUE,
+    { ...existing, status: "done" },
+    { suppressAuth: true }
+  );
+
+  return createSuccessResponse({ acknowledged: true });
 });
