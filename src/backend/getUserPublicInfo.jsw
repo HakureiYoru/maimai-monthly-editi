@@ -1,6 +1,7 @@
 // backend/getUserPublicInfo.jsw
 import { members } from "wix-members-backend";
 import wixData from "wix-data";
+import { COLLECTIONS } from "backend/constants";
 
 export async function getUserPublicInfo(userId) {
   const member = await members.getMember(userId);
@@ -47,59 +48,35 @@ export async function getUserInfoBySlug(userSlug) {
   }
 }
 
-// 添加一个新的函数来获取用户的积分排名和权重
+/**
+ * 获取用户积分排名及投票权重
+ * @param {string} userId - 用户ID
+ * @returns {Promise<{rank: number, voteWeight: number}|null>}
+ */
 export async function getUserRankAndVoteWeight(userId) {
-  // 查询 UserPoints 数据集并按 points 降序排序
   const results = await wixData
-    .query("UserPoints")
+    .query(COLLECTIONS.USER_POINTS)
     .descending("points")
-    .limit(1000) // 增加返回记录的数量上限到1000
+    .limit(1000)
     .find();
 
-  const users = results.items;
-  let rank = 1; // 开始排名为1
-  let userPoints = null;
+  const userIndex = results.items.findIndex((u) => u.userId === userId);
 
-  // 查找当前用户在列表中的排名
-  for (let user of users) {
-    if (user.userId === userId) {
-      userPoints = user.points; // 找到当前用户的积分
-      break; // 停止循环
-    }
-    rank++; // 如果不是当前用户，则排名加1
-  }
-
-  // 如果没有找到用户，返回null
-  if (!userPoints) {
+  if (userIndex === -1) {
     return null;
   }
 
-  // 使用之前提供的逻辑来计算投票权重
+  const rank = userIndex + 1;
   const voteWeight = getVoteWeight(rank);
 
-  return {
-    rank: rank,
-    voteWeight: voteWeight,
-  };
+  return { rank, voteWeight };
 }
 
-// 根据用户排名获取投票权重的函数
 function getVoteWeight(rank) {
-  if (rank === 1) {
-    return 4;
-  } else if (rank === 2) {
-    return 4;
-  } else if (rank === 3) {
-    return 4;
-  } else if (rank > 3 && rank <= 12) {
-    return 3;
-  } else if (rank > 12 && rank <= 30) {
-    return 2;
-  } else if (rank > 30 && rank <= 50) {
-    return 2;
-  } else {
-    return 1;
-  }
+  if (rank <= 3) return 4;
+  if (rank <= 12) return 3;
+  if (rank <= 50) return 2;
+  return 1;
 }
 
 //用来拆链接的

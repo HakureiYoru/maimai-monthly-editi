@@ -6,7 +6,7 @@
 
 import wixData from "wix-data";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
-import { updateUserPoints } from "backend/userPoints.jsw";
+import { updateUserPoints, getUserPoints } from "backend/userPoints.jsw";
 import {
   COLLECTIONS,
   QUERY_LIMITS,
@@ -173,20 +173,23 @@ export async function getLeaderboardData(limit = 50) {
 export async function getUserRanking(userId) {
   return safeExecute(
     async () => {
-      const allUsers = await wixData
-        .query(COLLECTIONS.USER_POINTS)
-        .descending("points")
-        .find();
+      const userRecord = await getUserPoints(userId);
+      if (!userRecord) {
+        return { ranking: null, totalUsers: 0, userPoints: null };
+      }
 
-      const userIndex = allUsers.items.findIndex(
-        (user) => user.userId === userId
-      );
-      const ranking = userIndex >= 0 ? userIndex + 1 : null;
+      const [aboveCount, totalUsers] = await Promise.all([
+        wixData
+          .query(COLLECTIONS.USER_POINTS)
+          .gt("points", userRecord.points)
+          .count(),
+        wixData.query(COLLECTIONS.USER_POINTS).count(),
+      ]);
 
       return {
-        ranking,
-        totalUsers: allUsers.items.length,
-        userPoints: userIndex >= 0 ? allUsers.items[userIndex] : null,
+        ranking: aboveCount + 1,
+        totalUsers,
+        userPoints: userRecord,
       };
     },
     "getUserRanking",
@@ -616,32 +619,22 @@ export async function getUserWorkComments(userId, workNumber) {
 export async function updateUserPointsAdmin(userId, pointsToAdd) {
   return safeExecute(
     async () => {
-      const result = await wixData
-        .query(COLLECTIONS.USER_POINTS)
-        .eq("userId", userId)
-        .find();
+      const existing = await getUserPoints(userId);
 
-      if (result.items.length > 0) {
-        const currentItem = result.items[0];
-        const newPoints = currentItem.points + pointsToAdd;
-
-        const updatedItem = {
-          ...currentItem,
-          points: newPoints,
-        };
-
-        await wixData.update(COLLECTIONS.USER_POINTS, updatedItem);
-
+      if (!existing) {
         return {
-          success: true,
-          newPoints,
-          message: `用户积分已更新为: ${newPoints}`,
+          success: false,
+          message: "没有找到对应的用户",
         };
       }
 
+      await updateUserPoints(userId, pointsToAdd);
+      const newPoints = (existing.points || 0) + pointsToAdd;
+
       return {
-        success: false,
-        message: "没有找到对应的用户",
+        success: true,
+        newPoints,
+        message: `用户积分已更新为: ${newPoints}`,
       };
     },
     "updateUserPointsAdmin",
