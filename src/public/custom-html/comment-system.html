@@ -388,6 +388,51 @@
       font-family: inherit;
     }
 
+    .char-counter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.65);
+      flex-wrap: wrap;
+    }
+
+    .char-count-text {
+      font-weight: 600;
+    }
+
+    .points-preview {
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+    }
+
+    .points-preview.pts-1 {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .points-preview.pts-3 {
+      background: rgba(80, 200, 120, 0.18);
+      border: 1px solid rgba(80, 200, 120, 0.4);
+      color: rgba(140, 255, 170, 0.92);
+    }
+
+    .points-preview.pts-5 {
+      background: rgba(255, 215, 0, 0.18);
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      color: rgba(255, 215, 0, 0.95);
+    }
+
+    .char-milestone {
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 11px;
+    }
+
     .submit-button {
       background: linear-gradient(135deg, rgba(255, 215, 0, 0.9) 0%, rgba(255, 165, 0, 0.9) 100%);
       color: #fff;
@@ -1446,6 +1491,11 @@
         <label class="input-label">评论内容 <span style="font-size: 11px; color: rgba(255,255,255,0.7); font-weight: normal;">（支持Markdown格式）</span></label>
         <textarea class="input-field" id="Comment" 
                   placeholder="输入您的评论，支持丰富的Markdown格式：&#10;&#10;**粗体** *斜体* `代码` ~~删除线~~&#10;# 标题 (支持1-6级)&#10;![图片](https://example.com/image.jpg)&#10;[链接](https://example.com)&#10;> 引用文字&#10;- 列表项&#10;| 表格 | 列 |"></textarea>
+        <div class="char-counter" id="charCounter">
+          <span class="char-count-text">字数：<span id="charCount">0</span></span>
+          <span class="points-preview pts-1" id="pointsPreview">+1 积分</span>
+          <span class="char-milestone" id="charMilestone">再写 150 字可获得 +3 积分</span>
+        </div>
       </div>
 
       <div style="margin-top: 20px;">
@@ -1549,8 +1599,8 @@
 
           <h4>Tier信息显示条件</h4>
           <ul>
-            <li><strong>显示等级（S/A/B/C/D）：</strong>作品至少有 <strong>5 人正式评分</strong> + 你已评分 + 非自评</li>
-            <li><strong>评分量不足：</strong>作品评分人数 < 5 人时显示"评分量不足(X人评分)"</li>
+            <li><strong>显示等级（S/A/B/C/D）：</strong>作品至少有 <strong>8 人正式评分</strong> + 你已评分 + 非自评</li>
+            <li><strong>评分量不足：</strong>作品评分人数 < 8 人时显示"评分量不足(X人评分)"</li>
             <li><strong>等级计算：</strong>基于作品在所有有效作品中的百分位排名</li>
           </ul>
 
@@ -1561,11 +1611,19 @@
             <li><strong>自评不计分：</strong>Sc 评论不参与作品评分统计</li>
           </ul>
 
+          <h4>积分获取</h4>
+          <ul>
+            <li><strong>提交评论即可获得积分，按字数分级：</strong></li>
+            <li>评论字数 ≤ 150 字：<strong>+1 积分</strong></li>
+            <li>评论字数 151–300 字：<strong>+3 积分</strong></li>
+            <li>评论字数 > 300 字：<strong>+5 积分</strong></li>
+          </ul>
+
           <h4>删除权限</h4>
           <ul>
             <li><strong>Sc 评论：</strong>仅作者本人可删除</li>
-            <li><strong>普通评论：</strong>作者本人或审核员可删除</li>
-            <li>删除评论会撤销相关任务完成状态和积分</li>
+            <li><strong>普通评论：</strong>审核员可删除</li>
+            <li>删除评论会撤销相关任务完成状态</li>
           </ul>
         </div>
 
@@ -2072,6 +2130,7 @@
         commentField.value = '';
         resetRatingState();
         closeRatingModal();
+        updateCharCounter();
         
         // 隐藏作品状态信息
         workStatusInfo.style.display = 'none';
@@ -2386,9 +2445,38 @@
       updateRatingUI();
     }
 
+    // ==================== 字数计数器 ====================
+    function updateCharCounter() {
+      const text = document.getElementById('Comment').value;
+      const len = text.length;
+      const countEl = document.getElementById('charCount');
+      const previewEl = document.getElementById('pointsPreview');
+      const milestoneEl = document.getElementById('charMilestone');
+      if (!countEl || !previewEl || !milestoneEl) return;
+
+      countEl.textContent = len;
+
+      if (len > 300) {
+        previewEl.textContent = '+5 积分';
+        previewEl.className = 'points-preview pts-5';
+        milestoneEl.textContent = '';
+      } else if (len > 150) {
+        previewEl.textContent = '+3 积分';
+        previewEl.className = 'points-preview pts-3';
+        milestoneEl.textContent = `再写 ${300 - len} 字可获得 +5 积分`;
+      } else {
+        previewEl.textContent = '+1 积分';
+        previewEl.className = 'points-preview pts-1';
+        milestoneEl.textContent = len > 0 ? `再写 ${150 - len} 字可获得 +3 积分` : '再写 150 字可获得 +3 积分';
+      }
+    }
+
     // ==================== 事件监听 ====================
-    // 实时Markdown预览
-    document.getElementById('Comment').addEventListener('input', updateMarkdownPreview);
+    // 实时Markdown预览 + 字数计数
+    document.getElementById('Comment').addEventListener('input', () => {
+      updateMarkdownPreview();
+      updateCharCounter();
+    });
 
     // 提交按钮
     document.getElementById('submitBtn').addEventListener('click', () => {

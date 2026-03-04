@@ -2490,11 +2490,13 @@ async function handleCommentSubmit(data) {
 
     const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
-    // 步骤6: 更新积分
+    // 步骤6: 更新积分（按评论字数分级：>300字 +5，>150字 +3，其余 +1）
     sendSubmitProgress("更新积分...", "updating");
 
     try {
-      await updateUserPoints(currentUserId, 1);
+      const commentLen = comment.length;
+      const pointsToAdd = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
+      await updateUserPoints(currentUserId, pointsToAdd);
     } catch (error) {
       console.error("更新积分失败:", error);
     }
@@ -2548,8 +2550,9 @@ async function handleCommentSubmit(data) {
         filterMode: "default",
         currentPage: 1,
       });
-      
-      // console.log(`[评论系统] 评论提交成功，已刷新到作品 #${workNumber} 的评论列表`);
+
+      // 同步更新积分榜（积分已在步骤6写入）
+      sendLeaderboardData();
     }, 500);
 
    // console.log(`[评论系统] 评论提交成功`);
