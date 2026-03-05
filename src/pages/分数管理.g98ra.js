@@ -14,7 +14,7 @@ import {
   getWorkWeightedRatingData,
 } from "backend/ratingTaskManager.jsw";
 import { RATING_CONFIG } from "public/constants.js";
-import { getTierFromPercentile } from "public/tierUtils.js";
+import { getTierFromPercentile, computeWeightedRating } from "public/tierUtils.js";
 
 let allWorksData = [];
 let filteredWorksData = [];
@@ -338,25 +338,12 @@ function calculateRatingData(formalRatings, workOwnerId) {
   });
 
   const totalRatings = highWeightCount + lowWeightCount;
-
-  // 加权平均分 = (高权重总和 × 2 + 低权重总和) / (高权重人数 × 2 + 低权重人数)
-  const weightedAverage =
-    totalRatings > 0
-      ? (highWeightSum * 2 + lowWeightSum) /
-        (highWeightCount * 2 + lowWeightCount)
-      : 0;
-
-  // 原始平均分
-  const originalAverage =
-    totalRatings > 0 ? (highWeightSum + lowWeightSum) / totalRatings : 0;
-
-  // 当前高低权重比例
-  const ratio =
-    lowWeightCount > 0
-      ? highWeightCount / lowWeightCount
-      : highWeightCount > 0
-      ? 999
-      : 0;
+  const { weightedAverage, originalAverage, ratio } = computeWeightedRating(
+    highWeightSum,
+    highWeightCount,
+    lowWeightSum,
+    lowWeightCount
+  );
 
   return {
     numRatings: formalRatings.length,
