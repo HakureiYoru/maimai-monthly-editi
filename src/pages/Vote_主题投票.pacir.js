@@ -14,7 +14,11 @@ import {
 
 import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 
+// 结果可见开关：false = 隐藏图表仅展示最低票数选项，true = 公开完整图表
+const RESULTS_VISIBLE = false;
+
 let currentUserId = null;
+let isAdmin = false;
 let isHtmlReady = false;
 let isVote2HtmlReady = false;
 
@@ -22,6 +26,7 @@ $w.onReady(function () {
   // 获取当前用户ID
   if (wixUsers.currentUser.loggedIn) {
     currentUserId = wixUsers.currentUser.id;
+    isAdmin = wixUsers.currentUser.role === "Admin";
     //console.log('[投票页面] 页面已加载，当前用户ID:', currentUserId);
   } else {
     console.log("[投票页面] 用户未登录");
@@ -140,6 +145,8 @@ async function handleVotingSystemReady() {
   // 发送初始化数据
   postMessageToHtml("INIT_VOTING_SYSTEM", {
     currentUserId: currentUserId,
+    resultsVisible: RESULTS_VISIBLE,
+    isAdmin: isAdmin,
   });
 }
 

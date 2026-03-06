@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -322,6 +322,39 @@
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
+    /* 公开结果信息（结果不可见时展示） */
+    #publicVoteInfo {
+      padding: 16px 20px 8px;
+      text-align: center;
+    }
+
+    .public-info-label {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.8);
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    .public-info-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: #FFD700;
+      text-shadow: 0 2px 12px rgba(255, 215, 0, 0.4);
+      padding: 18px 28px;
+      background: rgba(255, 215, 0, 0.1);
+      border: 1px solid rgba(255, 215, 0, 0.35);
+      border-radius: 16px;
+      display: inline-block;
+      min-width: 160px;
+      margin-bottom: 14px;
+    }
+
+    .public-info-note {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 4px;
+    }
+
     /* 响应式设计 */
     @media (max-width: 768px) {
       body {
@@ -410,6 +443,9 @@
       <div class="chart-container" id="weightChartContainer">
         <canvas id="weightChart"></canvas>
       </div>
+
+      <!-- 公开结果信息（结果不可见时展示，管理员不展示此区域） -->
+      <div id="publicVoteInfo" style="display:none;"></div>
     </div>
   </div>
 
@@ -423,6 +459,8 @@
     let votingResults = null;
     let votingChart = null;
     let weightChart = null;
+    let resultsVisible = true;  // 由父页面传入
+    let isAdmin = false;        // 由父页面传入
     
     // 加载状态追踪
     let loadingStates = {
@@ -512,6 +550,8 @@
     async function handleInit(data) {
       ////console.log('[投票系统] 初始化...', data);
       currentUserId = data.currentUserId;
+      resultsVisible = data.resultsVisible !== false;
+      isAdmin = !!data.isAdmin;
       
       // 初始禁用所有控件
       disableInitialControls();
@@ -579,13 +619,16 @@
     function handleVotingResults(data) {
       //console.log('[投票系统] 收到投票结果:', data);
       votingResults = data;
-      
-      // 更新图表
-      updateCharts();
-      
-      // 图表加载完成，启用标签页切换
-      enableChartTabs();
-      
+
+      if (resultsVisible || isAdmin) {
+        // 管理员或已开放：展示完整图表
+        updateCharts();
+        enableChartTabs();
+      } else {
+        // 结果未公开：仅展示当前票数最低的选项
+        renderPublicVoteInfo();
+      }
+
       // 标记投票结果已加载
       loadingStates.votingResults = true;
       checkAllDataLoaded();
@@ -657,6 +700,41 @@
     }
 
     // ==================== 用户界面渲染 ====================
+
+    // 结果未公开时，展示当前票数最低的选项
+    function renderPublicVoteInfo() {
+      // 隐藏图表标签页和图表容器
+      document.getElementById('chartTabs').style.display = 'none';
+      document.getElementById('votingChartContainer').classList.remove('active');
+      document.getElementById('votingChartContainer').style.display = 'none';
+      document.getElementById('weightChartContainer').style.display = 'none';
+
+      const publicInfoEl = document.getElementById('publicVoteInfo');
+
+      if (!votingResults || !votingResults.labels || votingResults.labels.length === 0) {
+        publicInfoEl.innerHTML = '<div class="public-info-label">暂无投票数据</div>';
+        publicInfoEl.style.display = 'block';
+        return;
+      }
+
+      const labels = votingResults.labels;
+      const data = votingResults.data || [];
+
+      // 找出当前票数最低的选项（若多个并列取第一个）
+      let minIdx = 0;
+      for (let i = 1; i < data.length; i++) {
+        if (data[i] < data[minIdx]) minIdx = i;
+      }
+      const lowestOption = labels[minIdx];
+
+      publicInfoEl.innerHTML = `
+        <div class="public-info-label">目前票数最低的选项是：</div>
+        <div class="public-info-value">${lowestOption}</div>
+        <div class="public-info-note">其他选项的票数暂未公开</div>
+      `;
+      publicInfoEl.style.display = 'block';
+    }
+
     function renderVotingOptions() {
       const optionsContainer = document.getElementById('themeOptions');
       optionsContainer.innerHTML = '';
