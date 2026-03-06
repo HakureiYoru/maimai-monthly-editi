@@ -25,6 +25,28 @@
           "invoke": false
         }
       },
+      "getCurrentUserDailySignInStatus": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
+      "claimCurrentUserDailySignIn": {
+        "siteOwner": {
+          "invoke": true
+        },
+        "siteMember": {
+          "invoke": true
+        },
+        "anonymous": {
+          "invoke": false
+        }
+      },
       "getTopUsers": {
         "siteOwner": {
           "invoke": true

@@ -1,7 +1,15 @@
 import wixData from "wix-data";
 import wixUsers from "wix-users";
 import { getOngakiImageUrls } from "backend/mediaManagement.jsw";
-import { getApplicationStats, getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
+import {
+  claimCurrentUserDailySignIn,
+  getApplicationStats,
+  getCurrentUserDailySignInStatus,
+  getLeaderboardData,
+  getSelfLeaderboardEntry,
+} from "backend/pageUtils.jsw";
+
+const DAILY_SIGN_IN_REWARD = 5;
 
 $w.onReady(async function () {
   // 并行加载数据
@@ -22,12 +30,16 @@ $w.onReady(async function () {
     if (msg.data.type === "readyHomeSection") {
       sendOngakiImage();
       sendMemberData();
+      sendDailySignInData();
     }
     if (msg.data.type === "refreshOngaki") sendOngakiImage();
     if (msg.data.type === "refreshMember") sendMemberData();
+    if (msg.data.type === "requestDailySignInStatus") sendDailySignInData();
+    if (msg.data.type === "claimDailySignIn") handleDailySignIn();
   });
   sendOngakiImage();
   sendMemberData();
+  sendDailySignInData();
 });
 
 async function sendLeaderboardData() {
@@ -50,6 +62,67 @@ async function loadApplicationStats() {
   } catch (error) {
     console.error("加载申请统计时出错:", error);
     $w("#applyNumber").text = "0";
+  }
+}
+
+async function sendDailySignInData() {
+  try {
+    if (!wixUsers.currentUser.loggedIn) {
+      $w("#htmlHomeSection").postMessage({
+        type: "dailySignInData",
+        data: {
+          loggedIn: false,
+          rewardPoints: DAILY_SIGN_IN_REWARD,
+          points: null,
+          rank: null,
+          canSignIn: false,
+          lastSignInKey: null,
+          lastSignInAt: null,
+          lastSignInAtDisplay: null,
+        },
+      });
+      return;
+    }
+
+    const status = await getCurrentUserDailySignInStatus();
+    $w("#htmlHomeSection").postMessage({ type: "dailySignInData", data: status });
+  } catch (error) {
+    console.error("加载每日签到状态失败:", error);
+  }
+}
+
+async function handleDailySignIn() {
+  try {
+    if (!wixUsers.currentUser.loggedIn) {
+      $w("#htmlHomeSection").postMessage({
+        type: "dailySignInResult",
+        data: {
+          success: false,
+          loggedIn: false,
+          alreadySigned: false,
+          message: "请先登录后再签到。",
+          rewardPoints: DAILY_SIGN_IN_REWARD,
+        },
+      });
+      return;
+    }
+
+    const result = await claimCurrentUserDailySignIn();
+    $w("#htmlHomeSection").postMessage({ type: "dailySignInResult", data: result });
+
+    await Promise.all([sendDailySignInData(), sendLeaderboardData()]);
+  } catch (error) {
+    console.error("每日签到失败:", error);
+    $w("#htmlHomeSection").postMessage({
+      type: "dailySignInResult",
+      data: {
+        success: false,
+        loggedIn: true,
+        alreadySigned: false,
+        message: "签到失败，请稍后再试。",
+        rewardPoints: DAILY_SIGN_IN_REWARD,
+      },
+    });
   }
 }
 

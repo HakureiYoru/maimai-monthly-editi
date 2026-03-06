@@ -5,6 +5,7 @@
  */
 
 import wixData from "wix-data";
+import { currentMember } from "wix-members-backend";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import { updateUserPoints, getUserPoints } from "backend/userPoints.jsw";
 import {
@@ -12,9 +13,89 @@ import {
   QUERY_LIMITS,
   PROGRESS_CONFIG,
   APPROVAL_CONFIG,
+  POINTS_CONFIG,
 } from "backend/constants";
 import { safeJsonParse, hasRole, isWorkApproved } from "backend/utils";
 import { logError, safeExecute } from "backend/errorHandler";
+
+const DAILY_SIGN_IN_TIMEZONE = "Asia/Shanghai";
+
+function getTimePartsInTimezone(
+  date = new Date(),
+  timeZone = DAILY_SIGN_IN_TIMEZONE
+) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  return formatter.formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+}
+
+function getCurrentDailySignInKey() {
+  const parts = getTimePartsInTimezone();
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatDailySignInTime(dateValue) {
+  if (!dateValue) return null;
+
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = getTimePartsInTimezone(date);
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+async function getOrCreateUserPointsRecord(userId) {
+  const existing = await getUserPoints(userId);
+  if (existing) return existing;
+
+  return wixData.insert(COLLECTIONS.USER_POINTS, {
+    userId,
+    points: 0,
+  });
+}
+
+async function buildDailySignInStatus(userId, userRecord = null) {
+  const AUTH_OPTS = { suppressAuth: true };
+  const record = userRecord || (await getUserPoints(userId));
+  const points = record?.points ?? 0;
+  const todayKey = getCurrentDailySignInKey();
+  const lastSignInKey = record?.lastDailySignInKey || null;
+  const lastSignInAt = record?.lastDailySignInAt || null;
+
+  let rank = null;
+  if (record) {
+    const aboveCount = await wixData
+      .query(COLLECTIONS.USER_POINTS)
+      .gt("points", points)
+      .count(AUTH_OPTS);
+    rank = aboveCount + 1;
+  }
+
+  return {
+    loggedIn: true,
+    rewardPoints: POINTS_CONFIG.DAILY_SIGN_IN_REWARD,
+    points,
+    rank,
+    canSignIn: lastSignInKey !== todayKey,
+    lastSignInKey,
+    lastSignInAt,
+    lastSignInAtDisplay: formatDailySignInTime(lastSignInAt),
+  };
+}
 
 /**
  * 获取用户积分信息
@@ -41,6 +122,102 @@ export async function getUserPointsInfo(userId) {
     },
     "getUserPointsInfo",
     { userId, points: 0 }
+  );
+}
+
+/**
+ * 获取当前用户的每日签到状态
+ * @returns {Promise<Object>}
+ */
+export async function getCurrentUserDailySignInStatus() {
+  return safeExecute(
+    async () => {
+      const member = await currentMember.getMember();
+      if (!member) {
+        return {
+          loggedIn: false,
+          rewardPoints: POINTS_CONFIG.DAILY_SIGN_IN_REWARD,
+          points: null,
+          rank: null,
+          canSignIn: false,
+          lastSignInKey: null,
+          lastSignInAt: null,
+          lastSignInAtDisplay: null,
+        };
+      }
+
+      return buildDailySignInStatus(member._id);
+    },
+    "getCurrentUserDailySignInStatus",
+    {
+      loggedIn: false,
+      rewardPoints: POINTS_CONFIG.DAILY_SIGN_IN_REWARD,
+      points: null,
+      rank: null,
+      canSignIn: false,
+      lastSignInKey: null,
+      lastSignInAt: null,
+      lastSignInAtDisplay: null,
+    }
+  );
+}
+
+/**
+ * 为当前登录用户执行每日签到
+ * @returns {Promise<Object>}
+ */
+export async function claimCurrentUserDailySignIn() {
+  return safeExecute(
+    async () => {
+      const member = await currentMember.getMember();
+      if (!member) {
+        return {
+          success: false,
+          loggedIn: false,
+          alreadySigned: false,
+          message: "请先登录后再签到。",
+          rewardPoints: POINTS_CONFIG.DAILY_SIGN_IN_REWARD,
+        };
+      }
+
+      const userId = member._id;
+      const userRecord = await getOrCreateUserPointsRecord(userId);
+      const todayKey = getCurrentDailySignInKey();
+
+      if (userRecord.lastDailySignInKey === todayKey) {
+        const status = await buildDailySignInStatus(userId, userRecord);
+        return {
+          success: false,
+          loggedIn: true,
+          alreadySigned: true,
+          message: "今天已经签到过了。",
+          ...status,
+        };
+      }
+
+      userRecord.points = (userRecord.points || 0) + POINTS_CONFIG.DAILY_SIGN_IN_REWARD;
+      userRecord.lastDailySignInKey = todayKey;
+      userRecord.lastDailySignInAt = new Date();
+
+      const savedRecord = await wixData.update(COLLECTIONS.USER_POINTS, userRecord);
+      const status = await buildDailySignInStatus(userId, savedRecord);
+
+      return {
+        success: true,
+        loggedIn: true,
+        alreadySigned: false,
+        message: `签到成功，获得 ${POINTS_CONFIG.DAILY_SIGN_IN_REWARD} 积分。`,
+        ...status,
+      };
+    },
+    "claimCurrentUserDailySignIn",
+    {
+      success: false,
+      loggedIn: false,
+      alreadySigned: false,
+      message: "签到失败，请稍后再试。",
+      rewardPoints: POINTS_CONFIG.DAILY_SIGN_IN_REWARD,
+    }
   );
 }
 

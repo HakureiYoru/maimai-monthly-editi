@@ -7,7 +7,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
-    width: 100%; height: 100%;
+    width: 100%;
+    height: 100%;
     background: #fff;
     font-family: Arial, sans-serif;
     color: #000;
@@ -15,24 +16,25 @@
 
   .grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
     height: 100%;
   }
 
-  /* ─── 公共列样式 ─── */
   .col {
     display: flex;
     flex-direction: column;
     padding: 14px;
     gap: 10px;
     overflow: hidden;
+    min-width: 0;
   }
 
   .col-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     flex-shrink: 0;
   }
 
@@ -64,7 +66,8 @@
     color: #888;
   }
 
-  /* ─── 网友列 ─── */
+  .hidden { display: none !important; }
+
   .member-body {
     flex: 1;
     display: flex;
@@ -76,7 +79,7 @@
   }
 
   .avatar-wrap {
-    width: min(200px, 40%);
+    width: min(160px, 46%);
     aspect-ratio: 1;
     border-radius: 50%;
     border: 2px solid #000;
@@ -119,21 +122,30 @@
     text-align: center;
   }
 
-  .link-btn {
-    display: inline-block;
+  .link-btn,
+  .sign-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #000;
     color: #fff;
     border: none;
-    padding: 5px 14px;
+    padding: 8px 14px;
     font-size: 13px;
     cursor: pointer;
     text-decoration: none;
     border-radius: 4px;
     flex-shrink: 0;
+    min-height: 36px;
   }
-  .link-btn:hover { background: #333; }
+  .link-btn:hover,
+  .sign-btn:hover { background: #333; }
+  .sign-btn:disabled {
+    background: #d0d0d0;
+    color: #777;
+    cursor: not-allowed;
+  }
 
-  /* ─── 音击列 ─── */
   .ongaki-img-wrap {
     flex: 1;
     border: 1px solid #ccc;
@@ -152,13 +164,113 @@
     display: none;
   }
 
-  .hidden { display: none !important; }
+  .sign-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .sign-reward {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f3f3f3;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  .sign-note {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  .sign-status {
+    font-size: 12px;
+    color: #111;
+    min-height: 18px;
+  }
+
+  .sign-stats {
+    display: grid;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #ececec;
+    border-radius: 8px;
+    background: #fafafa;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .stat-value {
+    font-size: 13px;
+    font-weight: bold;
+    color: #111;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  @media (max-width: 900px) {
+    html, body {
+      height: auto;
+      overflow: auto;
+    }
+
+    .grid {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+
+    .col {
+      min-height: 220px;
+    }
+  }
 </style>
 </head>
 <body>
 <div class="grid">
+  <div class="col" id="colSignIn">
+    <div class="col-header">
+      <span class="col-title">每日签到</span>
+    </div>
+    <div class="sign-body">
+      <span class="sign-reward" id="signReward">+5 积分</span>
+      <div class="sign-note">每天只能签到一次。签到后会立即更新当前积分与积分排名。</div>
+      <button class="sign-btn" id="signInBtn" disabled>加载中...</button>
+      <div class="sign-status" id="signStatus">正在加载签到状态...</div>
+      <div class="sign-stats">
+        <div class="stat-row">
+          <span class="stat-label">当前积分</span>
+          <span class="stat-value" id="currentPoints">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">积分排名</span>
+          <span class="stat-value" id="currentRank">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">上次签到</span>
+          <span class="stat-value" id="lastSignInTime">暂无</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <!-- 左列：随机认识一个网友 -->
   <div class="col" id="colMember">
     <div class="col-header">
       <span class="col-title">随机认识一个网友</span>
@@ -174,10 +286,9 @@
         </div>
       </div>
     </div>
-    <a class="link-btn hidden" id="linkBtn" target="_blank" style="align-self:center">看看谱</a>
+    <a class="link-btn hidden" id="linkBtn" target="_blank" style="align-self:center">看看主页</a>
   </div>
 
-  <!-- 右列：随机音击 -->
   <div class="col" id="colOngaki">
     <div class="col-header">
       <span class="col-title">随机音击</span>
@@ -188,44 +299,60 @@
       <img id="ongakiImg" alt="ongeki">
     </div>
   </div>
-
 </div>
 
 <script>
-  // ── 元素引用 ──
   var refreshMemberBtn = document.getElementById('refreshMemberBtn');
-  var memberLoading    = document.getElementById('memberLoading');
-  var memberRow        = document.getElementById('memberCard');
-  var avatarWrap       = document.getElementById('avatarWrap');
-  var memberName       = document.getElementById('memberName');
-  var memberRank       = document.getElementById('memberRank');
-  var linkBtn          = document.getElementById('linkBtn');
+  var memberLoading = document.getElementById('memberLoading');
+  var memberRow = document.getElementById('memberCard');
+  var avatarWrap = document.getElementById('avatarWrap');
+  var memberName = document.getElementById('memberName');
+  var memberRank = document.getElementById('memberRank');
+  var linkBtn = document.getElementById('linkBtn');
 
   var refreshOngakiBtn = document.getElementById('refreshOngakiBtn');
-  var ongakiLoading    = document.getElementById('ongakiLoading');
-  var ongakiImg        = document.getElementById('ongakiImg');
+  var ongakiLoading = document.getElementById('ongakiLoading');
+  var ongakiImg = document.getElementById('ongakiImg');
 
-  // ── 刷新按钮 ──
-  refreshMemberBtn.addEventListener('click', function() {
-    memberLoading.textContent = 'Loading...';
-    memberLoading.classList.remove('hidden');
-    memberRow.classList.add('hidden');
-    linkBtn.classList.add('hidden');
-    window.parent.postMessage({ type: 'refreshMember' }, '*');
-  });
+  var signReward = document.getElementById('signReward');
+  var signInBtn = document.getElementById('signInBtn');
+  var signStatus = document.getElementById('signStatus');
+  var currentPoints = document.getElementById('currentPoints');
+  var currentRank = document.getElementById('currentRank');
+  var lastSignInTime = document.getElementById('lastSignInTime');
 
-  refreshOngakiBtn.addEventListener('click', function() {
-    ongakiLoading.style.display = '';
-    ongakiImg.style.display = 'none';
-    window.parent.postMessage({ type: 'refreshOngaki' }, '*');
-  });
+  var dailyState = {
+    loggedIn: false,
+    canSignIn: false,
+    rewardPoints: 5,
+    points: null,
+    rank: null,
+    lastSignInAtDisplay: null
+  };
 
-  // ── 渲染成员 ──
+  function setSignInButtonLoading(loading) {
+    if (loading) {
+      signInBtn.disabled = true;
+      signInBtn.textContent = '签到中...';
+      return;
+    }
+
+    if (!dailyState.loggedIn) {
+      signInBtn.disabled = true;
+      signInBtn.textContent = '登录后签到';
+      return;
+    }
+
+    signInBtn.disabled = !dailyState.canSignIn;
+    signInBtn.textContent = dailyState.canSignIn ? '签到领积分' : '今日已签到';
+  }
+
   function renderMember(data) {
     if (!data) {
       memberLoading.textContent = '暂无数据';
       return;
     }
+
     memberName.textContent = data.name || '（无昵称）';
     memberRank.textContent = data.rank ? 'Rank: ' + data.rank : '';
 
@@ -252,7 +379,6 @@
     memberRow.classList.remove('hidden');
   }
 
-  // ── 渲染音击图片 ──
   function renderOngaki(url) {
     ongakiImg.onload = function() {
       ongakiLoading.style.display = 'none';
@@ -264,14 +390,73 @@
     ongakiImg.src = url;
   }
 
-  // ── 消息接收 ──
-  window.addEventListener('message', function(e) {
-    if (!e.data) return;
-    if (e.data.type === 'memberData') renderMember(e.data.data);
-    if (e.data.type === 'ongakiImage' && e.data.url) renderOngaki(e.data.url);
+  function renderDailySignIn(data) {
+    dailyState = Object.assign({}, dailyState, data || {});
+
+    signReward.textContent = '+' + (dailyState.rewardPoints || 5) + ' 积分';
+    currentPoints.textContent = dailyState.points == null ? '--' : String(dailyState.points);
+    currentRank.textContent = dailyState.rank == null ? '--' : '#' + dailyState.rank;
+    lastSignInTime.textContent = dailyState.lastSignInAtDisplay || '暂无';
+
+    if (!dailyState.loggedIn) {
+      signStatus.textContent = '请先登录后再签到。';
+    } else if (dailyState.canSignIn) {
+      signStatus.textContent = '今天还没有签到。';
+    } else {
+      signStatus.textContent = '今日已签到。';
+    }
+
+    setSignInButtonLoading(false);
+  }
+
+  function handleDailySignInResult(data) {
+    if (!data) {
+      setSignInButtonLoading(false);
+      return;
+    }
+
+    if (data.loggedIn) {
+      renderDailySignIn(data);
+    } else {
+      dailyState.loggedIn = false;
+      dailyState.canSignIn = false;
+      setSignInButtonLoading(false);
+    }
+
+    signStatus.textContent = data.message || signStatus.textContent;
+  }
+
+  refreshMemberBtn.addEventListener('click', function() {
+    memberLoading.textContent = 'Loading...';
+    memberLoading.classList.remove('hidden');
+    memberRow.classList.add('hidden');
+    linkBtn.classList.add('hidden');
+    window.parent.postMessage({ type: 'refreshMember' }, '*');
   });
 
-  // ── 通知页面代码就绪 ──
+  refreshOngakiBtn.addEventListener('click', function() {
+    ongakiLoading.style.display = '';
+    ongakiImg.style.display = 'none';
+    window.parent.postMessage({ type: 'refreshOngaki' }, '*');
+  });
+
+  signInBtn.addEventListener('click', function() {
+    if (signInBtn.disabled) return;
+    setSignInButtonLoading(true);
+    signStatus.textContent = '签到中...';
+    window.parent.postMessage({ type: 'claimDailySignIn' }, '*');
+  });
+
+  window.addEventListener('message', function(e) {
+    if (!e.data) return;
+
+    if (e.data.type === 'memberData') renderMember(e.data.data);
+    if (e.data.type === 'ongakiImage' && e.data.url) renderOngaki(e.data.url);
+    if (e.data.type === 'dailySignInData') renderDailySignIn(e.data.data);
+    if (e.data.type === 'dailySignInResult') handleDailySignInResult(e.data.data);
+  });
+
+  renderDailySignIn(dailyState);
   window.parent.postMessage({ type: 'readyHomeSection' }, '*');
 </script>
 </body>

@@ -28,6 +28,7 @@ export const POINTS_CONFIG = {
   LIKE_GIVE: 2, // 点赞给予
   UPVOTE_GIVE: 2, // 顶踩给予
   BEST_ANSWER: 40, // 最佳答案奖励
+  DAILY_SIGN_IN_REWARD: 5, // 每日签到奖励
 
   // 积分惩罚
   COMMENT_DELETE: -15, // 删除评论扣分
