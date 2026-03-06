@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    color: #000;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ─── 公共列样式 ─── */
+  .col {
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .col-title {
+    font-size: 15px;
+    font-weight: bold;
+  }
+
+  .refresh-btn {
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .refresh-btn:hover { background: #333; }
+  .refresh-btn:active { background: #555; }
+
+  .loading {
+    font-size: 13px;
+    color: #888;
+  }
+
+  /* ─── 网友列 ─── */
+  .member-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .avatar-wrap {
+    width: min(200px, 40%);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 2px solid #000;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    font-weight: bold;
+    color: #555;
+  }
+
+  .avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .member-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .member-name {
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    word-break: break-all;
+  }
+
+  .member-rank {
+    font-size: 12px;
+    color: #555;
+    text-align: center;
+  }
+
+  .link-btn {
+    display: inline-block;
+    background: #000;
+    color: #fff;
+    border: none;
+    padding: 5px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .link-btn:hover { background: #333; }
+
+  /* ─── 音击列 ─── */
+  .ongaki-img-wrap {
+    flex: 1;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+  }
+
+  .ongaki-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="grid">
+
+  <!-- 左列：随机认识一个网友 -->
+  <div class="col" id="colMember">
+    <div class="col-header">
+      <span class="col-title">随机认识一个网友</span>
+      <button class="refresh-btn" id="refreshMemberBtn" title="换一位">↺</button>
+    </div>
+    <div class="member-body">
+      <span class="loading" id="memberLoading">Loading...</span>
+      <div class="hidden" id="memberCard" style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
+        <div class="avatar-wrap" id="avatarWrap"></div>
+        <div class="member-info">
+          <span class="member-name" id="memberName"></span>
+          <span class="member-rank" id="memberRank"></span>
+        </div>
+      </div>
+    </div>
+    <a class="link-btn hidden" id="linkBtn" target="_blank" style="align-self:center">看看谱</a>
+  </div>
+
+  <!-- 右列：随机音击 -->
+  <div class="col" id="colOngaki">
+    <div class="col-header">
+      <span class="col-title">随机音击</span>
+      <button class="refresh-btn" id="refreshOngakiBtn" title="换一张">↺</button>
+    </div>
+    <div class="ongaki-img-wrap" id="ongakiWrap">
+      <span class="loading" id="ongakiLoading">Loading...</span>
+      <img id="ongakiImg" alt="ongeki">
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── 元素引用 ──
+  var refreshMemberBtn = document.getElementById('refreshMemberBtn');
+  var memberLoading    = document.getElementById('memberLoading');
+  var memberRow        = document.getElementById('memberCard');
+  var avatarWrap       = document.getElementById('avatarWrap');
+  var memberName       = document.getElementById('memberName');
+  var memberRank       = document.getElementById('memberRank');
+  var linkBtn          = document.getElementById('linkBtn');
+
+  var refreshOngakiBtn = document.getElementById('refreshOngakiBtn');
+  var ongakiLoading    = document.getElementById('ongakiLoading');
+  var ongakiImg        = document.getElementById('ongakiImg');
+
+  // ── 刷新按钮 ──
+  refreshMemberBtn.addEventListener('click', function() {
+    memberLoading.textContent = 'Loading...';
+    memberLoading.classList.remove('hidden');
+    memberRow.classList.add('hidden');
+    linkBtn.classList.add('hidden');
+    window.parent.postMessage({ type: 'refreshMember' }, '*');
+  });
+
+  refreshOngakiBtn.addEventListener('click', function() {
+    ongakiLoading.style.display = '';
+    ongakiImg.style.display = 'none';
+    window.parent.postMessage({ type: 'refreshOngaki' }, '*');
+  });
+
+  // ── 渲染成员 ──
+  function renderMember(data) {
+    if (!data) {
+      memberLoading.textContent = '暂无数据';
+      return;
+    }
+    memberName.textContent = data.name || '（无昵称）';
+    memberRank.textContent = data.rank ? 'Rank: ' + data.rank : '';
+
+    avatarWrap.innerHTML = '';
+    if (data.photo) {
+      var img = document.createElement('img');
+      img.src = data.photo;
+      img.onerror = function() {
+        avatarWrap.innerHTML = (data.name || '?').charAt(0).toUpperCase();
+      };
+      avatarWrap.appendChild(img);
+    } else {
+      avatarWrap.textContent = (data.name || '?').charAt(0).toUpperCase();
+    }
+
+    if (data.link) {
+      linkBtn.href = data.link;
+      linkBtn.classList.remove('hidden');
+    } else {
+      linkBtn.classList.add('hidden');
+    }
+
+    memberLoading.classList.add('hidden');
+    memberRow.classList.remove('hidden');
+  }
+
+  // ── 渲染音击图片 ──
+  function renderOngaki(url) {
+    ongakiImg.onload = function() {
+      ongakiLoading.style.display = 'none';
+      ongakiImg.style.display = 'block';
+    };
+    ongakiImg.onerror = function() {
+      ongakiLoading.textContent = '图片加载失败';
+    };
+    ongakiImg.src = url;
+  }
+
+  // ── 消息接收 ──
+  window.addEventListener('message', function(e) {
+    if (!e.data) return;
+    if (e.data.type === 'memberData') renderMember(e.data.data);
+    if (e.data.type === 'ongakiImage' && e.data.url) renderOngaki(e.data.url);
+  });
+
+  // ── 通知页面代码就绪 ──
+  window.parent.postMessage({ type: 'readyHomeSection' }, '*');
+</script>
+</body>
+</html>

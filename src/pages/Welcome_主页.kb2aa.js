@@ -5,21 +5,29 @@ import { getApplicationStats, getLeaderboardData, getSelfLeaderboardEntry } from
 
 $w.onReady(async function () {
   // 并行加载数据
-  await Promise.all([
-    loadMemberData(),
-    displayRandomOngakiImage(),
-    loadApplicationStats(),
-  ]);
+  await Promise.all([loadApplicationStats()]);
 
   // 积分榜：等 HTML 组件就绪后再发数据
   $w("#htmlLeaderboard").onMessage((msg) => {
-    // 可在此处理 HTML 组件回传的消息（如就绪通知）
     if (msg.data && msg.data.type === "ready") {
       sendLeaderboardData();
     }
   });
   // 同时主动发送一次，兼容组件比页面代码更早就绪的情况
   sendLeaderboardData();
+
+  // 首页随机区块 HTML 组件
+  $w("#htmlHomeSection").onMessage((msg) => {
+    if (!msg.data) return;
+    if (msg.data.type === "readyHomeSection") {
+      sendOngakiImage();
+      sendMemberData();
+    }
+    if (msg.data.type === "refreshOngaki") sendOngakiImage();
+    if (msg.data.type === "refreshMember") sendMemberData();
+  });
+  sendOngakiImage();
+  sendMemberData();
 });
 
 async function sendLeaderboardData() {
@@ -45,60 +53,46 @@ async function loadApplicationStats() {
   }
 }
 
-function loadMemberData() {
-  wixData
-    .query("Members/PublicData")
-    .count() // First count all members
-    .then((totalCount) => {
-      if (totalCount === 0) {
-        return;
-      }
-      // Calculate a random start within the total count
-      const randomSkip = Math.floor(
-        Math.random() * Math.max(0, totalCount - 10),
-      );
-      return wixData
-        .query("Members/PublicData")
-        .skip(randomSkip)
-        .limit(100) // Adjust the number as necessary
-        .find();
-    })
-    .then((results) => {
-      if (results) {
-        const membersWithCustomField = results.items.filter(
-          (member) => member["custom_pu-mian-fa-bu-wang-zhi"],
-        );
+async function sendMemberData() {
+  try {
+    const totalCount = await wixData.query("Members/PublicData").count();
+    if (totalCount === 0) return;
 
-        if (membersWithCustomField.length > 0) {
-          const randomIndex = Math.floor(
-            Math.random() * membersWithCustomField.length,
-          );
-          const member = membersWithCustomField[randomIndex];
-          updateMemberUI(member);
-        }
-      }
-    })
-    .catch((err) => {
-      console.error("加载用户数据时出错：", err);
-    });
+    const randomSkip = Math.floor(Math.random() * Math.max(0, totalCount - 10));
+    const results = await wixData
+      .query("Members/PublicData")
+      .skip(randomSkip)
+      .limit(100)
+      .find();
+
+    if (!results) return;
+
+    const membersWithCustomField = results.items.filter(
+      (member) => member["custom_pu-mian-fa-bu-wang-zhi"],
+    );
+
+    if (membersWithCustomField.length > 0) {
+      const randomIndex = Math.floor(Math.random() * membersWithCustomField.length);
+      const member = membersWithCustomField[randomIndex];
+      const payload = await buildMemberPayload(member);
+      $w("#htmlHomeSection").postMessage({ type: "memberData", data: payload });
+    } else {
+      $w("#htmlHomeSection").postMessage({ type: "memberData", data: null });
+    }
+  } catch (err) {
+    console.error("加载用户数据时出错：", err);
+  }
 }
 
-async function updateMemberUI(member) {
-  $w("#button8").enable;
-  $w("#image1").src = member.profilePhoto; // 更新图像组件
-  $w("#text15").text = "Name: " + member.nickname; // 设置昵称文本
-  $w("#button8").link = member["custom_pu-mian-fa-bu-wang-zhi"];
-
-  // 构建用户的个人链接
+async function buildMemberPayload(member) {
   const memberLink = `https://mmfc.majdata.net/profile/${member.slug}/profile`;
-
-  // 检查链接是否存在于Team数据集中，并获取排名
   const rank = await getMemberRank(memberLink, member._id);
-
-  // 如果用户有排名，更新排名信息到text15
-  if (rank) {
-    $w("#text15").text += `\nRank: ${rank}`;
-  }
+  return {
+    photo: convertWixImageUrl(member.profilePhoto),
+    name: member.nickname,
+    rank: rank || null,
+    link: member["custom_pu-mian-fa-bu-wang-zhi"] || null,
+  };
 }
 
 async function getMemberRank(memberLink, userId) {
@@ -134,24 +128,23 @@ async function getMemberRank(memberLink, userId) {
   }
 }
 
-export function button10_click(event) {
-  displayRandomOngakiImage();
+async function sendOngakiImage() {
+  try {
+    const imageUrls = await getOngakiImageUrls();
+    if (imageUrls.length > 0) {
+      const randomIndex = Math.floor(Math.random() * imageUrls.length);
+      const url = convertWixImageUrl(imageUrls[randomIndex]);
+      $w("#htmlHomeSection").postMessage({ type: "ongakiImage", url });
+    }
+  } catch (err) {
+    console.error("Error loading ongeki image:", err);
+  }
 }
 
-export function button11_click(event) {
-  loadMemberData();
-}
-
-function displayRandomOngakiImage() {
-  getOngakiImageUrls()
-    .then((imageUrls) => {
-      const totalImages = imageUrls.length; // Assuming this correctly returns 44
-      if (totalImages > 0) {
-        const randomIndex = Math.floor(Math.random() * totalImages);
-        $w("#image2").src = imageUrls[randomIndex]; // Set the image source directly
-      }
-    })
-    .catch((err) => {
-      console.error("Error loading ongeki image:", err);
-    });
+// 将 wix:image://v1/{fileId}/... 转换为可直接访问的静态 URL
+function convertWixImageUrl(url) {
+  if (!url || !url.startsWith("wix:image://")) return url;
+  const match = url.match(/wix:image:\/\/v1\/([^/]+)\//);
+  if (match) return `https://static.wixstatic.com/media/${match[1]}`;
+  return url;
 }
