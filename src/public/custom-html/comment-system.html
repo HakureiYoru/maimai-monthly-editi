@@ -1613,10 +1613,11 @@
 
           <h4>积分获取</h4>
           <ul>
-            <li><strong>提交评论即可获得积分，按字数分级：</strong></li>
+            <li><strong>提交正式评论即可获得积分，按字数分级：</strong></li>
             <li>评论字数 ≤ 150 字：<strong>+1 积分</strong></li>
             <li>评论字数 151–300 字：<strong>+3 积分</strong></li>
             <li>评论字数 > 300 字：<strong>+5 积分</strong></li>
+            <li style="color: rgba(200,160,255,0.85);"><strong>Sc 自评不获得积分</strong></li>
           </ul>
 
           <h4>删除权限</h4>
@@ -1772,6 +1773,7 @@
     let currentFilter = 'default';
     let currentWorkFilter = '';
     let isSubmitting = false;
+    let isAuthorMode = false; // 当前是否为作者自评模式（SC）
     let loadingTimeout = null; // 加载超时计时器
     const ratingConfig = {
       A: { max: 3, weight: 0.15 },
@@ -1996,39 +1998,47 @@
       // 根据状态更新UI
       if (data.isAlreadyCommented && data.existingComment) {
         // 已评论：回填数据并禁用输入
+        isAuthorMode = false;
         commentField.value = data.existingComment.comment || '';
         inputScore.value = data.existingComment.score || '';
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
         submitBtn.textContent = '已评论';
+        updateCharCounter();
         console.log('[评论系统] 已评论，回填数据并禁用输入');
       } else if (data.isAuthor) {
         // 作者自评：清空并启用输入
+        isAuthorMode = true;
         commentField.value = '';
         inputScore.value = '';
         commentField.disabled = false;
         inputScore.disabled = false;
         submitBtn.disabled = false;
         submitBtn.textContent = '自评';
+        updateCharCounter(); // 刷新积分提示为自评提示
         console.log('[评论系统] 作者自评模式');
       } else if (data.isWorkDQ) {
         // 淘汰作品：清空并禁用所有
+        isAuthorMode = false;
         commentField.value = '';
         inputScore.value = '';
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
         submitBtn.textContent = '作品已淘汰';
+        updateCharCounter();
         console.log('[评论系统] 作品已淘汰');
       } else {
         // 正常未评论：清空并启用输入
+        isAuthorMode = false;
         commentField.value = '';
         inputScore.value = '';
         commentField.disabled = false;
         inputScore.disabled = false;
         submitBtn.disabled = false;
         submitBtn.textContent = '提交评论';
+        updateCharCounter();
         console.log('[评论系统] 正常状态，可以评论');
       }
 
@@ -2456,6 +2466,16 @@
 
       countEl.textContent = len;
 
+      // 自评模式不获得积分
+      if (isAuthorMode) {
+        previewEl.textContent = '自评不获得积分';
+        previewEl.className = 'points-preview pts-1';
+        previewEl.style.opacity = '0.5';
+        milestoneEl.textContent = '';
+        return;
+      }
+
+      previewEl.style.opacity = '';
       if (len > 300) {
         previewEl.textContent = '+5 积分';
         previewEl.className = 'points-preview pts-5';

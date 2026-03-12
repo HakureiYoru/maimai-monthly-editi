@@ -2490,15 +2490,17 @@ async function handleCommentSubmit(data) {
 
     const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
-    // 步骤6: 更新积分（按评论字数分级：>300字 +5，>150字 +3，其余 +1）
-    sendSubmitProgress("更新积分...", "updating");
+    // 步骤6: 更新积分（自评不获得积分；按评论字数分级：>300字 +5，>150字 +3，其余 +1）
+    if (!isAuthor) {
+      sendSubmitProgress("更新积分...", "updating");
 
-    try {
-      const commentLen = comment.length;
-      const pointsToAdd = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
-      await updateUserPoints(currentUserId, pointsToAdd);
-    } catch (error) {
-      console.error("更新积分失败:", error);
+      try {
+        const commentLen = comment.length;
+        const pointsToAdd = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
+        await updateUserPoints(currentUserId, pointsToAdd);
+      } catch (error) {
+        console.error("更新积分失败:", error);
+      }
     }
 
     // 步骤7: 检查并标记任务完成

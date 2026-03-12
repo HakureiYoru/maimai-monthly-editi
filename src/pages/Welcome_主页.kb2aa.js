@@ -12,8 +12,6 @@ import {
 const DAILY_SIGN_IN_REWARD = 5;
 
 $w.onReady(async function () {
-  // 并行加载数据
-  await Promise.all([loadApplicationStats()]);
 
   // 积分榜：等 HTML 组件就绪后再发数据
   $w("#htmlLeaderboard").onMessage((msg) => {
@@ -31,6 +29,7 @@ $w.onReady(async function () {
       sendOngakiImage();
       sendMemberData();
       sendDailySignInData();
+      sendApplicationStats();
     }
     if (msg.data.type === "refreshOngaki") sendOngakiImage();
     if (msg.data.type === "refreshMember") sendMemberData();
@@ -40,6 +39,7 @@ $w.onReady(async function () {
   sendOngakiImage();
   sendMemberData();
   sendDailySignInData();
+  sendApplicationStats();
 });
 
 async function sendLeaderboardData() {
@@ -55,13 +55,13 @@ async function sendLeaderboardData() {
   }
 }
 
-async function loadApplicationStats() {
+async function sendApplicationStats() {
   try {
     const applicationCount = await getApplicationStats();
-    $w("#applyNumber").text = `${applicationCount}`;
+    $w("#htmlHomeSection").postMessage({ type: "applicationStats", count: applicationCount });
   } catch (error) {
     console.error("加载申请统计时出错:", error);
-    $w("#applyNumber").text = "0";
+    $w("#htmlHomeSection").postMessage({ type: "applicationStats", count: 0 });
   }
 }
 
