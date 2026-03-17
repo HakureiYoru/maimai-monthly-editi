@@ -1569,8 +1569,8 @@
           <h4>评分方式</h4>
           <ul>
             <li><strong>合理性：</strong>1-3星，占比15%</li>
-            <li><strong>可玩性：</strong>1-3星，占比25%</li>
-            <li><strong>创意性：</strong>1-5星，占比60%</li>
+            <li><strong>可玩性：</strong>1-5星，占比30%</li>
+            <li><strong>创意性：</strong>1-7星，占比55%</li>
             <li><strong>自动换算：</strong>按权重计算后映射到100-1000分</li>
           </ul>
 
@@ -1729,6 +1729,8 @@
             <button type="button" class="rating-star" data-value="1" aria-label="维度B 1星">★</button>
             <button type="button" class="rating-star" data-value="2" aria-label="维度B 2星">★</button>
             <button type="button" class="rating-star" data-value="3" aria-label="维度B 3星">★</button>
+            <button type="button" class="rating-star" data-value="4" aria-label="维度B 4星">★</button>
+            <button type="button" class="rating-star" data-value="5" aria-label="维度B 5星">★</button>
           </div>
           <div class="rating-dimension-desc">手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。</div>
         </div>
@@ -1743,6 +1745,8 @@
             <button type="button" class="rating-star" data-value="3" aria-label="维度C 3星">★</button>
             <button type="button" class="rating-star" data-value="4" aria-label="维度C 4星">★</button>
             <button type="button" class="rating-star" data-value="5" aria-label="维度C 5星">★</button>
+            <button type="button" class="rating-star" data-value="6" aria-label="维度C 6星">★</button>
+            <button type="button" class="rating-star" data-value="7" aria-label="维度C 7星">★</button>
           </div>
           <div class="rating-dimension-desc">是否让人眼前一亮、脱颖而出，配置是否有新意。</div>
         </div>
@@ -1777,8 +1781,8 @@
     let loadingTimeout = null; // 加载超时计时器
     const ratingConfig = {
       A: { max: 3, weight: 0.15 },
-      B: { max: 3, weight: 0.25 },
-      C: { max: 5, weight: 0.6 }
+      B: { max: 5, weight: 0.3 },
+      C: { max: 7, weight: 0.55 }
     };
     let ratingState = { A: null, B: null, C: null };
 
