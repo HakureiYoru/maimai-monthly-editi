@@ -1752,6 +1752,7 @@
             <li>评论字数 ≤ 150 字：<strong>+1 积分</strong></li>
             <li>评论字数 151–300 字：<strong>+3 积分</strong></li>
             <li>评论字数 > 300 字：<strong>+5 积分</strong></li>
+            <li><strong>若当前作品是你的任务作品：</strong>本次评论额外 <strong>+5 积分</strong></li>
             <li style="color: rgba(200,160,255,0.85);"><strong>Sc 自评不获得积分</strong></li>
           </ul>
 
@@ -1913,6 +1914,7 @@
     let currentWorkFilter = '';
     let isSubmitting = false;
     let isAuthorMode = false; // 当前是否为作者自评模式（SC）
+    let currentWorkStatusType = '';
     let loadingTimeout = null; // 加载超时计时器
     const ratingConfig = {
       A: { max: 3, weight: 0.15 },
@@ -2078,9 +2080,11 @@
 
     function handleWorkStatusUpdate(data) {
       const workStatusInfo = document.getElementById('workStatusInfo');
+      currentWorkStatusType = (data && data.statusType) || '';
       
       if (!data || !data.message) {
         workStatusInfo.style.display = 'none';
+        updateCharCounter();
         return;
       }
       
@@ -2099,6 +2103,7 @@
       }
       
       workStatusInfo.style.display = 'block';
+      updateCharCounter();
       console.log('[评论系统] 作品状态更新:', data.message);
     }
 
@@ -2216,6 +2221,7 @@
       const commentField = document.getElementById('Comment');
       const submitBtn = document.getElementById('submitBtn');
       const workStatusInfo = document.getElementById('workStatusInfo');
+      currentWorkStatusType = '';
       
       // 【修复】清除加载计时器，防止超时警告在重置后触发
       if (loadingTimeout) {
@@ -2274,6 +2280,7 @@
         showStatus(data.message || '✅ 提交成功！', 'success');
         
         // 清空所有输入
+        currentWorkStatusType = '';
         inputNumber.value = '';
         inputScore.value = '';
         commentField.value = '';
@@ -2615,18 +2622,22 @@
       }
 
       previewEl.style.opacity = '';
+      const taskBonus = currentWorkStatusType === 'task' ? 5 : 0;
+      const taskBonusText = taskBonus > 0 ? '（任务额外 +5）' : '';
       if (len > 300) {
-        previewEl.textContent = '+5 积分';
+        previewEl.textContent = `+${5 + taskBonus} 积分${taskBonusText}`;
         previewEl.className = 'points-preview pts-5';
-        milestoneEl.textContent = '';
+        milestoneEl.textContent = taskBonus > 0 ? '当前作品是任务作品，本次评论含额外 +5 积分' : '';
       } else if (len > 150) {
-        previewEl.textContent = '+3 积分';
+        previewEl.textContent = `+${3 + taskBonus} 积分${taskBonusText}`;
         previewEl.className = 'points-preview pts-3';
-        milestoneEl.textContent = `再写 ${300 - len} 字可获得 +5 积分`;
+        milestoneEl.textContent = `再写 ${300 - len} 字可获得 +${5 + taskBonus} 积分${taskBonusText}`;
       } else {
-        previewEl.textContent = '+1 积分';
+        previewEl.textContent = `+${1 + taskBonus} 积分${taskBonusText}`;
         previewEl.className = 'points-preview pts-1';
-        milestoneEl.textContent = len > 0 ? `再写 ${150 - len} 字可获得 +3 积分` : '再写 150 字可获得 +3 积分';
+        milestoneEl.textContent = len > 0
+          ? `再写 ${150 - len} 字可获得 +${3 + taskBonus} 积分${taskBonusText}`
+          : `再写 150 字可获得 +${3 + taskBonus} 积分${taskBonusText}`;
       }
     }
 

@@ -2513,7 +2513,25 @@ async function handleCommentSubmit(data) {
       }
     }
 
-    // 步骤5: 插入评论
+    // 步骤5: 判断是否为当前任务作品（用于额外积分）
+    let isTaskWork = false;
+    if (!isAuthor) {
+      try {
+        const taskCheck = await checkIfWorkInTaskList(currentUserId, workNumber);
+        const hasCompletedTarget =
+          userTaskDataCache && !userTaskDataCache.error
+            ? userTaskDataCache.hasCompletedTarget || false
+            : false;
+        isTaskWork =
+          taskCheck.inTaskList &&
+          !taskCheck.alreadyCompleted &&
+          !hasCompletedTarget;
+      } catch (error) {
+        console.error("检查任务作品状态失败:", error);
+      }
+    }
+
+    // 步骤6: 插入评论
     sendSubmitProgress("正在保存评论...", "saving");
 
     let toInsert = {
@@ -2524,20 +2542,22 @@ async function handleCommentSubmit(data) {
 
     const insertedComment = await wixData.insert("BOFcomment", toInsert);
 
-    // 步骤6: 更新积分（自评不获得积分；按评论字数分级：>300字 +5，>150字 +3，其余 +1）
+    // 步骤7: 更新积分（自评不获得积分；任务作品额外 +5）
     if (!isAuthor) {
       sendSubmitProgress("更新积分...", "updating");
 
       try {
         const commentLen = comment.length;
-        const pointsToAdd = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
+        const basePoints = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
+        const taskBonusPoints = isTaskWork ? 5 : 0;
+        const pointsToAdd = basePoints + taskBonusPoints;
         await updateUserPoints(currentUserId, pointsToAdd);
       } catch (error) {
         console.error("更新积分失败:", error);
       }
     }
 
-    // 步骤7: 检查并标记任务完成
+    // 步骤8: 检查并标记任务完成
     sendSubmitProgress("检查任务状态...", "updating");
 
     let taskStatusMessage = "";
@@ -2563,14 +2583,24 @@ async function handleCommentSubmit(data) {
       console.error("标记任务完成失败:", error);
     }
 
-    // 步骤8: 增量热更新
+    // 步骤9: 增量热更新
     sendSubmitProgress("更新页面数据...", "updating");
     await incrementalUpdateAfterComment(workNumber, score, comment, isAuthor);
 
-    // 步骤9: 发送成功结果并立即刷新评论列表
+    // 步骤10: 发送成功结果并立即刷新评论列表
+    const commentLen = comment.length;
+    const basePoints = commentLen > 300 ? 5 : commentLen > 150 ? 3 : 1;
+    const taskBonusPoints = !isAuthor && isTaskWork ? 5 : 0;
+    const totalPoints = isAuthor ? 0 : basePoints + taskBonusPoints;
+    const pointsSummary = isAuthor
+      ? "自评不计入评分统计，也不获得积分"
+      : `获得积分: +${totalPoints}${
+          taskBonusPoints > 0 ? `（含任务额外 +${taskBonusPoints}）` : ""
+        }`;
+
     const successMessage = isAuthor
-      ? `✅ 自评提交成功！\n\n自评不计入评分统计${taskStatusMessage}`
-      : `✅ 评论提交成功！\n\n评分: ${score}${taskStatusMessage}`;
+      ? `✅ 自评提交成功！\n\n${pointsSummary}${taskStatusMessage}`
+      : `✅ 评论提交成功！\n\n评分: ${score}\n${pointsSummary}${taskStatusMessage}`;
 
     sendSubmitResult(true, successMessage);
 
