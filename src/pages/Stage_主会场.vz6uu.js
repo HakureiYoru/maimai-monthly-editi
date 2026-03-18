@@ -14,6 +14,7 @@ import {
   getUserTaskData,
   getWorkWeightedRatingData,
   getAllWorksWeightedRatingData,
+  fetchAllRegistrations,
 } from "backend/ratingTaskManager.jsw";
 import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
@@ -58,6 +59,9 @@ let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workD
 
 // 黄金皮肤用户缓存（拥有金皮肤的 userId 集合）
 let goldSkinUsersCache = null;
+
+// Q 选手缓存（注册记录中 isHighQuality === true 的 userId 集合）
+let qualifiedPlayersCache = null;
 
 // 【新增】任务数据缓存 - 避免重复调用
 let userTaskDataCache = null; // 缓存用户任务数据
@@ -156,6 +160,19 @@ async function loadBatchData() {
     } catch (e) {
       console.warn("[主会场] 加载金皮肤用户失败:", e);
       goldSkinUsersCache = new Set();
+    }
+
+    // 加载 Q 选手集合（注册记录中 isHighQuality === true）
+    try {
+      const allRegistrations = await fetchAllRegistrations();
+      qualifiedPlayersCache = new Set(
+        allRegistrations
+          .filter((reg) => reg.isHighQuality === true && reg._owner)
+          .map((reg) => reg._owner)
+      );
+    } catch (e) {
+      console.warn("[主会场] 加载Q选手缓存失败:", e);
+      qualifiedPlayersCache = new Set();
     }
 
     // 从批量数据中提取作品所有者信息
@@ -1030,6 +1047,7 @@ function clearCaches() {
   batchDataCache = null; // 清理批量数据缓存
   userTaskDataCache = null; // 清理任务数据缓存
   goldSkinUsersCache = null; // 清理金皮肤用户缓存
+  qualifiedPlayersCache = null; // 清理Q选手缓存
   resetCommentDataCache(); // 清理评论分页缓存
 
   // 重置所有加载锁
@@ -2311,6 +2329,7 @@ async function formatCommentForHTML(comment) {
       createdDate: comment._createdDate,
       coverImage: "",
       hasGoldSkin: !!(goldSkinUsersCache && goldSkinUsersCache.has(comment._owner)),
+      isQualifiedPlayer: !!(qualifiedPlayersCache && qualifiedPlayersCache.has(comment._owner)),
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询

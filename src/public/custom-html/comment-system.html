@@ -744,6 +744,54 @@
       transform: translateY(-2px);
     }
 
+    /* ===== Qualified 选手皮肤（浅蓝荧光边） ===== */
+    .comment-item.qualified-player {
+      border: 1px solid rgba(100, 190, 255, 0.4);
+      box-shadow:
+        0 0 7px rgba(80, 170, 255, 0.18),
+        0 4px 14px rgba(0, 0, 0, 0.12);
+      position: relative;
+    }
+
+    /* 流动边框线 */
+    .comment-item.qualified-player::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      padding: 1px;
+      background: linear-gradient(
+        60deg,
+        #64b8ff, #c0e8ff 20%, #3fa0ff 40%,
+        #a8d8ff 60%, #64b8ff 80%, #c0e8ff
+      );
+      background-size: 300% 300%;
+      animation: blueFlow 7s linear infinite;
+      opacity: 0.6;
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    @keyframes blueFlow {
+      0%   { background-position: 0%   50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0%   50%; }
+    }
+
+    .comment-item.qualified-player:hover {
+      box-shadow:
+        0 0 12px rgba(80, 170, 255, 0.28),
+        0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+
     .comment-header {
       display: flex;
       justify-content: space-between;
@@ -2856,7 +2904,10 @@
 
     function createCommentElement(comment) {
       const div = document.createElement('div');
-      div.className = 'comment-item' + (comment.hasGoldSkin ? ' gold-skin' : '');
+      const skinClass = comment.hasGoldSkin
+        ? ' gold-skin'
+        : (comment.isQualifiedPlayer ? ' qualified-player' : '');
+      div.className = 'comment-item' + skinClass;
 
       // 构建评分徽章
       const scoreBadgeHTML = createScoreBadge(comment);
