@@ -1,11 +1,10 @@
 import { currentMember } from "wix-members";
-import { purchaseItem } from "backend/botBridge";
+import { purchaseItem, hasGoldSkin } from "backend/botBridge";
 import { getUserPoints } from "backend/userPoints";
 
 $w.onReady(async function () {
   let userId = null;
 
-  // 获取当前登录用户
   try {
     const member = await currentMember.getMember();
     if (member) {
@@ -15,21 +14,24 @@ $w.onReady(async function () {
     console.warn("获取用户信息失败", e);
   }
 
-  // 查询积分并通知 HTML 元件完成初始化
   async function sendInitToShop() {
     let points = 0;
+    let ownedSkins = [];
     if (userId) {
       try {
-        const record = await getUserPoints(userId);
+        const [record, goldOwned] = await Promise.all([
+          getUserPoints(userId),
+          hasGoldSkin(),
+        ]);
         points = record ? (record.points || 0) : 0;
+        if (goldOwned) ownedSkins.push("gold_skin");
       } catch (e) {
-        console.warn("获取积分失败", e);
+        console.warn("获取积分或皮肤状态失败", e);
       }
     }
-    $w("#htmlShop").postMessage({ type: "init", points });
+    $w("#htmlShop").postMessage({ type: "init", points, ownedSkins });
   }
 
-  // 监听 HTML 元件发来的消息
   $w("#htmlShop").onMessage(async (event) => {
     let data;
     try {
@@ -38,13 +40,11 @@ $w.onReady(async function () {
       return;
     }
 
-    // HTML 加载完毕后请求初始化数据
     if (data.action === "ready") {
       await sendInitToShop();
       return;
     }
 
-    // 用户点击购买按钮
     if (data.action === "purchase") {
       if (!userId) {
         $w("#htmlShop").postMessage({
@@ -62,6 +62,9 @@ $w.onReady(async function () {
           success: result.success,
           message: result.message,
           remainingPoints: result.remainingPoints ?? null,
+          isOwned: result.isOwned || false,
+          isNewSkin: result.isNewSkin || false,
+          skinId: result.skinId || null,
         });
       } catch (e) {
         $w("#htmlShop").postMessage({

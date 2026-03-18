@@ -19,6 +19,7 @@ import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
 import { getTierFromPercentile } from "public/tierUtils.js";
 import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
+import { getUsersWithSkin } from "backend/userSkins.jsw";
 
 // 全局状态管理
 let commentsCountByWorkNumber = {};
@@ -54,6 +55,9 @@ let isLoadingUserComments = false; // 防止并发加载用户评论状态
 
 // 【新增】批量数据缓存 - 一次性加载所有作品评分数据
 let batchDataCache = null; // { workRatings, userQualityMap, workOwnerMap, workDQMap, commentCountMap }
+
+// 黄金皮肤用户缓存（拥有金皮肤的 userId 集合）
+let goldSkinUsersCache = null;
 
 // 【新增】任务数据缓存 - 避免重复调用
 let userTaskDataCache = null; // 缓存用户任务数据
@@ -144,6 +148,15 @@ async function loadBatchData() {
 
     // 从批量数据中提取评论计数
     commentsCountByWorkNumber = batchDataCache.commentCountMap || {};
+
+    // 加载黄金皮肤用户集合（后端返回数组，前端转为 Set 以支持 .has()）
+    try {
+      const goldSkinArray = await getUsersWithSkin("gold_skin");
+      goldSkinUsersCache = new Set(Array.isArray(goldSkinArray) ? goldSkinArray : []);
+    } catch (e) {
+      console.warn("[主会场] 加载金皮肤用户失败:", e);
+      goldSkinUsersCache = new Set();
+    }
 
     // 从批量数据中提取作品所有者信息
     workOwnersCache = batchDataCache.workOwnerMap || {};
@@ -1016,6 +1029,7 @@ function clearCaches() {
   allWorksRankingCache = null;
   batchDataCache = null; // 清理批量数据缓存
   userTaskDataCache = null; // 清理任务数据缓存
+  goldSkinUsersCache = null; // 清理金皮肤用户缓存
   resetCommentDataCache(); // 清理评论分页缓存
 
   // 重置所有加载锁
@@ -2294,8 +2308,9 @@ async function formatCommentForHTML(comment) {
       workTitle: "",
       replyCount: 0,
       isSelfScComment: false,
-      createdDate: comment._createdDate, // 添加创建时间
-      coverImage: "", // 添加封面图片字段
+      createdDate: comment._createdDate,
+      coverImage: "",
+      hasGoldSkin: !!(goldSkinUsersCache && goldSkinUsersCache.has(comment._owner)),
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询

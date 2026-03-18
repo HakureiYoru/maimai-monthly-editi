@@ -3,23 +3,33 @@ import { currentMember } from "wix-members-backend";
 import { COLLECTIONS } from "backend/constants";
 import { getUserPoints, updateUserPoints } from "backend/userPoints";
 import { logError } from "backend/errorHandler";
+import { hasUserSkin, grantUserSkin } from "backend/userSkins";
 
 /**
  * 积分商店商品定义
- * 将来可以扩展更多商品
+ * type: "bot_message" — 需要 customMessage，写入 BotQueue
+ * type: "skin"        — 一次性购买，写入 UserSkins
  */
 const SHOP_ITEMS = {
   da_laba: {
     id: "da_laba",
     name: "大喇叭",
     description: "让 Bot 在群里大声说一句话！",
-    cost: 10,
+    cost: 3,
+    type: "bot_message",
+  },
+  gold_skin: {
+    id: "gold_skin",
+    name: "评论黄金皮肤",
+    description: "在评论区展示黄金底边散发荧光特效！一次性永久拥有。",
+    cost: 100,
+    type: "skin",
   },
 };
 
 /**
  * 获取积分商店商品列表（供前端展示）
- * @returns {Array} 商品列表
+ * @returns {Array}
  */
 export function getShopItems() {
   return Object.values(SHOP_ITEMS).map((item) => ({
@@ -27,18 +37,33 @@ export function getShopItems() {
     name: item.name,
     description: item.description,
     cost: item.cost,
+    type: item.type,
   }));
 }
 
 /**
- * 购买商品：扣除积分并将 Bot 任务写入 BotQueue 集合
- * @param {string} itemId - 商品ID
- * @param {string} customMessage - 用户自定义的发送内容
- * @returns {Promise<{success: boolean, message: string, remainingPoints?: number}>}
+ * 检查当前登录用户是否已拥有黄金皮肤
+ * @returns {Promise<boolean>}
+ */
+export async function hasGoldSkin() {
+  try {
+    const member = await currentMember.getMember();
+    if (!member) return false;
+    return hasUserSkin(member._id, "gold_skin");
+  } catch (error) {
+    logError("hasGoldSkin", error, {});
+    return false;
+  }
+}
+
+/**
+ * 购买商品：扣除积分并执行对应逻辑
+ * @param {string} itemId
+ * @param {string} [customMessage] - 仅 bot_message 类型需要
+ * @returns {Promise<{success: boolean, message: string, remainingPoints?: number, isOwned?: boolean}>}
  */
 export async function purchaseItem(itemId, customMessage) {
   try {
-    // 获取当前登录用户
     const member = await currentMember.getMember();
     if (!member) {
       return { success: false, message: "请先登录后再购买。" };
@@ -51,13 +76,23 @@ export async function purchaseItem(itemId, customMessage) {
       return { success: false, message: "商品不存在。" };
     }
 
-    // 校验自定义内容
-    const msgText = (customMessage || "").trim();
-    if (!msgText) {
-      return { success: false, message: "发送内容不能为空。" };
+    // 皮肤类型：先检查是否已拥有
+    if (item.type === "skin") {
+      const alreadyOwned = await hasUserSkin(userId, item.id);
+      if (alreadyOwned) {
+        return { success: false, message: "你已拥有该皮肤，无需重复购买。", isOwned: true };
+      }
     }
-    if (msgText.length > 100) {
-      return { success: false, message: "内容超过 100 字限制。" };
+
+    // bot_message 类型：校验自定义内容
+    if (item.type === "bot_message") {
+      const msgText = (customMessage || "").trim();
+      if (!msgText) {
+        return { success: false, message: "发送内容不能为空。" };
+      }
+      if (msgText.length > 100) {
+        return { success: false, message: "内容超过 100 字限制。" };
+      }
     }
 
     // 查询当前积分
@@ -74,8 +109,22 @@ export async function purchaseItem(itemId, customMessage) {
 
     // 扣除积分
     await updateUserPoints(userId, -item.cost);
+    const remainingPoints = currentPoints - item.cost;
 
-    // 写入 BotQueue，等待 Bot 轮询处理（目标群号由 Bot 侧配置）
+    if (item.type === "skin") {
+      // 写入 UserSkins
+      await grantUserSkin(userId, item.id);
+      return {
+        success: true,
+        message: `购买成功！消耗 ${item.cost} 积分，剩余 ${remainingPoints} 积分。黄金皮肤已激活，刷新评论区即可看到效果！`,
+        remainingPoints,
+        isNewSkin: true,
+        skinId: item.id,
+      };
+    }
+
+    // bot_message 类型：写入 BotQueue
+    const msgText = (customMessage || "").trim();
     await wixData.insert(COLLECTIONS.BOT_QUEUE, {
       userId,
       itemId: item.id,
@@ -84,7 +133,6 @@ export async function purchaseItem(itemId, customMessage) {
       status: "pending",
     });
 
-    const remainingPoints = currentPoints - item.cost;
     return {
       success: true,
       message: `购买成功！消耗 ${item.cost} 积分，剩余 ${remainingPoints} 积分。`,

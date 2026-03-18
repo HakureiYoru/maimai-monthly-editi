@@ -386,6 +386,66 @@
       box-shadow: none;
     }
 
+    /* 已拥有徽章 */
+    .owned-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.35) 0%, rgba(255, 180, 0, 0.25) 100%);
+      border: 1px solid rgba(255, 215, 0, 0.55);
+      color: #FFE066;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 1;
+      letter-spacing: 0.5px;
+    }
+
+    /* 皮肤商品特效卡片 */
+    .item-card.skin-card {
+      border: 1px solid rgba(255, 215, 0, 0.4);
+      background: rgba(255, 215, 0, 0.08);
+    }
+
+    .item-card.skin-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #FFD700, #FFF176, #FFD700, transparent);
+      border-radius: 0 0 20px 20px;
+      animation: goldShimmer 2.5s ease-in-out infinite;
+    }
+
+    @keyframes goldShimmer {
+      0%, 100% { opacity: 0.5; }
+      50%       { opacity: 1; }
+    }
+
+    /* 购买皮肤确认面板 */
+    .skin-confirm-panel {
+      display: none;
+      margin-top: 14px;
+      position: relative;
+      z-index: 1;
+      animation: fadeSlideIn 0.25s ease;
+    }
+
+    .skin-confirm-panel.open { display: block; }
+
+    .skin-confirm-text {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 12px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
     /* 响应式 */
     @media (max-width: 600px) {
       body { padding: 12px; }
@@ -429,6 +489,7 @@
   <script>
     let myPoints = 0;
     let isBuying = false;
+    let ownedSkins = [];
     const MAX_LOG = 20;
 
     function now() {
@@ -464,7 +525,15 @@
         id: "da_laba",
         name: "大喇叭",
         description: "让 Bot 在群里大声说一句话！",
-        cost: 10,
+        cost: 3,
+        type: "bot_message",
+      },
+      {
+        id: "gold_skin",
+        name: "✨ 评论黄金皮肤",
+        description: "在评论区展示黄金底边散发荧光特效！一次性永久拥有。",
+        cost: 100,
+        type: "skin",
       },
     ];
 
@@ -472,37 +541,81 @@
       const toast = document.getElementById("toast");
       toast.textContent = msg;
       toast.className = "toast show" + (type ? " " + type : "");
-      setTimeout(() => { toast.className = "toast"; }, 3000);
+      setTimeout(() => { toast.className = "toast"; }, 3500);
+    }
+
+    function isOwned(itemId) {
+      return ownedSkins.includes(itemId);
     }
 
     function renderItems() {
       const grid = document.getElementById("itemsGrid");
-      grid.innerHTML = SHOP_ITEMS.map((item) => `
-        <div class="item-card" id="card-${item.id}">
-          <div class="item-name">${item.name}</div>
-          <div class="item-desc">${item.description}</div>
-          <div class="item-cost">${item.cost} 积分</div>
-          <button class="btn-buy" id="btn-${item.id}" onclick="openInput('${item.id}')">
-            购买
-          </button>
-          <div class="input-panel" id="panel-${item.id}">
-            <textarea
-              id="text-${item.id}"
-              rows="3"
-              maxlength="100"
-              placeholder="输入要发送的内容（最多 100 字）"
-              oninput="onTextInput('${item.id}')"
-            ></textarea>
-            <div class="char-counter" id="counter-${item.id}">0 / 100</div>
-            <div class="input-actions">
-              <button class="btn-cancel" onclick="closeInput('${item.id}')">取消</button>
-              <button class="btn-confirm" id="confirm-${item.id}" onclick="handleBuy('${item.id}')" disabled>确认发送</button>
+      grid.innerHTML = SHOP_ITEMS.map((item) => {
+        const owned = isOwned(item.id);
+        const isSkin = item.type === "skin";
+        const cardClass = isSkin ? "item-card skin-card" : "item-card";
+
+        const ownedBadge = owned
+          ? `<div class="owned-badge">✓ 已拥有</div>`
+          : "";
+
+        if (isSkin) {
+          // 皮肤商品：单击「购买」弹出确认面板，无需输入文字
+          return `
+            <div class="${cardClass}" id="card-${item.id}">
+              <div class="item-name">${item.name}</div>
+              <div class="item-desc">${item.description}</div>
+              ${ownedBadge}
+              <div class="item-cost">${item.cost} 积分</div>
+              <button class="btn-buy" id="btn-${item.id}"
+                onclick="openSkinConfirm('${item.id}')"
+                ${owned ? "disabled" : ""}>
+                ${owned ? "已拥有" : "购买"}
+              </button>
+              <div class="skin-confirm-panel" id="skinpanel-${item.id}">
+                <div class="skin-confirm-text">
+                  确认消耗 <strong>${item.cost}</strong> 积分购买「${item.name}」？<br>
+                  购买后永久生效，无法退款。
+                </div>
+                <div class="input-actions">
+                  <button class="btn-cancel" onclick="closeSkinConfirm('${item.id}')">取消</button>
+                  <button class="btn-confirm" id="skinconfirm-${item.id}"
+                    onclick="handleSkinBuy('${item.id}')">确认购买</button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      `).join("");
+          `;
+        } else {
+          // bot_message 商品：需要输入文字
+          return `
+            <div class="${cardClass}" id="card-${item.id}">
+              <div class="item-name">${item.name}</div>
+              <div class="item-desc">${item.description}</div>
+              <div class="item-cost">${item.cost} 积分</div>
+              <button class="btn-buy" id="btn-${item.id}" onclick="openInput('${item.id}')">
+                购买
+              </button>
+              <div class="input-panel" id="panel-${item.id}">
+                <textarea
+                  id="text-${item.id}"
+                  rows="3"
+                  maxlength="100"
+                  placeholder="输入要发送的内容（最多 100 字）"
+                  oninput="onTextInput('${item.id}')"
+                ></textarea>
+                <div class="char-counter" id="counter-${item.id}">0 / 100</div>
+                <div class="input-actions">
+                  <button class="btn-cancel" onclick="closeInput('${item.id}')">取消</button>
+                  <button class="btn-confirm" id="confirm-${item.id}" onclick="handleBuy('${item.id}')" disabled>确认发送</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }).join("");
     }
 
+    // -------- bot_message 商品流程 --------
     function openInput(itemId) {
       if (isBuying) return;
       document.getElementById("panel-" + itemId).classList.add("open");
@@ -529,10 +642,57 @@
       confirm.disabled = len === 0 || len > 100;
     }
 
+    function handleBuy(itemId) {
+      if (isBuying) return;
+      const item = SHOP_ITEMS.find(i => i.id === itemId);
+      const customMessage = document.getElementById("text-" + itemId).value.trim();
+      if (!customMessage) return;
+
+      isBuying = true;
+      closeInput(itemId);
+      updateButtonStates();
+      addLog(`正在购买「${item ? item.name : itemId}」（-${item ? item.cost : "?"}积分）…`, "pending");
+      window.parent.postMessage(
+        JSON.stringify({ action: "purchase", itemId, customMessage }),
+        "*"
+      );
+    }
+
+    // -------- 皮肤商品流程 --------
+    function openSkinConfirm(itemId) {
+      if (isBuying || isOwned(itemId)) return;
+      document.getElementById("skinpanel-" + itemId).classList.add("open");
+      document.getElementById("btn-" + itemId).style.display = "none";
+    }
+
+    function closeSkinConfirm(itemId) {
+      document.getElementById("skinpanel-" + itemId).classList.remove("open");
+      document.getElementById("btn-" + itemId).style.display = "";
+    }
+
+    function handleSkinBuy(itemId) {
+      if (isBuying || isOwned(itemId)) return;
+      const item = SHOP_ITEMS.find(i => i.id === itemId);
+      isBuying = true;
+      closeSkinConfirm(itemId);
+      updateButtonStates();
+      addLog(`正在购买「${item ? item.name : itemId}」（-${item ? item.cost : "?"}积分）…`, "pending");
+      window.parent.postMessage(
+        JSON.stringify({ action: "purchase", itemId }),
+        "*"
+      );
+    }
+
+    // -------- 通用状态更新 --------
     function updateButtonStates() {
       SHOP_ITEMS.forEach((item) => {
         const btn = document.getElementById("btn-" + item.id);
         if (!btn) return;
+        if (isOwned(item.id)) {
+          btn.disabled = true;
+          btn.textContent = "已拥有";
+          return;
+        }
         if (isBuying) {
           btn.disabled = true;
           btn.textContent = "处理中...";
@@ -546,23 +706,6 @@
       });
     }
 
-    function handleBuy(itemId) {
-      if (isBuying) return;
-      const item = SHOP_ITEMS.find(i => i.id === itemId);
-      const customMessage = document.getElementById("text-" + itemId).value.trim();
-      if (!customMessage) return;
-
-      isBuying = true;
-      // 关闭输入面板，锁定按钮
-      closeInput(itemId);
-      updateButtonStates();
-      addLog(`正在购买「${item ? item.name : itemId}」（-${item ? item.cost : "?"}积分）…`, "pending");
-      window.parent.postMessage(
-        JSON.stringify({ action: "purchase", itemId, customMessage }),
-        "*"
-      );
-    }
-
     window.addEventListener("message", (event) => {
       let data;
       try {
@@ -571,9 +714,11 @@
 
       if (data.type === "init") {
         myPoints = data.points || 0;
+        ownedSkins = data.ownedSkins || [];
         document.getElementById("myPoints").textContent = myPoints;
         document.getElementById("loadingState").style.display = "none";
         document.getElementById("itemsGrid").style.display = "grid";
+        renderItems(); // 重新渲染以反映拥有状态
         updateButtonStates();
       }
 
@@ -584,8 +729,25 @@
           document.getElementById("myPoints").textContent = myPoints;
           showToast(data.message, "success");
           addLog(data.message + `（剩余积分：${myPoints}）`, "success");
-          addLog("Bot 任务已入队，将在 15 秒内发送群消息", "pending");
+
+          if (data.isNewSkin && data.skinId) {
+            // 皮肤已解锁，更新本地状态并重新渲染
+            if (!ownedSkins.includes(data.skinId)) {
+              ownedSkins.push(data.skinId);
+            }
+            renderItems();
+          } else {
+            addLog("Bot 任务已入队，将在 15 秒内发送群消息", "pending");
+          }
         } else {
+          if (data.isOwned) {
+            // 服务端确认已拥有，同步本地状态
+            const item = SHOP_ITEMS.find(i => i.id === (data.skinId || "gold_skin"));
+            if (item && !ownedSkins.includes(item.id)) {
+              ownedSkins.push(item.id);
+              renderItems();
+            }
+          }
           showToast(data.message, "error");
           addLog(data.message, "error");
         }

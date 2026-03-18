@@ -1,0 +1,60 @@
+import wixData from "wix-data";
+import { COLLECTIONS } from "backend/constants";
+import { logError } from "backend/errorHandler";
+
+/**
+ * 检查用户是否拥有某个皮肤
+ * @param {string} userId
+ * @param {string} skinId
+ * @returns {Promise<boolean>}
+ */
+export async function hasUserSkin(userId, skinId) {
+  try {
+    const results = await wixData
+      .query(COLLECTIONS.USER_SKINS)
+      .eq("userId", userId)
+      .eq("skinId", skinId)
+      .find();
+    return results.items.length > 0;
+  } catch (error) {
+    logError("hasUserSkin", error, { userId, skinId });
+    return false;
+  }
+}
+
+/**
+ * 授予用户皮肤（若已拥有则返回 false）
+ * @param {string} userId
+ * @param {string} skinId
+ * @returns {Promise<boolean>} true=成功授予，false=已拥有
+ */
+export async function grantUserSkin(userId, skinId) {
+  try {
+    const alreadyHas = await hasUserSkin(userId, skinId);
+    if (alreadyHas) return false;
+    await wixData.insert(COLLECTIONS.USER_SKINS, { userId, skinId });
+    return true;
+  } catch (error) {
+    logError("grantUserSkin", error, { userId, skinId });
+    throw error;
+  }
+}
+
+/**
+ * 获取所有拥有该皮肤的用户 ID 数组（返回数组以兼容 Wix 跨端 JSON 序列化）
+ * @param {string} skinId
+ * @returns {Promise<string[]>}
+ */
+export async function getUsersWithSkin(skinId) {
+  try {
+    const results = await wixData
+      .query(COLLECTIONS.USER_SKINS)
+      .eq("skinId", skinId)
+      .limit(1000)
+      .find();
+    return results.items.map((item) => item.userId);
+  } catch (error) {
+    logError("getUsersWithSkin", error, { skinId });
+    return [];
+  }
+}
