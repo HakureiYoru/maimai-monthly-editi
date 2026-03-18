@@ -15,7 +15,7 @@ import {
 import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 
 // 结果可见开关：false = 隐藏图表仅展示最低票数选项，true = 公开完整图表
-const RESULTS_VISIBLE = false;
+const RESULTS_VISIBLE = true;
 
 let currentUserId = null;
 let isAdmin = false;
