@@ -911,16 +911,20 @@
 
         // 生成CSV
         function generateCSV(works) {
-            const headers = ['作品ID', '作品标题', '作者', '报名ID', '等级', '排名', '平均分', '评论数', '评论者列表'];
+            const headers = ['作品ID', '作品标题', '作者', '报名ID', 'Profile链接', '等级', '排名', '平均分', '评论数', '评论者列表'];
             const rows = works.map(w => {
                 const isDq = w.isDq === true;
                 const tierValue = isDq ? '已淘汰' : w.tier;
-                const scoreValue = isDq ? '已淘汰' : w.averageScore.toFixed(2);
+                const scoreValue = w.numRatings > 0 ? w.averageScore.toFixed(2) : '-';
+                const profileLink = w.ownerSlug
+                    ? `https://mmfc.majdata.net/profile/${w.ownerSlug}/profile`
+                    : '-';
                 return [
                     w.sequenceId,
                     w.title,
                     w.ownerName || '未知投稿人',
                     w.ownerRegistrationName || '-',
+                    profileLink,
                     tierValue,
                     w.rank || '-',
                     scoreValue,
