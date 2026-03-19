@@ -7,8 +7,9 @@ import { hasUserSkin, grantUserSkin } from "backend/userSkins";
 
 /**
  * 积分商店商品定义
- * type: "bot_message" — 需要 customMessage，写入 BotQueue
- * type: "skin"        — 一次性购买，写入 UserSkins
+ * type: "bot_message"    — 需要 customMessage，写入 BotQueue
+ * type: "skin"           — 一次性购买，写入 UserSkins
+ * type: "recommend_work" — 消耗积分将主会场作品推入推荐榜，写入 RecommendedWorks
  */
 const SHOP_ITEMS = {
   da_laba: {
@@ -24,6 +25,13 @@ const SHOP_ITEMS = {
     description: "在评论区展示黄金底边散发荧光特效！一次性永久拥有。",
     cost: 100,
     type: "skin",
+  },
+  recommend_work: {
+    id: "recommend_work",
+    name: "推荐榜推送",
+    description: "消耗 20 积分，将一个主会场作品推入推荐榜，并附上你的评语（最多 50 字）！Bot 可通过「MMFC推荐榜」指令展示。",
+    cost: 20,
+    type: "recommend_work",
   },
 };
 
@@ -59,10 +67,11 @@ export async function hasGoldSkin() {
 /**
  * 购买商品：扣除积分并执行对应逻辑
  * @param {string} itemId
- * @param {string} [customMessage] - 仅 bot_message 类型需要
+ * @param {string} [customMessage] - bot_message / recommend_work 类型需要（评语）
+ * @param {number} [sequenceId]    - recommend_work 类型需要（主会场作品编号）
  * @returns {Promise<{success: boolean, message: string, remainingPoints?: number, isOwned?: boolean}>}
  */
-export async function purchaseItem(itemId, customMessage) {
+export async function purchaseItem(itemId, customMessage, sequenceId) {
   try {
     const member = await currentMember.getMember();
     if (!member) {
@@ -95,6 +104,36 @@ export async function purchaseItem(itemId, customMessage) {
       }
     }
 
+    // recommend_work 类型：校验作品编号与评语，并检查是否已推荐过
+    if (item.type === "recommend_work") {
+      const commentText = (customMessage || "").trim();
+      if (!commentText) {
+        return { success: false, message: "评语不能为空。" };
+      }
+      if (commentText.length > 50) {
+        return { success: false, message: "评语超过 50 字限制。" };
+      }
+      const seqNum = Number(sequenceId);
+      if (!seqNum || !Number.isInteger(seqNum) || seqNum <= 0) {
+        return { success: false, message: "请填写有效的主会场作品编号。" };
+      }
+      // 检查该作品是否已在推荐榜中（全局唯一）
+      const existing = await wixData
+        .query(COLLECTIONS.RECOMMENDED_WORKS)
+        .eq("sequenceId", seqNum)
+        .eq("status", "active")
+        .limit(1)
+        .find({ suppressAuth: true });
+      if (existing.items.length > 0) {
+        return {
+          success: false,
+          message: `作品 #${seqNum} 已经在推荐榜中了，每个作品只能被推荐一次哦！`,
+          isAlreadyRecommended: true,
+          recommendedSequenceId: seqNum,
+        };
+      }
+    }
+
     // 查询当前积分
     const pointsRecord = await getUserPoints(userId);
     const currentPoints = pointsRecord ? (pointsRecord.points || 0) : 0;
@@ -123,6 +162,41 @@ export async function purchaseItem(itemId, customMessage) {
       };
     }
 
+    if (item.type === "recommend_work") {
+      const commentText = (customMessage || "").trim();
+      const seqNum = Number(sequenceId);
+
+      // 查询作品标题
+      let workTitle = `#${seqNum}`;
+      try {
+        const workResult = await wixData
+          .query("enterContest034")
+          .eq("sequenceId", seqNum)
+          .limit(1)
+          .find({ suppressAuth: true });
+        if (workResult.items.length > 0) {
+          workTitle = workResult.items[0].firstName || workTitle;
+        }
+      } catch (_e) {
+        // 标题查询失败不阻断流程
+      }
+
+      // 写入 RecommendedWorks
+      await wixData.insert(COLLECTIONS.RECOMMENDED_WORKS, {
+        userId,
+        sequenceId: seqNum,
+        workTitle,
+        comment: commentText,
+        status: "active",
+      });
+
+      return {
+        success: true,
+        message: `推荐成功！消耗 ${item.cost} 积分，剩余 ${remainingPoints} 积分。作品「${workTitle}」已加入推荐榜，Bot 输入「MMFC推荐榜」即可查看！`,
+        remainingPoints,
+      };
+    }
+
     // bot_message 类型：写入 BotQueue
     const msgText = (customMessage || "").trim();
     await wixData.insert(COLLECTIONS.BOT_QUEUE, {
@@ -141,5 +215,23 @@ export async function purchaseItem(itemId, customMessage) {
   } catch (error) {
     logError("purchaseItem", error, { itemId });
     return { success: false, message: "购买失败，请稍后再试。" };
+  }
+}
+
+/**
+ * 获取当前推荐榜中所有已推荐的作品编号列表（供前端实时提示用）
+ * @returns {Promise<number[]>}
+ */
+export async function getRecommendedSequenceIds() {
+  try {
+    const result = await wixData
+      .query(COLLECTIONS.RECOMMENDED_WORKS)
+      .eq("status", "active")
+      .limit(500)
+      .find({ suppressAuth: true });
+    return result.items.map((item) => item.sequenceId).filter((id) => id != null);
+  } catch (error) {
+    logError("getRecommendedSequenceIds", error, {});
+    return [];
   }
 }

@@ -386,6 +386,190 @@
       box-shadow: none;
     }
 
+    /* 推荐榜商品卡片特效 */
+    .item-card.recommend-card {
+      border: 1px solid rgba(255, 209, 102, 0.4);
+      background: rgba(255, 209, 102, 0.07);
+    }
+
+    .item-card.recommend-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #FFD166, #FF6B9D, #FFD166, transparent);
+      border-radius: 0 0 20px 20px;
+      animation: goldShimmer 2.5s ease-in-out infinite;
+    }
+
+    /* 推荐榜输入面板 */
+    .recommend-panel {
+      display: none;
+      margin-top: 14px;
+      position: relative;
+      z-index: 1;
+      animation: fadeSlideIn 0.25s ease;
+    }
+
+    .recommend-panel.open { display: block; }
+
+    /* 作品选择器 */
+    .ws-loading {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      text-align: center;
+      padding: 10px 0 6px;
+    }
+
+    .ws-search-area { margin-bottom: 8px; }
+
+    .ws-search-input {
+      width: 100%;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 10px 10px 0 0;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #fff;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    .ws-search-input::placeholder { color: rgba(255,255,255,0.4); }
+    .ws-search-input:focus { border-color: rgba(255,255,255,0.7); }
+
+    .ws-dropdown {
+      max-height: 190px;
+      overflow-y: auto;
+      background: rgba(14,15,26,0.97);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+    }
+    .ws-dropdown::-webkit-scrollbar { width: 4px; }
+    .ws-dropdown::-webkit-scrollbar-track  { background: transparent; }
+    .ws-dropdown::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.25); border-radius: 2px; }
+
+    .ws-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.12s;
+      text-align: left;
+    }
+    .ws-item:last-child { border-bottom: none; }
+    .ws-item:hover:not(.ws-disabled) { background: rgba(255,255,255,0.09); }
+    .ws-item.ws-disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .ws-item-info { flex: 1; min-width: 0; }
+    .ws-item-seq { font-size: 10px; color: rgba(255,209,102,0.9); font-weight: 700; line-height: 1.2; }
+    .ws-item-title {
+      font-size: 13px;
+      color: #eee;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+
+    .ws-badge {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .ws-badge-rec {
+      background: rgba(239,68,68,0.25);
+      color: rgba(255,140,140,1);
+      border: 1px solid rgba(239,68,68,0.35);
+    }
+    .ws-badge-dq {
+      background: rgba(120,120,120,0.25);
+      color: rgba(200,200,200,0.7);
+      border: 1px solid rgba(150,150,150,0.25);
+    }
+
+    .ws-empty {
+      text-align: center;
+      color: rgba(255,255,255,0.35);
+      font-size: 12px;
+      padding: 18px 0;
+    }
+
+    /* 已选预览卡片 */
+    .ws-preview {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,209,102,0.35);
+      border-radius: 10px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .ws-preview.show { display: flex; }
+
+    .ws-preview-img {
+      width: 48px;
+      height: 48px;
+      border-radius: 7px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .ws-preview-info { flex: 1; min-width: 0; text-align: left; }
+    .ws-preview-seq { font-size: 11px; color: rgba(255,209,102,0.9); font-weight: 700; }
+    .ws-preview-title { font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .ws-change-btn {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.75);
+      font-size: 11px;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .ws-change-btn:hover { background: rgba(255,255,255,0.22); }
+
+    .already-recommended-warning {
+      display: none;
+      font-size: 12px;
+      color: rgba(255, 100, 100, 0.95);
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .already-recommended-warning.show { display: block; }
+
+    .recommend-panel textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #fff;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    .recommend-panel textarea::placeholder { color: rgba(255,255,255,0.5); }
+    .recommend-panel textarea:focus { border-color: rgba(255,255,255,0.8); }
+
     /* 已拥有徽章 */
     .owned-badge {
       display: inline-flex;
@@ -490,7 +674,11 @@
     let myPoints = 0;
     let isBuying = false;
     let ownedSkins = [];
+    let recommendedSeqSet = new Set();
+    let contestWorksCache = null;       // [{sequenceId, title, isDQ}]
+    let selectedWorkByItemId = {};      // { itemId: {sequenceId, title} }
     const MAX_LOG = 20;
+    const WIX_API = "https://mmfc.majdata.net/_functions";
 
     function now() {
       const d = new Date();
@@ -530,10 +718,17 @@
       },
       {
         id: "gold_skin",
-        name: "✨ 评论黄金皮肤",
+        name: "评论黄金皮肤",
         description: "在评论区展示黄金底边散发荧光特效！一次性永久拥有。",
         cost: 100,
         type: "skin",
+      },
+      {
+        id: "recommend_work",
+        name: "推荐榜推送",
+        description: "消耗 20 积分，将一个主会场作品推入推荐榜，并附上你的评语！每个作品只能被推荐一次。",
+        cost: 20,
+        type: "recommend_work",
       },
     ];
 
@@ -553,7 +748,10 @@
       grid.innerHTML = SHOP_ITEMS.map((item) => {
         const owned = isOwned(item.id);
         const isSkin = item.type === "skin";
-        const cardClass = isSkin ? "item-card skin-card" : "item-card";
+        const isRecommend = item.type === "recommend_work";
+        const cardClass = isSkin ? "item-card skin-card"
+                        : isRecommend ? "item-card recommend-card"
+                        : "item-card";
 
         const ownedBadge = owned
           ? `<div class="owned-badge">✓ 已拥有</div>`
@@ -581,6 +779,59 @@
                   <button class="btn-cancel" onclick="closeSkinConfirm('${item.id}')">取消</button>
                   <button class="btn-confirm" id="skinconfirm-${item.id}"
                     onclick="handleSkinBuy('${item.id}')">确认购买</button>
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (isRecommend) {
+          // 推荐榜商品：作品选择器 + 评语
+          return `
+            <div class="${cardClass}" id="card-${item.id}">
+              <div class="item-name">${item.name}</div>
+              <div class="item-desc">${item.description}</div>
+              <div class="item-cost">${item.cost} 积分</div>
+              <button class="btn-buy" id="btn-${item.id}" onclick="openRecommendPanel('${item.id}')">
+                购买
+              </button>
+              <div class="recommend-panel" id="recpanel-${item.id}">
+                <!-- 作品选择器 -->
+                <div class="ws-loading" id="ws-loading-${item.id}">⏳ 正在加载作品列表…</div>
+                <div class="ws-search-area" id="ws-search-area-${item.id}" style="display:none">
+                  <input
+                    type="text"
+                    class="ws-search-input"
+                    id="ws-search-${item.id}"
+                    placeholder="🔍 搜索作品名或编号…"
+                    oninput="filterDropdown('${item.id}')"
+                  />
+                  <div class="ws-dropdown" id="ws-dropdown-${item.id}"></div>
+                </div>
+                <!-- 已选预览 -->
+                <div class="ws-preview" id="ws-preview-${item.id}">
+                  <img class="ws-preview-img" id="ws-preview-img-${item.id}" src="" alt="封面"
+                    onerror="this.style.background='rgba(255,255,255,0.08)';this.removeAttribute('src')" />
+                  <div class="ws-preview-info">
+                    <div class="ws-preview-seq" id="ws-preview-seq-${item.id}"></div>
+                    <div class="ws-preview-title" id="ws-preview-title-${item.id}"></div>
+                  </div>
+                  <button class="ws-change-btn" onclick="clearWorkSelection('${item.id}')">更换</button>
+                </div>
+                <div class="already-recommended-warning" id="rec-warn-${item.id}">
+                  ⚠️ 该作品已在推荐榜中，每个作品只能被推荐一次！
+                </div>
+                <!-- 评语输入 -->
+                <textarea
+                  id="comment-${item.id}"
+                  rows="2"
+                  maxlength="50"
+                  placeholder="输入评语（最多 50 字）"
+                  oninput="onCommentInput('${item.id}')"
+                ></textarea>
+                <div class="char-counter" id="reccount-${item.id}">0 / 50</div>
+                <div class="input-actions">
+                  <button class="btn-cancel" onclick="closeRecommendPanel('${item.id}')">取消</button>
+                  <button class="btn-confirm" id="recconfirm-${item.id}"
+                    onclick="handleRecommendBuy('${item.id}')" disabled>确认推荐</button>
                 </div>
               </div>
             </div>
@@ -683,6 +934,202 @@
       );
     }
 
+    // -------- 推荐榜：作品列表加载 --------
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    // 记录已绑定事件委托的下拉容器，避免重复绑定
+    const ddListenerAttached = new Set();
+
+    async function loadContestList() {
+      if (contestWorksCache) return contestWorksCache;
+      const resp = await fetch(`${WIX_API}/contestList`);
+      if (!resp.ok) throw new Error("contestList fetch failed");
+      const json = await resp.json();
+      const raw = Array.isArray(json) ? json : (json.data || []);
+      contestWorksCache = raw
+        .map(w => ({
+          sequenceId: w.sequenceId,
+          title: w.Title || w.title || `#${w.sequenceId}`,
+          isDQ: !!w.isDQ,
+        }))
+        .sort((a, b) => a.sequenceId - b.sequenceId);
+      return contestWorksCache;
+    }
+
+    function attachDropdownListener(itemId) {
+      if (ddListenerAttached.has(itemId)) return;
+      ddListenerAttached.add(itemId);
+      const dd = document.getElementById("ws-dropdown-" + itemId);
+      if (!dd) return;
+      dd.addEventListener("click", e => {
+        const item = e.target.closest(".ws-item:not(.ws-disabled)");
+        if (!item) return;
+        const seq   = parseInt(item.dataset.seq, 10);
+        const title = item.dataset.title;
+        selectWork(itemId, seq, title);
+      });
+    }
+
+    function buildDropdown(itemId, works, query) {
+      const q = (query || "").trim().toLowerCase();
+      const list = q
+        ? works.filter(w => String(w.sequenceId).includes(q) || w.title.toLowerCase().includes(q))
+        : works;
+
+      const dd = document.getElementById("ws-dropdown-" + itemId);
+      if (!dd) return;
+
+      if (!list.length) {
+        dd.innerHTML = '<div class="ws-empty">没有找到相关作品</div>';
+        return;
+      }
+
+      // 用 data-* 属性存储数据，避免内联 onclick 引号嵌套 bug
+      dd.innerHTML = list.map(w => {
+        const isRec    = recommendedSeqSet.has(w.sequenceId);
+        const disabled = isRec ? "ws-disabled" : "";
+        const recBadge = isRec ? '<span class="ws-badge ws-badge-rec">已推荐</span>' : "";
+        const dqBadge  = w.isDQ ? '<span class="ws-badge ws-badge-dq">已淘汰</span>' : "";
+        return `<div class="ws-item ${disabled}" data-seq="${w.sequenceId}" data-title="${escHtml(w.title)}">
+            <div class="ws-item-info">
+              <div class="ws-item-seq">#${w.sequenceId}</div>
+              <div class="ws-item-title">${escHtml(w.title)}</div>
+            </div>
+            ${recBadge}${dqBadge}
+          </div>`;
+      }).join("");
+    }
+
+    function filterDropdown(itemId) {
+      if (!contestWorksCache) return;
+      const q = document.getElementById("ws-search-" + itemId).value;
+      buildDropdown(itemId, contestWorksCache, q);
+    }
+
+    async function selectWork(itemId, seqId, title) {
+      selectedWorkByItemId[itemId] = { sequenceId: seqId, title };
+
+      // 隐藏下拉，显示预览
+      document.getElementById("ws-search-area-" + itemId).style.display = "none";
+      const preview = document.getElementById("ws-preview-" + itemId);
+      preview.classList.add("show");
+      document.getElementById("ws-preview-seq-" + itemId).textContent = `#${seqId}`;
+      document.getElementById("ws-preview-title-" + itemId).textContent = title;
+
+      // 已推荐警告
+      document.getElementById("rec-warn-" + itemId)
+        .classList.toggle("show", recommendedSeqSet.has(seqId));
+
+      // 拉取封面（仅一个请求）
+      const img = document.getElementById("ws-preview-img-" + itemId);
+      img.removeAttribute("src");
+      try {
+        const r = await fetch(`${WIX_API}/contestEntry/${seqId}/3`);
+        const d = await r.json();
+        const url = (d && (d.downloadUrl || (d.data && d.data.downloadUrl)));
+        if (url) img.src = url;
+      } catch (_) {}
+
+      validateRecommendConfirm(itemId);
+    }
+
+    function clearWorkSelection(itemId) {
+      delete selectedWorkByItemId[itemId];
+      document.getElementById("ws-preview-" + itemId).classList.remove("show");
+      document.getElementById("ws-search-area-" + itemId).style.display = "block";
+      document.getElementById("rec-warn-" + itemId).classList.remove("show");
+      document.getElementById("ws-search-" + itemId).value = "";
+      buildDropdown(itemId, contestWorksCache || [], "");
+      validateRecommendConfirm(itemId);
+    }
+
+    // -------- 推荐榜商品面板开关 --------
+    function openRecommendPanel(itemId) {
+      if (isBuying) return;
+      document.getElementById("recpanel-" + itemId).classList.add("open");
+      document.getElementById("btn-" + itemId).style.display = "none";
+
+      if (contestWorksCache) {
+        document.getElementById("ws-loading-" + itemId).style.display = "none";
+        document.getElementById("ws-search-area-" + itemId).style.display = "block";
+        buildDropdown(itemId, contestWorksCache, "");
+        attachDropdownListener(itemId);
+      } else {
+        document.getElementById("ws-loading-" + itemId).style.display = "block";
+        document.getElementById("ws-search-area-" + itemId).style.display = "none";
+        loadContestList()
+          .then(works => {
+            const loadEl = document.getElementById("ws-loading-" + itemId);
+            const searchEl = document.getElementById("ws-search-area-" + itemId);
+            if (loadEl) loadEl.style.display = "none";
+            if (searchEl) searchEl.style.display = "block";
+            buildDropdown(itemId, works, "");
+            attachDropdownListener(itemId);
+          })
+          .catch(() => {
+            const loadEl = document.getElementById("ws-loading-" + itemId);
+            if (loadEl) loadEl.textContent = "❌ 加载失败，请关闭后重试";
+          });
+      }
+    }
+
+    function closeRecommendPanel(itemId) {
+      document.getElementById("recpanel-" + itemId).classList.remove("open");
+      document.getElementById("btn-" + itemId).style.display = "";
+      // 重置选择状态
+      delete selectedWorkByItemId[itemId];
+      document.getElementById("ws-preview-" + itemId).classList.remove("show");
+      document.getElementById("ws-search-area-" + itemId).style.display = "none";
+      const loadEl = document.getElementById("ws-loading-" + itemId);
+      if (loadEl) { loadEl.style.display = contestWorksCache ? "none" : "block"; loadEl.textContent = "⏳ 正在加载作品列表…"; }
+      // 重置评语
+      document.getElementById("comment-" + itemId).value = "";
+      document.getElementById("reccount-" + itemId).textContent = "0 / 50";
+      document.getElementById("reccount-" + itemId).classList.remove("over");
+      document.getElementById("rec-warn-" + itemId).classList.remove("show");
+      document.getElementById("recconfirm-" + itemId).disabled = true;
+    }
+
+    function validateRecommendConfirm(itemId) {
+      const sel = selectedWorkByItemId[itemId];
+      const commentLen = document.getElementById("comment-" + itemId).value.trim().length;
+      const alreadyRec = sel && recommendedSeqSet.has(sel.sequenceId);
+      document.getElementById("recconfirm-" + itemId).disabled =
+        !sel || alreadyRec || commentLen === 0 || commentLen > 50;
+    }
+
+    function onCommentInput(itemId) {
+      const ta = document.getElementById("comment-" + itemId);
+      const counter = document.getElementById("reccount-" + itemId);
+      const len = ta.value.length;
+      counter.textContent = `${len} / 50`;
+      counter.classList.toggle("over", len > 50);
+      validateRecommendConfirm(itemId);
+    }
+
+    function handleRecommendBuy(itemId) {
+      if (isBuying) return;
+      const item = SHOP_ITEMS.find(i => i.id === itemId);
+      const sel  = selectedWorkByItemId[itemId];
+      const comment = document.getElementById("comment-" + itemId).value.trim();
+      if (!sel || !comment || recommendedSeqSet.has(sel.sequenceId)) return;
+
+      isBuying = true;
+      closeRecommendPanel(itemId);
+      updateButtonStates();
+      addLog(`正在推荐「${sel.title}」（-${item ? item.cost : "?"}积分）…`, "pending");
+      window.parent.postMessage(
+        JSON.stringify({ action: "purchase", itemId, customMessage: comment, sequenceId: sel.sequenceId }),
+        "*"
+      );
+    }
+
     // -------- 通用状态更新 --------
     function updateButtonStates() {
       SHOP_ITEMS.forEach((item) => {
@@ -715,10 +1162,11 @@
       if (data.type === "init") {
         myPoints = data.points || 0;
         ownedSkins = data.ownedSkins || [];
+        recommendedSeqSet = new Set((data.recommendedSequenceIds || []).map(Number));
         document.getElementById("myPoints").textContent = myPoints;
         document.getElementById("loadingState").style.display = "none";
         document.getElementById("itemsGrid").style.display = "grid";
-        renderItems(); // 重新渲染以反映拥有状态
+        renderItems();
         updateButtonStates();
       }
 
@@ -731,22 +1179,33 @@
           addLog(data.message + `（剩余积分：${myPoints}）`, "success");
 
           if (data.isNewSkin && data.skinId) {
-            // 皮肤已解锁，更新本地状态并重新渲染
             if (!ownedSkins.includes(data.skinId)) {
               ownedSkins.push(data.skinId);
             }
             renderItems();
-          } else {
+          } else if (!data.isNewSkin) {
             addLog("Bot 任务已入队，将在 15 秒内发送群消息", "pending");
           }
         } else {
           if (data.isOwned) {
-            // 服务端确认已拥有，同步本地状态
+            // 服务端确认已拥有皮肤，同步本地状态
             const item = SHOP_ITEMS.find(i => i.id === (data.skinId || "gold_skin"));
             if (item && !ownedSkins.includes(item.id)) {
               ownedSkins.push(item.id);
               renderItems();
             }
+          }
+          if (data.isAlreadyRecommended && data.recommendedSequenceId != null) {
+            recommendedSeqSet.add(Number(data.recommendedSequenceId));
+            // 重建下拉列表 & 重新校验确认按钮
+            SHOP_ITEMS.filter(i => i.type === "recommend_work").forEach(i => {
+              const panel = document.getElementById("recpanel-" + i.id);
+              if (panel && panel.classList.contains("open") && contestWorksCache) {
+                const q = (document.getElementById("ws-search-" + i.id) || {}).value || "";
+                buildDropdown(i.id, contestWorksCache, q);
+              }
+              validateRecommendConfirm(i.id);
+            });
           }
           showToast(data.message, "error");
           addLog(data.message, "error");

@@ -1,5 +1,5 @@
 import { currentMember } from "wix-members";
-import { purchaseItem, hasGoldSkin } from "backend/botBridge";
+import { purchaseItem, hasGoldSkin, getRecommendedSequenceIds } from "backend/botBridge";
 import { getUserPoints } from "backend/userPoints";
 
 $w.onReady(async function () {
@@ -17,6 +17,12 @@ $w.onReady(async function () {
   async function sendInitToShop() {
     let points = 0;
     let ownedSkins = [];
+    let recommendedSequenceIds = [];
+    try {
+      recommendedSequenceIds = await getRecommendedSequenceIds();
+    } catch (e) {
+      console.warn("获取推荐榜编号失败", e);
+    }
     if (userId) {
       try {
         const [record, goldOwned] = await Promise.all([
@@ -29,7 +35,7 @@ $w.onReady(async function () {
         console.warn("获取积分或皮肤状态失败", e);
       }
     }
-    $w("#htmlShop").postMessage({ type: "init", points, ownedSkins });
+    $w("#htmlShop").postMessage({ type: "init", points, ownedSkins, recommendedSequenceIds });
   }
 
   $w("#htmlShop").onMessage(async (event) => {
@@ -56,7 +62,7 @@ $w.onReady(async function () {
       }
 
       try {
-        const result = await purchaseItem(data.itemId, data.customMessage);
+        const result = await purchaseItem(data.itemId, data.customMessage, data.sequenceId);
         $w("#htmlShop").postMessage({
           type: "purchaseResult",
           success: result.success,
@@ -65,6 +71,8 @@ $w.onReady(async function () {
           isOwned: result.isOwned || false,
           isNewSkin: result.isNewSkin || false,
           skinId: result.skinId || null,
+          isAlreadyRecommended: result.isAlreadyRecommended || false,
+          recommendedSequenceId: result.recommendedSequenceId ?? null,
         });
       } catch (e) {
         $w("#htmlShop").postMessage({

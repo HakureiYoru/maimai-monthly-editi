@@ -412,6 +412,38 @@ export const get_botQueueHistory = asyncErrorHandler(async (request) => {
  * Bot 确认接口：将已处理的任务标记为 done
  * Body: { secret: string, id: string }
  */
+/**
+ * 推荐榜接口：获取所有 active 状态的推荐条目（供 Bot 拉取渲染）
+ * 需要在 query string 中携带 secret=BOT_QUEUE_SECRET
+ */
+export function options_recommendedWorks(request) {
+  return createOptionsResponse();
+}
+
+export const get_recommendedWorks = asyncErrorHandler(async (request) => {
+  const secret = request.query && request.query.secret;
+  if (secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  const result = await wixData
+    .query(COLLECTIONS.RECOMMENDED_WORKS)
+    .eq("status", "active")
+    .descending("_createdDate")
+    .limit(50)
+    .find({ suppressAuth: true });
+
+  const items = result.items.map((item) => ({
+    _id: item._id,
+    sequenceId: item.sequenceId,
+    workTitle: item.workTitle,
+    comment: item.comment,
+    createdDate: item._createdDate,
+  }));
+
+  return createSuccessResponse(items);
+});
+
 export const post_botQueueAck = asyncErrorHandler(async (request) => {
   const body = await request.body.json();
   if (!body || body.secret !== BOT_QUEUE_SECRET) {
