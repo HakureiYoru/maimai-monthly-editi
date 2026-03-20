@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="lang-zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +23,54 @@
     .container {
       max-width: 1200px;
       margin: 0 auto;
+    }
+
+    .lang-switcher {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .lang-switcher-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.85);
+      margin-right: 4px;
+    }
+
+    .lang-btn {
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+    }
+
+    .lang-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .lang-btn.active {
+      background: rgba(255, 255, 255, 0.42);
+      border-color: rgba(255, 255, 255, 0.75);
+    }
+
+    html.lang-en .comment-content.has-overflow::after {
+      content: '▼ Click to expand';
+    }
+
+    html.lang-en .comment-content.expanded::after {
+      content: '▲ Click to collapse';
+    }
+
+    html.lang-en .comment-content img[alt]::before {
+      content: '🖼️ Image failed to load';
     }
 
     /* 毛玻璃卡片 */
@@ -1603,19 +1651,24 @@
 </head>
 <body>
   <div class="container">
+    <div class="lang-switcher" role="toolbar" aria-label="Language">
+      <span class="lang-switcher-label" id="langSwitcherLabel">语言</span>
+      <button type="button" class="lang-btn active" id="langZhBtn" data-lang="zh">中文</button>
+      <button type="button" class="lang-btn" id="langEnBtn" data-lang="en">English</button>
+    </div>
     <!-- 评论输入区域 -->
     <div class="glass-card comment-input-section">
       <div class="section-title">提交评论 <a href="https://docs.qq.com/document/DRUtoTlppUklBYllG" style="color: #fff;" target="_blank" >评分参照文件</a></div>
       
       <div class="input-row">
         <div class="input-group">
-          <label class="input-label">选择作品</label>
+          <label class="input-label" id="labelSelectWork">选择作品</label>
           <select class="input-field" id="inputNumber">
             <option value="">请选择作品编号</option>
           </select>
         </div>
         <div class="input-group">
-          <label class="input-label">评分（点击打星）</label>
+          <label class="input-label" id="labelRating">评分（点击打星）</label>
           <input type="text" class="input-field rating-input" id="inputScore" 
                  placeholder="点击评分" readonly>
           <div class="rating-summary" id="ratingSummary">A: - / B: - / C: -</div>
@@ -1623,11 +1676,11 @@
       </div>
 
       <div class="input-group">
-        <label class="input-label">评论内容 <span style="font-size: 11px; color: rgba(255,255,255,0.7); font-weight: normal;">（支持Markdown格式）</span></label>
+        <label class="input-label" id="labelComment"><span id="labelCommentText">评论内容</span> <span id="markdownHintSpan" style="font-size: 11px; color: rgba(255,255,255,0.7); font-weight: normal;">（支持Markdown格式）</span></label>
         <textarea class="input-field" id="Comment" 
                   placeholder="输入您的评论，支持丰富的Markdown格式：&#10;&#10;**粗体** *斜体* `代码` ~~删除线~~&#10;# 标题 (支持1-6级)&#10;![图片](https://example.com/image.jpg)&#10;[链接](https://example.com)&#10;> 引用文字&#10;- 列表项&#10;| 表格 | 列 |"></textarea>
         <div class="char-counter" id="charCounter">
-          <span class="char-count-text">字数：<span id="charCount">0</span></span>
+          <span class="char-count-text"><span id="charCountLabelPrefix">字数：</span><span id="charCount">0</span></span>
           <span class="points-preview pts-1" id="pointsPreview">+1 积分</span>
           <span class="char-milestone" id="charMilestone">再写 150 字可获得 +3 积分</span>
         </div>
@@ -1771,7 +1824,7 @@
         </div>
         <div class="info-content" id="previewContent">
           <div class="markdown-preview" id="markdownPreview">
-            <div class="preview-placeholder">在上方输入框中输入Markdown内容，这里将实时显示渲染效果</div>
+            <div class="preview-placeholder" id="previewPlaceholderEl">在上方输入框中输入Markdown内容，这里将实时显示渲染效果</div>
           </div>
         </div>
       </div>
@@ -1779,13 +1832,13 @@
 
     <!-- 评论筛选区域 -->
     <div class="glass-card">
-      <div class="section-title">评论列表</div>
+      <div class="section-title" id="sectionCommentList">评论列表</div>
 
       <!-- 筛选器 -->
       <div class="filter-section">
         <div class="filter-row">
           <div class="input-group">
-            <label class="input-label">筛选作品</label>
+            <label class="input-label" id="labelFilterWork">筛选作品</label>
             <select class="input-field" id="dropdownFilter">
               <option value="">显示所有评论</option>
             </select>
@@ -1793,7 +1846,7 @@
         </div>
 
         <div class="input-group">
-          <label class="input-label">评论类型</label>
+          <label class="input-label" id="labelFilterType">评论类型</label>
           <div class="filter-tabs">
             <div class="filter-tab active" data-filter="default">所有评论</div>
             <div class="filter-tab" data-filter="ScoreOnly">仅评分</div>
@@ -1903,6 +1956,521 @@
   </div>
 
   <script>
+    // ==================== 国际化 ====================
+    const LANG_STORAGE_KEY = 'commentSystemLang';
+    let currentLang = localStorage.getItem(LANG_STORAGE_KEY) || 'zh';
+    const zhSnapshots = { formatContent: '', mechanismContent: '' };
+
+    const EN_FORMAT_HTML = [
+      '<h4>Text formatting</h4>',
+      '<ul>',
+      '<li><code>**bold**</code> → <strong>bold</strong></li>',
+      '<li><code>*italic*</code> → <em>italic</em></li>',
+      '<li><code>`inline code`</code> → highlighted code</li>',
+      '<li><code>~~strikethrough~~</code> → <del>strikethrough</del></li>',
+      '</ul>',
+      '<h4>Headings</h4>',
+      '<ul>',
+      '<li><code># Heading 1</code> through <code>###### Heading 6</code></li>',
+      '</ul>',
+      '<h4>Images & links</h4>',
+      '<ul>',
+      '<li><code>![alt](image URL)</code> → image (click to open in a new tab)</li>',
+      '<li><code>![alt|small](image URL)</code> → small image (200px wide)</li>',
+      '<li><code>![alt|medium](image URL)</code> → medium image (400px wide)</li>',
+      '<li><code>![alt|large](image URL)</code> → large image (600px wide)</li>',
+      '<li><code>![alt|full](image URL)</code> → full-width image</li>',
+      '<li><code>[link text](URL)</code> → clickable link (opens in a new tab)</li>',
+      '</ul>',
+      '<h4>Lists & quotes</h4>',
+      '<ul>',
+      '<li><code>- bullet list</code> or <code>1. numbered list</code></li>',
+      '<li><code>&gt; quote</code> → left gold border</li>',
+      '<li><code>---</code> → horizontal rule</li>',
+      '</ul>',
+      '<h4>Code blocks</h4>',
+      '<ul>',
+      '<li>Wrap multi-line code with triple backticks</li>',
+      '<li>Syntax highlighting supported (e.g. <code>```javascript</code>)</li>',
+      '</ul>',
+      '<h4>Tables</h4>',
+      '<ul>',
+      '<li><code>| Col1 | Col2 |</code></li>',
+      '<li><code>|-----|-----|</code></li>',
+      '<li><code>| cell | cell |</code></li>',
+      '</ul>'
+    ].join('');
+
+    const EN_MECHANISM_HTML = [
+      '<h4>Scoring model</h4>',
+      '<ul>',
+      '<li><strong>Reasonableness (A):</strong> 1–3 stars, 15% weight</li>',
+      '<li><strong>Playability (B):</strong> 1–5 stars, 30% weight</li>',
+      '<li><strong>Creativity (C):</strong> 1–7 stars, 55% weight</li>',
+      '<li><strong>Auto conversion:</strong> weighted sum mapped to 100–1000</li>',
+      '</ul>',
+      '<h4>Dimension notes</h4>',
+      '<ul>',
+      '<li><strong>Reasonableness:</strong> charting vs. music, or unreasonable multi-press difficulty.</li>',
+      '<li><strong>Playability:</strong> flow, readability, and feel (is it fun? any extremely awkward patterns?).</li>',
+      '<li><strong>Creativity:</strong> does it stand out? fresh patterns or ideas?</li>',
+      '</ul>',
+      '<h4>Score bands (reference)</h4>',
+      '<ul>',
+      '<li><strong>100–400 (miss):</strong> below contest-level overall.</li>',
+      '<li><strong>400–600 (good):</strong> debatable points or average polish; lacks standout strengths.</li>',
+      '<li><strong>600–800:</strong> no major flaws but room to improve; above 800 is usually strong in the event.</li>',
+      '<li><strong>800–1000 (perfect):</strong> your top-tier chart among entries.</li>',
+      '</ul>',
+      '<h4>Badge rules</h4>',
+      '<ul>',
+      '<li><span class="badge-demo score">500</span> <strong>Official score:</strong> shown after you submit an official score (100–1000, red gradient)</li>',
+      '<li><span class="badge-demo sc">Sc</span> <strong>Author self-comment:</strong> author’s note on their chart (purple)</li>',
+      '<li><span class="badge-demo re">Re</span> <strong>Reply:</strong> reply under another comment (blue)</li>',
+      '<li><span class="badge-demo hidden">?</span> <strong>Hidden score:</strong> when you have not scored this work yet (gray)</li>',
+      '</ul>',
+      '<h4>Tier (S/A/B/C/D) display</h4>',
+      '<ul>',
+      '<li><strong>Show tier:</strong> at least <strong>8 official scores</strong> on the work + you have scored + not a self (Sc) comment</li>',
+      '<li><strong>Not enough scores:</strong> if fewer than 8 scorers, shows “not enough scores (X scores)”</li>',
+      '<li><strong>Tier calculation:</strong> percentile rank among all valid entries</li>',
+      '</ul>',
+      '<h4>Score visibility</h4>',
+      '<ul>',
+      '<li><strong>You can see scores</strong> only for works you have officially scored</li>',
+      '<li><strong>Reduce bias:</strong> scores stay hidden until you score, to keep judgments independent</li>',
+      '<li><strong>Sc excluded:</strong> Sc comments do not affect aggregate scoring</li>',
+      '</ul>',
+      '<h4>Points</h4>',
+      '<ul>',
+      '<li><strong>Official comments earn points by length:</strong></li>',
+      '<li>≤ 150 characters: <strong>+1 pt</strong></li>',
+      '<li>151–300 characters: <strong>+3 pts</strong></li>',
+      '<li>&gt; 300 characters: <strong>+5 pts</strong></li>',
+      '<li><strong>If this work is your assigned task:</strong> <strong>+5 extra pts</strong> for this comment</li>',
+      '<li style="color: rgba(200,160,255,0.85);"><strong>Sc self-comments earn no points</strong></li>',
+      '</ul>',
+      '<h4>Deletion</h4>',
+      '<ul>',
+      '<li><strong>Sc comments:</strong> only the author can delete</li>',
+      '<li><strong>Normal comments:</strong> moderators can delete</li>',
+      '<li>Deleting may revert related task completion</li>',
+      '</ul>'
+    ].join('');
+
+    const I18N = {
+      zh: {
+        docTitle: '评论系统',
+        langLabel: '语言',
+        submitSectionHtml: '提交评论 <a href="https://docs.qq.com/document/DRUtoTlppUklBYllG" style="color: #fff;" target="_blank">评分参照文件</a>',
+        selectWork: '选择作品',
+        selectWorkPlaceholder: '请选择作品编号',
+        ratingLabel: '评分（点击打星）',
+        ratingPlaceholder: '点击评分',
+        commentLabel: '评论内容',
+        markdownHint: '（支持Markdown格式）',
+        commentPlaceholder: '输入您的评论，支持丰富的Markdown格式：\n\n**粗体** *斜体* `代码` ~~删除线~~\n# 标题 (支持1-6级)\n![图片](https://example.com/image.jpg)\n[链接](https://example.com)\n> 引用文字\n- 列表项\n| 表格 | 列 |',
+        btnSubmit: '提交评论',
+        btnCommented: '已评论',
+        btnAuthor: '自评',
+        btnEliminated: '作品已淘汰',
+        btnNotLoggedIn: '未登录',
+        btnNotRegistered: '未报名',
+        btnLoading: '加载中...',
+        formatToggle: 'Markdown格式支持',
+        mechanismToggle: '评论机制说明',
+        previewToggle: 'Markdown预览',
+        previewPlaceholder: '在上方输入框中输入Markdown内容，这里将实时显示渲染效果',
+        commentListTitle: '评论列表',
+        filterWork: '筛选作品',
+        filterAllComments: '显示所有评论',
+        filterType: '评论类型',
+        filterTabAll: '所有评论',
+        filterTabScore: '仅评分',
+        filterTabYours: '仅你的评论',
+        prevPage: '上一页',
+        nextPage: '下一页',
+        pageInfo: '第 {cur} / {tot} 页',
+        loadingComments: '加载评论中...',
+        noComments: '暂无评论',
+        ratingModalTitle: '星级评分',
+        ratingNote: '系统自动按权重换算到 100-1000（C 维度权重最高）',
+        dimA: '维度A（合理性）',
+        dimB: '维度B（可玩性）',
+        dimC: '维度C（创意）',
+        ratingDescA: '是否存在违和谱音，或多押难度不合理的情况。',
+        ratingDescB: '手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。',
+        ratingDescC: '是否让人眼前一亮、脱颖而出，配置是否有新意。',
+        scoreLabel: '评分：',
+        scoreDash: '评分：--',
+        reset: '重置',
+        cancel: '取消',
+        confirmRating: '确认评分',
+        ratingWarnPickAll: '请为三个维度选择星级',
+        groupAriaA: '维度A评分',
+        groupAriaB: '维度B评分',
+        groupAriaC: '维度C评分',
+        starAriaA: '维度A {n}星',
+        starAriaB: '维度B {n}星',
+        starAriaC: '维度C {n}星',
+        initLoading: '正在初始化评论系统...',
+        connecting: '正在连接评论系统...',
+        loadingWork: '正在加载作品 #{n} 的评论...',
+        loadingAll: '正在加载所有评论...',
+        switchingFilter: '正在切换筛选模式...',
+        loadingPrev: '正在加载上一页评论...',
+        loadingMore: '正在加载更多评论...',
+        loadingPageN: '正在加载第 {n} 页...',
+        loadError: '加载评论失败，请稍后重试',
+        processing: '处理中...',
+        submitSuccess: '✅ 提交成功！',
+        submitFail: '❌ 提交失败',
+        fillComplete: '❌ 请填写完整信息',
+        needStarRating: '请先完成星级评分',
+        workNumberRange: '❌ 作品编号必须在1-500之间',
+        scoreRange: '❌ 评分必须在100-1000之间',
+        commentEmpty: '❌ 评论内容不能为空',
+        submitting: '正在提交...',
+        checkWorkStatus: '正在检查作品状态...',
+        promptPage: '请输入页码（1-{tot}）:',
+        invalidNumber: '❌ 请输入有效的数字',
+        pageOutOfRange: '❌ 页码必须在 1-{tot} 之间',
+        loadingTimeoutMsg: '⚠️ 加载超时，请重新选择作品或刷新页面',
+        previewLoading: '正在加载Markdown预览...',
+        charPrefix: '字数：',
+        ptsScNoPoints: '自评不获得积分',
+        taskBonusExtra: '（任务额外 +5）',
+        taskBonusLine: '当前作品是任务作品，本次评论含额外 +5 积分',
+        ptsTpl: '+{n} 积分{extra}',
+        milestoneTpl: '再写 {remain} 字可获得 +{pts} 积分{extra}',
+        unknownTime: '未知时间',
+        invalidDate: '无效日期',
+        badTime: '时间错误',
+        justNow: '刚刚',
+        minutesAgo: '{n}分钟前',
+        hoursAgo: '{n}小时前',
+        yesterday: '昨天',
+        dayBefore: '前天',
+        daysAgo: '{n}天前',
+        noCommentText: '无内容',
+        replyCount: '{n}条回复',
+        gotoWork: '跳转到作品',
+        gotoWorkDisabledTitle: '已在该作品筛选下',
+        viewReplies: '查看回复',
+        viewParent: '查看主评论',
+        deleteBtn: '删除',
+        reportTitle: '检举评论',
+        coverAlt: '作品 #{n}'
+      },
+      en: {
+        docTitle: 'Comment system',
+        langLabel: 'Language',
+        submitSectionHtml: 'Submit a comment <a href="https://docs.qq.com/document/DRUtoTlppUklBYllG" style="color: #fff;" target="_blank">Rating reference</a>',
+        selectWork: 'Work',
+        selectWorkPlaceholder: 'Select work number',
+        ratingLabel: 'Score (tap stars)',
+        ratingPlaceholder: 'Tap to score',
+        commentLabel: 'Comment',
+        markdownHint: '(Markdown supported)',
+        commentPlaceholder: 'Write your comment. Markdown is supported:\n\n**bold** *italic* `code` ~~strike~~\n# Heading (levels 1–6)\n![image](https://example.com/image.jpg)\n[link](https://example.com)\n> quote\n- list item\n| table | col |',
+        btnSubmit: 'Submit',
+        btnCommented: 'Already commented',
+        btnAuthor: 'Self review',
+        btnEliminated: 'Entry disqualified',
+        btnNotLoggedIn: 'Not signed in',
+        btnNotRegistered: 'Not registered',
+        btnLoading: 'Loading...',
+        formatToggle: 'Markdown help',
+        mechanismToggle: 'How scoring works',
+        previewToggle: 'Markdown preview',
+        previewPlaceholder: 'Type Markdown above; a live preview appears here',
+        commentListTitle: 'Comments',
+        filterWork: 'Filter by work',
+        filterAllComments: 'All comments',
+        filterType: 'Type',
+        filterTabAll: 'All',
+        filterTabScore: 'Scores only',
+        filterTabYours: 'Yours only',
+        prevPage: 'Prev',
+        nextPage: 'Next',
+        pageInfo: 'Page {cur} / {tot}',
+        loadingComments: 'Loading comments...',
+        noComments: 'No comments yet',
+        ratingModalTitle: 'Star rating',
+        ratingNote: 'Converted to 100–1000 by weights (dimension C has the highest weight)',
+        dimA: 'A · Reasonableness',
+        dimB: 'B · Playability',
+        dimC: 'C · Creativity',
+        ratingDescA: 'Charting vs. music, or unreasonable multi-press difficulty.',
+        ratingDescB: 'Flow, readability, and feel — is it fun? Any extremely awkward patterns?',
+        ratingDescC: 'Does it stand out? Fresh patterns or ideas?',
+        scoreLabel: 'Score: ',
+        scoreDash: 'Score: --',
+        reset: 'Reset',
+        cancel: 'Cancel',
+        confirmRating: 'Confirm',
+        ratingWarnPickAll: 'Please set stars for all three dimensions',
+        groupAriaA: 'Dimension A',
+        groupAriaB: 'Dimension B',
+        groupAriaC: 'Dimension C',
+        starAriaA: 'Dimension A · {n} star(s)',
+        starAriaB: 'Dimension B · {n} star(s)',
+        starAriaC: 'Dimension C · {n} star(s)',
+        initLoading: 'Initializing…',
+        connecting: 'Connecting…',
+        loadingWork: 'Loading comments for work #{n}…',
+        loadingAll: 'Loading all comments…',
+        switchingFilter: 'Switching filter…',
+        loadingPrev: 'Loading previous page…',
+        loadingMore: 'Loading more…',
+        loadingPageN: 'Loading page {n}…',
+        loadError: 'Failed to load comments. Try again later.',
+        processing: 'Processing…',
+        submitSuccess: '✅ Submitted!',
+        submitFail: '❌ Submit failed',
+        fillComplete: '❌ Please fill in all fields',
+        needStarRating: 'Please complete the star rating first',
+        workNumberRange: '❌ Work number must be between 1 and 500',
+        scoreRange: '❌ Score must be between 100 and 1000',
+        commentEmpty: '❌ Comment cannot be empty',
+        submitting: 'Submitting…',
+        checkWorkStatus: 'Checking work status…',
+        promptPage: 'Page number (1–{tot}):',
+        invalidNumber: '❌ Enter a valid number',
+        pageOutOfRange: '❌ Page must be between 1 and {tot}',
+        loadingTimeoutMsg: '⚠️ Loading timed out. Pick the work again or refresh.',
+        previewLoading: 'Loading preview…',
+        charPrefix: 'Chars: ',
+        ptsScNoPoints: 'No points for self (Sc) comments',
+        taskBonusExtra: ' (task +5)',
+        taskBonusLine: 'Task work: +5 bonus pts for this comment',
+        ptsTpl: '+{n} pts{extra}',
+        milestoneTpl: '{remain} more characters for +{pts} pts{extra}',
+        unknownTime: 'Unknown time',
+        invalidDate: 'Invalid date',
+        badTime: 'Time error',
+        justNow: 'just now',
+        minutesAgo: '{n} min ago',
+        hoursAgo: '{n} h ago',
+        yesterday: 'yesterday',
+        dayBefore: 'day before yesterday',
+        daysAgo: '{n} days ago',
+        noCommentText: '(empty)',
+        replyCount: '{n} replies',
+        gotoWork: 'Go to work',
+        gotoWorkDisabledTitle: 'Already filtered to this work',
+        viewReplies: 'View replies',
+        viewParent: 'View parent',
+        deleteBtn: 'Delete',
+        reportTitle: 'Report',
+        coverAlt: 'Work #{n}'
+      }
+    };
+
+    function cacheZhSnapshots() {
+      const fc = document.getElementById('formatContent');
+      const mc = document.getElementById('mechanismContent');
+      if (fc && !zhSnapshots.formatContent) zhSnapshots.formatContent = fc.innerHTML;
+      if (mc && !zhSnapshots.mechanismContent) zhSnapshots.mechanismContent = mc.innerHTML;
+    }
+
+    function t(key, vars) {
+      const table = I18N[currentLang] || I18N.zh;
+      let s = (table && table[key]) || I18N.zh[key] || key;
+      if (vars && typeof vars === 'object') {
+        Object.keys(vars).forEach((k) => {
+          s = s.split(`{${k}}`).join(String(vars[k]));
+        });
+      }
+      return s;
+    }
+
+    let submitButtonMode = 'default';
+
+    function setSubmitButtonMode(mode) {
+      submitButtonMode = mode;
+      applySubmitButtonLabel();
+    }
+
+    function applySubmitButtonLabel() {
+      const submitBtn = document.getElementById('submitBtn');
+      if (!submitBtn) return;
+      const keyMap = {
+        commented: 'btnCommented',
+        author: 'btnAuthor',
+        eliminated: 'btnEliminated',
+        default: 'btnSubmit',
+        notLoggedIn: 'btnNotLoggedIn',
+        notRegistered: 'btnNotRegistered',
+        loading: 'btnLoading'
+      };
+      const key = keyMap[submitButtonMode] || 'btnSubmit';
+      submitBtn.textContent = t(key);
+    }
+
+    function applyLanguage(lang) {
+      if (lang !== 'zh' && lang !== 'en') return;
+      currentLang = lang;
+      localStorage.setItem(LANG_STORAGE_KEY, lang);
+      document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+      document.documentElement.classList.toggle('lang-en', lang === 'en');
+      document.documentElement.classList.toggle('lang-zh', lang !== 'en');
+
+      document.title = t('docTitle');
+
+      const zhBtn = document.getElementById('langZhBtn');
+      const enBtn = document.getElementById('langEnBtn');
+      if (zhBtn && enBtn) {
+        zhBtn.classList.toggle('active', lang === 'zh');
+        enBtn.classList.toggle('active', lang === 'en');
+      }
+      const langLab = document.getElementById('langSwitcherLabel');
+      if (langLab) langLab.textContent = t('langLabel');
+
+      const submitSec = document.querySelector('.comment-input-section .section-title');
+      if (submitSec) submitSec.innerHTML = t('submitSectionHtml');
+
+      const setText = (id, key) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t(key);
+      };
+
+      setText('labelSelectWork', 'selectWork');
+      setText('labelRating', 'ratingLabel');
+      setText('labelCommentText', 'commentLabel');
+      setText('markdownHintSpan', 'markdownHint');
+      setText('sectionCommentList', 'commentListTitle');
+      setText('labelFilterWork', 'filterWork');
+      setText('labelFilterType', 'filterType');
+      setText('ratingTitle', 'ratingModalTitle');
+      setText('ratingResetBtn', 'reset');
+      setText('ratingCancelBtn', 'cancel');
+      setText('ratingConfirmBtn', 'confirmRating');
+
+      const ratingNoteEl = document.querySelector('#ratingModal .rating-note');
+      if (ratingNoteEl) ratingNoteEl.textContent = t('ratingNote');
+
+      const inputScore = document.getElementById('inputScore');
+      if (inputScore) inputScore.placeholder = t('ratingPlaceholder');
+
+      const commentField = document.getElementById('Comment');
+      if (commentField) commentField.placeholder = t('commentPlaceholder');
+
+      const charPrefix = document.getElementById('charCountLabelPrefix');
+      if (charPrefix) charPrefix.textContent = t('charPrefix');
+
+      const formatToggle = document.getElementById('formatToggle');
+      if (formatToggle) {
+        const span = formatToggle.querySelector('span:not(.info-toggle-icon)');
+        if (span) span.textContent = t('formatToggle');
+      }
+      const mechanismToggle = document.getElementById('mechanismToggle');
+      if (mechanismToggle) {
+        const span = mechanismToggle.querySelector('span:not(.info-toggle-icon)');
+        if (span) span.textContent = t('mechanismToggle');
+      }
+      const previewToggle = document.getElementById('previewToggle');
+      if (previewToggle) {
+        const span = previewToggle.querySelector('span:not(.info-toggle-icon)');
+        if (span) span.textContent = t('previewToggle');
+      }
+
+      const fc = document.getElementById('formatContent');
+      if (fc) {
+        fc.innerHTML = lang === 'zh' ? zhSnapshots.formatContent : EN_FORMAT_HTML;
+      }
+      const mc = document.getElementById('mechanismContent');
+      if (mc) {
+        mc.innerHTML = lang === 'zh' ? zhSnapshots.mechanismContent : EN_MECHANISM_HTML;
+      }
+
+      const tabMap = { default: 'filterTabAll', ScoreOnly: 'filterTabScore', YourComment: 'filterTabYours' };
+      document.querySelectorAll('.filter-tab').forEach((tab) => {
+        const k = tabMap[tab.dataset.filter];
+        if (k) tab.textContent = t(k);
+      });
+
+      document.querySelectorAll('.page-button').forEach((btn) => {
+        if (btn.id && btn.id.includes('prev')) btn.textContent = t('prevPage');
+        if (btn.id && btn.id.includes('next')) btn.textContent = t('nextPage');
+      });
+
+      const loadTxt = document.querySelector('#loadingState .loading-text');
+      if (loadTxt) loadTxt.textContent = t('loadingComments');
+
+      const noCom = document.getElementById('noComments');
+      if (noCom) noCom.textContent = t('noComments');
+
+      const dims = document.querySelectorAll('.rating-dimension');
+      dims.forEach((dimEl) => {
+        const d = dimEl.dataset.dimension;
+        const labelSpan = dimEl.querySelector('.rating-dimension-label span:first-child');
+        if (labelSpan) {
+          if (d === 'A') labelSpan.textContent = t('dimA');
+          if (d === 'B') labelSpan.textContent = t('dimB');
+          if (d === 'C') labelSpan.textContent = t('dimC');
+        }
+        const desc = dimEl.querySelector('.rating-dimension-desc');
+        if (desc) {
+          if (d === 'A') desc.textContent = t('ratingDescA');
+          if (d === 'B') desc.textContent = t('ratingDescB');
+          if (d === 'C') desc.textContent = t('ratingDescC');
+        }
+        const group = dimEl.querySelector('.rating-stars');
+        if (group) {
+          if (d === 'A') group.setAttribute('aria-label', t('groupAriaA'));
+          if (d === 'B') group.setAttribute('aria-label', t('groupAriaB'));
+          if (d === 'C') group.setAttribute('aria-label', t('groupAriaC'));
+        }
+        const starKey = d === 'A' ? 'starAriaA' : d === 'B' ? 'starAriaB' : 'starAriaC';
+        dimEl.querySelectorAll('.rating-star').forEach((star) => {
+          const n = star.dataset.value;
+          star.setAttribute('aria-label', t(starKey, { n }));
+        });
+      });
+
+      applySubmitButtonLabel();
+      updateCharCounter();
+      updateRatingUI();
+      updatePagination();
+
+      const previewPh = document.getElementById('previewPlaceholderEl');
+      const commentVal = document.getElementById('Comment');
+      if (previewPh && commentVal && !commentVal.value.trim()) {
+        previewPh.textContent = t('previewPlaceholder');
+      }
+
+      if (typeof allWorkOptions !== 'undefined' && allWorkOptions.length) {
+        const inputNumber = document.getElementById('inputNumber');
+        const dropdownFilter = document.getElementById('dropdownFilter');
+        const vIn = inputNumber ? inputNumber.value : '';
+        const vDf = dropdownFilter ? dropdownFilter.value : '';
+        updateWorkDropdowns();
+        if (inputNumber && vIn && [...inputNumber.options].some((o) => o.value === vIn)) {
+          inputNumber.value = vIn;
+        }
+        if (dropdownFilter && vDf && [...dropdownFilter.options].some((o) => o.value === vDf)) {
+          dropdownFilter.value = vDf;
+        }
+      }
+
+      if (allCommentsData && allCommentsData.length) {
+        renderCurrentPage();
+      }
+    }
+
+    function initLanguageUi() {
+      cacheZhSnapshots();
+      const zhBtn = document.getElementById('langZhBtn');
+      const enBtn = document.getElementById('langEnBtn');
+      const go = (lang) => {
+        applyLanguage(lang);
+      };
+      if (zhBtn) zhBtn.addEventListener('click', () => go('zh'));
+      if (enBtn) enBtn.addEventListener('click', () => go('en'));
+      applyLanguage(currentLang);
+    }
+
     // ==================== 状态管理 ====================
     let currentUserId = null;
     let isUserVerified = false;
@@ -1989,7 +2557,7 @@
       console.log('[评论系统] 筛选器状态已重置为默认值');
       
       // 显示初始化加载状态
-      showLoading('正在初始化评论系统...');
+      showLoading(t('initLoading'));
       
       // 更新输入区域状态
       updateInputState();
@@ -2058,7 +2626,7 @@
     }
 
     function handleCommentsError(data) {
-      const message = data?.message || '加载评论失败，请稍后重试';
+      const message = data?.message || t('loadError');
       const loadingState = document.getElementById('loadingState');
       const loadingText = loadingState.querySelector('.loading-text');
       
@@ -2110,7 +2678,7 @@
     function handleSubmitProgress(data) {
       const statusEl = document.getElementById('submitStatus');
       
-      statusEl.textContent = data.message || '处理中...';
+      statusEl.textContent = data.message || t('processing');
       statusEl.className = 'submit-status show';
       
       // 根据进度状态设置不同的背景色
@@ -2148,7 +2716,7 @@
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '已评论';
+        setSubmitButtonMode('commented');
         updateCharCounter();
         console.log('[评论系统] 已评论，回填数据并禁用输入');
       } else if (data.isAuthor) {
@@ -2159,7 +2727,7 @@
         commentField.disabled = false;
         inputScore.disabled = false;
         submitBtn.disabled = false;
-        submitBtn.textContent = '自评';
+        setSubmitButtonMode('author');
         updateCharCounter(); // 刷新积分提示为自评提示
         console.log('[评论系统] 作者自评模式');
       } else if (data.isWorkDQ) {
@@ -2170,7 +2738,7 @@
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '作品已淘汰';
+        setSubmitButtonMode('eliminated');
         updateCharCounter();
         console.log('[评论系统] 作品已淘汰');
       } else {
@@ -2181,7 +2749,7 @@
         commentField.disabled = false;
         inputScore.disabled = false;
         submitBtn.disabled = false;
-        submitBtn.textContent = '提交评论';
+        setSubmitButtonMode('default');
         updateCharCounter();
         console.log('[评论系统] 正常状态，可以评论');
       }
@@ -2212,7 +2780,7 @@
       }
       
       // 加载该作品的评论
-      showLoading(`正在加载作品 #${workNumber} 的评论...`);
+      showLoading(t('loadingWork', { n: workNumber }));
       requestCommentsData();
     }
 
@@ -2244,17 +2812,17 @@
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '未登录';
+        setSubmitButtonMode('notLoggedIn');
       } else if (!isUserVerified) {
         commentField.disabled = true;
         inputScore.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '未报名';
+        setSubmitButtonMode('notRegistered');
       } else {
         commentField.disabled = false;
         inputScore.disabled = false;
         submitBtn.disabled = false;
-        submitBtn.textContent = '提交评论';
+        setSubmitButtonMode('default');
       }
       
       console.log('[评论系统] 已重置作品选择状态');
@@ -2277,7 +2845,7 @@
       }
       
       if (data.success) {
-        showStatus(data.message || '✅ 提交成功！', 'success');
+        showStatus(data.message || t('submitSuccess'), 'success');
         
         // 清空所有输入
         currentWorkStatusType = '';
@@ -2297,19 +2865,19 @@
           inputScore.disabled = true;
           commentField.disabled = true;
           submitBtn.disabled = true;
-          submitBtn.textContent = '未登录';
+          setSubmitButtonMode('notLoggedIn');
         } else if (!isUserVerified) {
           inputNumber.disabled = true;
           inputScore.disabled = true;
           commentField.disabled = true;
           submitBtn.disabled = true;
-          submitBtn.textContent = '未报名';
+          setSubmitButtonMode('notRegistered');
         } else {
           inputNumber.disabled = false;
           inputScore.disabled = false;
           commentField.disabled = false;
           submitBtn.disabled = false;
-          submitBtn.textContent = '提交评论';
+          setSubmitButtonMode('default');
         }
         
         // 立即刷新评论列表（确保新评论立即显示）
@@ -2317,7 +2885,7 @@
       } else {
         // 提交失败时重新启用按钮
         submitBtn.disabled = false;
-        showStatus(data.message || '❌ 提交失败', 'error');
+        showStatus(data.message || t('submitFail'), 'error');
       }
     }
 
@@ -2333,7 +2901,7 @@
         inputScore.disabled = true;
         commentField.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '未登录';
+        setSubmitButtonMode('notLoggedIn');
         return;
       }
 
@@ -2342,7 +2910,7 @@
         inputScore.disabled = true;
         commentField.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '未报名';
+        setSubmitButtonMode('notRegistered');
         return;
       }
 
@@ -2350,7 +2918,7 @@
       inputScore.disabled = false;
       commentField.disabled = false;
       submitBtn.disabled = false;
-      submitBtn.textContent = '提交评论';
+      setSubmitButtonMode('default');
     }
 
     function updateWorkDropdowns() {
@@ -2358,11 +2926,11 @@
       const dropdownFilter = document.getElementById('dropdownFilter');
       
       // 更新提交作品选择器
-      inputNumber.innerHTML = '<option value="">请选择作品编号</option>' +
+      inputNumber.innerHTML = '<option value="">' + t('selectWorkPlaceholder') + '</option>' +
         allWorkOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
       
       // 更新筛选作品选择器
-      dropdownFilter.innerHTML = '<option value="">显示所有评论</option>' +
+      dropdownFilter.innerHTML = '<option value="">' + t('filterAllComments') + '</option>' +
         allWorkOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
     }
 
@@ -2415,7 +2983,7 @@
       }
 
       if (inputScore && inputScore.value) {
-        summaryEl.textContent = `评分：${inputScore.value}`;
+        summaryEl.textContent = t('scoreLabel') + inputScore.value;
         return;
       }
 
@@ -2449,7 +3017,7 @@
 
       if (computed) {
         if (scoreEl) {
-          scoreEl.textContent = `评分：${computed.score}`;
+          scoreEl.textContent = t('scoreLabel') + computed.score;
         }
         if (detailEl) {
           detailEl.textContent = `A: ${ratingState.A}★ / B: ${ratingState.B}★ / C: ${ratingState.C}★`;
@@ -2459,7 +3027,7 @@
         }
       } else {
         if (scoreEl) {
-          scoreEl.textContent = '评分：--';
+          scoreEl.textContent = t('scoreDash');
         }
         if (detailEl) {
           const aText = ratingState.A ? `${ratingState.A}★` : '-';
@@ -2510,7 +3078,7 @@
       const warningEl = document.getElementById('ratingWarning');
       if (!computed) {
         if (warningEl) {
-          warningEl.textContent = '请为三个维度选择星级';
+          warningEl.textContent = t('ratingWarnPickAll');
         }
         return;
       }
@@ -2608,13 +3176,15 @@
       const countEl = document.getElementById('charCount');
       const previewEl = document.getElementById('pointsPreview');
       const milestoneEl = document.getElementById('charMilestone');
+      const charPrefix = document.getElementById('charCountLabelPrefix');
       if (!countEl || !previewEl || !milestoneEl) return;
 
+      if (charPrefix) charPrefix.textContent = t('charPrefix');
       countEl.textContent = len;
 
       // 自评模式不获得积分
       if (isAuthorMode) {
-        previewEl.textContent = '自评不获得积分';
+        previewEl.textContent = t('ptsScNoPoints');
         previewEl.className = 'points-preview pts-1';
         previewEl.style.opacity = '0.5';
         milestoneEl.textContent = '';
@@ -2623,21 +3193,24 @@
 
       previewEl.style.opacity = '';
       const taskBonus = currentWorkStatusType === 'task' ? 5 : 0;
-      const taskBonusText = taskBonus > 0 ? '（任务额外 +5）' : '';
+      const taskBonusText = taskBonus > 0 ? t('taskBonusExtra') : '';
       if (len > 300) {
-        previewEl.textContent = `+${5 + taskBonus} 积分${taskBonusText}`;
+        previewEl.textContent = t('ptsTpl', { n: 5 + taskBonus, extra: taskBonusText });
         previewEl.className = 'points-preview pts-5';
-        milestoneEl.textContent = taskBonus > 0 ? '当前作品是任务作品，本次评论含额外 +5 积分' : '';
+        milestoneEl.textContent = taskBonus > 0 ? t('taskBonusLine') : '';
       } else if (len > 150) {
-        previewEl.textContent = `+${3 + taskBonus} 积分${taskBonusText}`;
+        previewEl.textContent = t('ptsTpl', { n: 3 + taskBonus, extra: taskBonusText });
         previewEl.className = 'points-preview pts-3';
-        milestoneEl.textContent = `再写 ${300 - len} 字可获得 +${5 + taskBonus} 积分${taskBonusText}`;
+        milestoneEl.textContent = t('milestoneTpl', { remain: 300 - len, pts: 5 + taskBonus, extra: taskBonusText });
       } else {
-        previewEl.textContent = `+${1 + taskBonus} 积分${taskBonusText}`;
+        previewEl.textContent = t('ptsTpl', { n: 1 + taskBonus, extra: taskBonusText });
         previewEl.className = 'points-preview pts-1';
-        milestoneEl.textContent = len > 0
-          ? `再写 ${150 - len} 字可获得 +${3 + taskBonus} 积分${taskBonusText}`
-          : `再写 150 字可获得 +${3 + taskBonus} 积分${taskBonusText}`;
+        const remain = 150 - len;
+        milestoneEl.textContent = t('milestoneTpl', {
+          remain: len > 0 ? remain : 150,
+          pts: 3 + taskBonus,
+          extra: taskBonusText
+        });
       }
     }
 
@@ -2658,38 +3231,38 @@
 
       // 验证输入完整性
       if (!workNumber || !comment) {
-        showStatus('❌ 请填写完整信息', 'error');
+        showStatus(t('fillComplete'), 'error');
         return;
       }
 
       if (!score) {
-        showStatus('请先完成星级评分', 'error');
+        showStatus(t('needStarRating'), 'error');
         return;
       }
 
       // 验证作品编号范围
       const workNum = parseInt(workNumber);
       if (isNaN(workNum) || workNum < 1 || workNum > 500) {
-        showStatus('❌ 作品编号必须在1-500之间', 'error');
+        showStatus(t('workNumberRange'), 'error');
         return;
       }
 
       // 验证评分范围
       const scoreNum = parseInt(score);
       if (isNaN(scoreNum) || scoreNum < 100 || scoreNum > 1000) {
-        showStatus('❌ 评分必须在100-1000之间', 'error');
+        showStatus(t('scoreRange'), 'error');
         return;
       }
 
       // 验证评论内容不为空
       if (comment.trim().length === 0) {
-        showStatus('❌ 评论内容不能为空', 'error');
+        showStatus(t('commentEmpty'), 'error');
         return;
       }
 
       isSubmitting = true;
       document.getElementById('submitBtn').disabled = true;
-      showStatus('正在提交...', '');
+      showStatus(t('submitting'), '');
 
       // 发送提交请求到Wix页面
       window.parent.postMessage({
@@ -2711,7 +3284,7 @@
       
       if (workNumber) {
         // 【新增】立即禁用输入组件并显示加载状态
-        setInputLoadingState(true, '正在检查作品状态...');
+        setInputLoadingState(true, t('checkWorkStatus'));
         
         // 通知Wix页面作品编号变化，获取完整的作品状态
         window.parent.postMessage({
@@ -2761,8 +3334,8 @@
       
       // 显示加载状态
       const message = currentWorkFilter 
-        ? `正在加载作品 #${currentWorkFilter} 的评论...` 
-        : '正在加载所有评论...';
+        ? t('loadingWork', { n: currentWorkFilter }) 
+        : t('loadingAll');
       showLoading(message);
       
       requestCommentsData();
@@ -2793,7 +3366,7 @@
           currentPage = 1;
           
           // 显示加载状态并请求数据
-          showLoading('正在切换筛选模式...');
+          showLoading(t('switchingFilter'));
           requestCommentsData();
           
           // 延迟解锁，防止快速重复点击
@@ -2812,7 +3385,7 @@
         // 【修复】添加防重复点击保护
         if (currentPage > 1 && !isRequestingComments) {
           currentPage--;
-          showLoading('正在加载上一页评论...');
+          showLoading(t('loadingPrev'));
           requestCommentsData();
         }
       });
@@ -2821,7 +3394,7 @@
         // 【修复】添加防重复点击保护
         if (currentPage < totalPages && !isRequestingComments) {
           currentPage++;
-          showLoading('正在加载更多评论...');
+          showLoading(t('loadingMore'));
           requestCommentsData();
         }
       });
@@ -2832,7 +3405,7 @@
           return; // 正在加载或只有一页时不响应
         }
 
-        const inputPage = prompt(`请输入页码（1-${totalPages}）:`, currentPage.toString());
+        const inputPage = prompt(t('promptPage', { tot: totalPages }), currentPage.toString());
         
         if (inputPage === null) {
           return; // 用户取消
@@ -2842,12 +3415,12 @@
         
         // 验证输入
         if (isNaN(targetPage)) {
-          alert('❌ 请输入有效的数字');
+          alert(t('invalidNumber'));
           return;
         }
         
         if (targetPage < 1 || targetPage > totalPages) {
-          alert(`❌ 页码必须在 1-${totalPages} 之间`);
+          alert(t('pageOutOfRange', { tot: totalPages }));
           return;
         }
 
@@ -2857,7 +3430,7 @@
 
         // 跳转到目标页
         currentPage = targetPage;
-        showLoading(`正在加载第 ${targetPage} 页...`);
+        showLoading(t('loadingPageN', { n: targetPage }));
         requestCommentsData();
         
         console.log(`[评论系统] 跳转到第 ${targetPage} 页`);
@@ -2899,7 +3472,7 @@
 
         prevBtn.disabled = currentPage <= 1;
         nextBtn.disabled = currentPage >= totalPages;
-        pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页`;
+        pageInfo.textContent = t('pageInfo', { cur: currentPage, tot: totalPages });
       });
     }
 
@@ -2930,7 +3503,7 @@
       const actionsHTML = createActionButtons(comment);
 
       // 渲染评论内容（支持Markdown）
-      const commentContentHTML = renderMarkdown(comment.commentText || '无内容');
+      const commentContentHTML = renderMarkdown(comment.commentText || t('noCommentText'));
       
       // 格式化时间
       const formattedTime = formatCommentTime(comment.createdDate);
@@ -2945,10 +3518,10 @@
           ${comment.ratingInfo ? `<div class="comment-rating-info">${escapeHtml(comment.ratingInfo)}</div>` : ''}
           <div class="comment-time">${formattedTime}</div>
         </div>
-        <div class="comment-content" data-full-text="${escapeHtml(comment.commentText || '无内容')}">${commentContentHTML}</div>
+        <div class="comment-content" data-full-text="${escapeHtml(comment.commentText || t('noCommentText'))}">${commentContentHTML}</div>
         <div class="comment-actions">
           ${actionsHTML}
-          ${comment.replyCount > 0 ? `<span class="reply-count">${comment.replyCount}条回复</span>` : ''}
+          ${comment.replyCount > 0 ? `<span class="reply-count">${escapeHtml(t('replyCount', { n: comment.replyCount }))}</span>` : ''}
         </div>
       `;
 
@@ -3065,7 +3638,7 @@
           <div class="work-cover-thumb">
             <img src="${optimizedCover}" 
                  loading="lazy" 
-                 alt="${escapeHtml(comment.workTitle || `作品 #${comment.workNumber}`)}" />
+                 alt="${escapeHtml(comment.workTitle || t('coverAlt', { n: comment.workNumber }))}" />
           </div>
         `;
       } else {
@@ -3149,21 +3722,21 @@
       if (!comment.isReply) {
         // 检查当前是否已经在该作品的筛选下
         const isCurrentlyFiltered = currentWorkFilter === comment.workNumber.toString();
-        const disabledAttr = isCurrentlyFiltered ? ' disabled title="已在该作品筛选下"' : '';
-        buttons.push(`<button class="action-btn goto-work-btn"${disabledAttr}>跳转到作品</button>`);
+        const disabledAttr = isCurrentlyFiltered ? ` disabled title="${escapeHtml(t('gotoWorkDisabledTitle'))}"` : '';
+        buttons.push(`<button class="action-btn goto-work-btn"${disabledAttr}>${escapeHtml(t('gotoWork'))}</button>`);
       }
 
       // 查看回复按钮
-      buttons.push(`<button class="action-btn view-replies-btn">${comment.isReply ? '查看主评论' : '查看回复'}</button>`);
+      buttons.push(`<button class="action-btn view-replies-btn">${escapeHtml(comment.isReply ? t('viewParent') : t('viewReplies'))}</button>`);
 
       // 删除按钮
       if (comment.canDelete) {
-        buttons.push(`<button class="action-btn delete delete-btn">删除</button>`);
+        buttons.push(`<button class="action-btn delete delete-btn">${escapeHtml(t('deleteBtn'))}</button>`);
       }
 
       // 检举按钮（仅正式评分）
       if (!comment.isReply && !comment.isAuthorComment) {
-        buttons.push(`<button class="action-btn report report-btn" title="检举评论">!</button>`);
+        buttons.push(`<button class="action-btn report report-btn" title="${escapeHtml(t('reportTitle'))}">!</button>`);
       }
 
       return buttons.join('');
@@ -3302,7 +3875,7 @@
      */
     function formatCommentTime(dateInput) {
       if (!dateInput) {
-        return '未知时间';
+        return t('unknownTime');
       }
       
       try {
@@ -3310,7 +3883,7 @@
         
         // 检查日期是否有效
         if (isNaN(date.getTime())) {
-          return '无效日期';
+          return t('invalidDate');
         }
         
         const now = new Date();
@@ -3322,17 +3895,17 @@
         
         // 相对时间显示（1周内）
         if (diffSeconds < 60) {
-          return '刚刚';
+          return t('justNow');
         } else if (diffMinutes < 60) {
-          return `${diffMinutes}分钟前`;
+          return t('minutesAgo', { n: diffMinutes });
         } else if (diffHours < 24) {
-          return `${diffHours}小时前`;
+          return t('hoursAgo', { n: diffHours });
         } else if (diffDays === 1) {
-          return '昨天';
+          return t('yesterday');
         } else if (diffDays === 2) {
-          return '前天';
+          return t('dayBefore');
         } else if (diffDays < 7) {
-          return `${diffDays}天前`;
+          return t('daysAgo', { n: diffDays });
         }
         
         // 绝对时间显示（1周以上）
@@ -3351,7 +3924,7 @@
         }
       } catch (error) {
         console.error('[评论系统] 时间格式化失败:', error);
-        return '时间错误';
+        return t('badTime');
       }
     }
     
@@ -3435,7 +4008,7 @@
         inputScore.disabled = true;
         commentField.disabled = true;
         submitBtn.disabled = true;
-        submitBtn.textContent = '加载中...';
+        setSubmitButtonMode('loading');
         
         // 清空输入框内容（避免显示旧数据）
         inputScore.value = '';
@@ -3453,7 +4026,7 @@
         // 设置超时保护（10秒后自动恢复，防止卡死）
         loadingTimeout = setTimeout(() => {
           console.warn('[评论系统] 加载超时，自动恢复输入状态');
-          workStatusInfo.innerHTML = '⚠️ 加载超时，请重新选择作品或刷新页面';
+          workStatusInfo.innerHTML = t('loadingTimeoutMsg');
           workStatusInfo.className = 'work-status-info';
           workStatusInfo.style.background = 'rgba(255, 152, 0, 0.4)';
           workStatusInfo.style.border = '1px solid rgba(255, 152, 0, 0.6)';
@@ -3461,7 +4034,7 @@
           // 恢复按钮状态（但保持输入框禁用，直到重新选择）
           if (currentUserId && isUserVerified) {
             submitBtn.disabled = false;
-            submitBtn.textContent = '提交评论';
+            setSubmitButtonMode('default');
           }
           
           loadingTimeout = null;
@@ -3562,7 +4135,10 @@
       }
     }
 
-    function showLoading(message = '加载中...') {
+    function showLoading(message) {
+      if (message === undefined || message === null) {
+        message = t('loadingComments');
+      }
       const loadingState = document.getElementById('loadingState');
       const loadingText = loadingState.querySelector('.loading-text');
       if (loadingText) {
@@ -3612,7 +4188,7 @@
       //   filterMode: currentFilter,
       //   currentPage: currentPage
       // });
-      showLoading('加载评论中...');
+      showLoading(t('loadingComments'));
       
       window.parent.postMessage({
         type: 'REQUEST_COMMENTS',
@@ -3636,7 +4212,7 @@
       const previewContent = markdownPreview.querySelector('.preview-placeholder');
 
       if (previewContent) {
-        previewContent.textContent = '正在加载Markdown预览...';
+        previewContent.textContent = t('previewLoading');
       }
 
       const markdownText = commentField.value;
@@ -3695,12 +4271,13 @@
     }
 
     // ==================== 页面加载 ====================
+    initLanguageUi();
     // 初始化信息区域展开/收起功能
     initRatingModal();
     initInfoToggles();
     
     // 显示初始加载状态
-    showLoading('正在连接评论系统...');
+    showLoading(t('connecting'));
     
     console.log('[评论系统] HTML已加载');
     window.parent.postMessage({
