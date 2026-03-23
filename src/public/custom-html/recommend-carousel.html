@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0c1a;
+      font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
+    }
+
+    /* ── Swiper 容器 ── */
+    .swiper { width: 100%; height: 100vh; }
+    .swiper-slide { position: relative; overflow: hidden; }
+
+    /* ── 模糊背景 ── */
+    .s-bg {
+      position: absolute;
+      inset: -40px;
+      background-size: cover;
+      background-position: center;
+      filter: blur(28px) brightness(0.38) saturate(1.5);
+      transform: scale(1.08);
+      transition: transform 8s ease-out;
+      will-change: transform;
+    }
+    .swiper-slide-active .s-bg { transform: scale(1.18); }
+
+    /* ── 渐变叠层 ── */
+    .s-ov {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg,
+          rgba(4, 5, 14, 0.22) 0%,
+          transparent            38%,
+          rgba(4, 5, 14, 0.55) 70%,
+          rgba(4, 5, 14, 0.82) 100%
+        ),
+        radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,0.45) 100%);
+    }
+
+    /* ── 弹幕层 ── */
+    .dm-layer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .dm-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      overflow: hidden;
+      height: 2em;
+      line-height: 2em;
+    }
+
+    .dm-text {
+      display: inline-block;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      white-space: nowrap;
+      text-shadow:
+        0 2px 8px rgba(0,0,0,0.9),
+        0 0 24px rgba(255,255,255,0.12);
+      /* 准备态：停在右侧画面外 */
+      transform: translateX(110%);
+    }
+
+    /* 弹幕飞行：由 JS 添加 .fly 触发 */
+    .dm-text.fly {
+      animation: dm-scroll var(--dur) var(--dly) linear forwards;
+    }
+
+    @keyframes dm-scroll {
+      0%   { transform: translateX(110%); opacity: 0;   }
+      4%   { opacity: 1;   }
+      88%  { opacity: 0.9; }
+      100% { transform: translateX(-110%); opacity: 0;  }
+    }
+
+    /* ── 封面圆泡 ── */
+    .s-orb {
+      position: absolute;
+      left: 50%;
+      top: 40%;
+      width: 170px;
+      height: 170px;
+      transform: translate(-50%, -50%) scale(0.82);
+      transition: transform 1s cubic-bezier(0.34, 1.38, 0.64, 1);
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 5px rgba(255,255,255,0.12),
+        0 0 0 12px rgba(255,255,255,0.05),
+        0 28px 52px rgba(0,0,0,0.55),
+        0 0 40px rgba(255,209,102,0.22);
+      z-index: 3;
+    }
+    .swiper-slide-active .s-orb {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .s-orb img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .s-orb-fallback {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #1e2042, #2d134e);
+      color: rgba(255,255,255,0.55);
+      font-size: 16px; font-weight: 700;
+    }
+
+    /* ── 信息栏（底部） ── */
+    .s-info {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 16px 40px 24px;
+      z-index: 4;
+      transform: translateY(10px);
+      opacity: 0;
+      transition: transform 0.65s 0.25s ease-out, opacity 0.65s 0.25s ease-out;
+    }
+    .swiper-slide-active .s-info {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .s-seq {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ffd166, #ff9a3c);
+      color: #14160a;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      margin-bottom: 6px;
+    }
+
+    .s-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 2px 16px rgba(0,0,0,0.65);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 78%;
+      line-height: 1.2;
+    }
+
+    /* ── Swiper 控件 ── */
+    .swiper-button-prev,
+    .swiper-button-next {
+      color: rgba(255,255,255,0.82) !important;
+      background: rgba(0,0,0,0.3);
+      width: 36px !important;
+      height: 36px !important;
+      border-radius: 50%;
+      backdrop-filter: blur(6px);
+      transition: background 0.2s;
+    }
+    .swiper-button-prev:hover,
+    .swiper-button-next:hover { background: rgba(0,0,0,0.55); }
+    .swiper-button-prev::after,
+    .swiper-button-next::after { font-size: 14px !important; }
+
+    .swiper-pagination-bullet {
+      background: rgba(255,255,255,0.5) !important;
+      transition: width 0.3s, border-radius 0.3s;
+    }
+    .swiper-pagination-bullet-active {
+      background: #ffd166 !important;
+      width: 18px !important;
+      border-radius: 4px !important;
+    }
+
+    /* ── 状态屏 ── */
+    .state-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 10px;
+      background: #0a0c1a;
+      color: rgba(255,255,255,0.52);
+      font-size: 14px;
+      text-align: center;
+    }
+    .state-screen strong {
+      color: rgba(255,255,255,0.8);
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="state-screen"><span>正在加载推荐榜…</span></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script>
+    const API = "https://mmfc.majdata.net/_functions";
+
+    /* ─── 工具 ─── */
+    const esc = s => String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    const setApp = html => (document.getElementById("app").innerHTML = html);
+
+    /* ─── 封面拉取 ─── */
+    async function fetchCover(seqId) {
+      try {
+        const r = await fetch(`${API}/contestEntry/${seqId}/3`);
+        const d = await r.json();
+        return d.downloadUrl || (d.data && d.data.downloadUrl) || "";
+      } catch (_) { return ""; }
+    }
+
+    /* ─── 幻灯片 HTML ─── */
+    function slideHTML(item, cover) {
+      const bgStyle = cover
+        ? `background-image:url('${esc(cover)}')`
+        : `background:linear-gradient(135deg,#1e2042,#2d134e)`;
+
+      const orbInner = cover
+        ? `<img src="${esc(cover)}" alt="" onerror="this.parentElement.innerHTML='<div class=s-orb-fallback>#${item.sequenceId}</div>'" />`
+        : `<div class="s-orb-fallback">#${item.sequenceId}</div>`;
+
+      /*
+        3 条弹幕轨道，相同内容但字号、透明度、速度各异：
+          轨道 1 ── 主弹幕，大字、高对比，贯穿上部
+          轨道 2 ── 中弹幕，稍小稍暗，居中偏下，慢
+          轨道 3 ── 影子层，最小最淡，接近底部，最慢
+        --dur / --dly 通过 CSS 变量注入 animation 参数。
+      */
+      const tracks = [
+        { top: "18%", size: "22px", opacity: "0.95", dur: "5.8s",  dly: "0.2s"  },
+        { top: "44%", size: "16px", opacity: "0.62", dur: "9.4s",  dly: "1.6s"  },
+        { top: "66%", size: "13px", opacity: "0.38", dur: "12.5s", dly: "0.85s" },
+      ];
+
+      const dm = tracks.map(t => `
+        <div class="dm-row" style="top:${t.top}">
+          <span class="dm-text" style="font-size:${t.size};opacity:${t.opacity};--dur:${t.dur};--dly:${t.dly}">
+            ${esc(item.comment || "")}
+          </span>
+        </div>`).join("");
+
+      return `
+        <div class="swiper-slide">
+          <div class="s-bg" style="${bgStyle}"></div>
+          <div class="s-ov"></div>
+          <div class="dm-layer">${dm}</div>
+          <div class="s-orb">${orbInner}</div>
+          <div class="s-info">
+            <div class="s-seq">#${item.sequenceId}</div>
+            <div class="s-title">${esc(item.workTitle || "")}</div>
+          </div>
+        </div>`;
+    }
+
+    /* ─── 弹幕重启（切换幻灯片时调用） ─── */
+    function startDanmaku() {
+      document.querySelectorAll(".swiper-slide-active .dm-text").forEach(el => {
+        el.classList.remove("fly");
+        void el.offsetWidth;   // 强制 reflow，重置 animation
+        el.classList.add("fly");
+      });
+    }
+
+    /* ─── 主入口 ─── */
+    async function init() {
+      let items = [];
+      try {
+        const resp = await fetch(`${API}/recommendBoard`);
+        const json = await resp.json();
+        items = Array.isArray(json) ? json : (json.data || []);
+      } catch (_) {
+        setApp('<div class="state-screen"><strong>MMFC 推荐榜</strong><span>无法加载，请稍后重试</span></div>');
+        return;
+      }
+
+      if (!items.length) {
+        setApp('<div class="state-screen"><strong>MMFC 推荐榜</strong><span>暂无推荐内容</span></div>');
+        return;
+      }
+
+      /* 并行拉封面 */
+      const covers = await Promise.all(items.map(item => fetchCover(item.sequenceId)));
+
+      setApp(`
+        <div class="swiper">
+          <div class="swiper-wrapper">
+            ${items.map((item, i) => slideHTML(item, covers[i])).join("")}
+          </div>
+          <div class="swiper-pagination"></div>
+          <div class="swiper-button-prev"></div>
+          <div class="swiper-button-next"></div>
+        </div>
+      `);
+
+      const sw = new Swiper(".swiper", {
+        effect:      "fade",
+        fadeEffect:  { crossFade: true },
+        speed:       950,
+        autoplay: {
+          delay:                 6500,
+          disableOnInteraction:  false,
+          pauseOnMouseEnter:     true,
+        },
+        loop:        items.length > 1,
+        pagination:  { el: ".swiper-pagination", clickable: true },
+        navigation:  { prevEl: ".swiper-button-prev", nextEl: ".swiper-button-next" },
+      });
+
+      /* 切换后（渐变完成）重启弹幕 */
+      sw.on("slideChangeTransitionEnd", startDanmaku);
+
+      /* 第一张幻灯片：延迟一帧再触发，确保 DOM 已就绪 */
+      requestAnimationFrame(() => setTimeout(startDanmaku, 100));
+    }
+
+    init();
+  </script>
+</body>
+</html>

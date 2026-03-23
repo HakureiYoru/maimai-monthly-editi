@@ -413,6 +413,31 @@ export const get_botQueueHistory = asyncErrorHandler(async (request) => {
  * Body: { secret: string, id: string }
  */
 /**
+ * 推荐榜公开展示接口：无需鉴权，供前端轮播直接调用
+ */
+export function options_recommendBoard(request) {
+  return createOptionsResponse();
+}
+
+export const get_recommendBoard = asyncErrorHandler(async (request) => {
+  const result = await wixData
+    .query(COLLECTIONS.RECOMMENDED_WORKS)
+    .eq("status", "active")
+    .descending("_createdDate")
+    .limit(50)
+    .find({ suppressAuth: true });
+
+  const items = result.items.map((item) => ({
+    sequenceId: item.sequenceId,
+    workTitle: item.workTitle,
+    comment: item.comment,
+    createdDate: item._createdDate,
+  }));
+
+  return createSuccessResponse(items);
+});
+
+/**
  * 推荐榜接口：获取所有 active 状态的推荐条目（供 Bot 拉取渲染）
  * 需要在 query string 中携带 secret=BOT_QUEUE_SECRET
  */
