@@ -469,6 +469,112 @@ export const get_recommendedWorks = asyncErrorHandler(async (request) => {
   return createSuccessResponse(items);
 });
 
+// ===================== 手元视频同步接口 =====================
+
+export function options_shouyuanSync(request) {
+  return createOptionsResponse();
+}
+
+export function options_shouyuan(request) {
+  return createOptionsResponse();
+}
+
+/**
+ * Bot 推送手元数据批量同步
+ * Body: { secret, entries: { "sequenceId": { title, videos: [{url, cover, videoTitle, bvid}] } } }
+ */
+export const post_shouyuanSync = asyncErrorHandler(async (request) => {
+  const body = await request.body.json();
+  if (!body || body.secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  const entries = body.entries;
+  if (!entries || typeof entries !== "object") {
+    return createErrorResponse("Missing entries", "badRequest");
+  }
+
+  let upserted = 0;
+  const entryKeys = Object.keys(entries);
+
+  for (const key of entryKeys) {
+    const sequenceId = parseInt(key, 10);
+    if (isNaN(sequenceId)) continue;
+
+    const entry = entries[key];
+    const title = entry.title || "";
+    const videos = entry.videos || [];
+
+    const videosJson = JSON.stringify(
+      Array.isArray(videos) ? videos : []
+    );
+
+    const existing = await wixData
+      .query(COLLECTIONS.MMFC_SHOUYUAN)
+      .eq("sequenceId", sequenceId)
+      .limit(1)
+      .find({ suppressAuth: true });
+
+    if (existing.items.length > 0) {
+      const item = existing.items[0];
+      item.title = title;
+      item.videosJson = videosJson;
+      item.videoCount = Array.isArray(videos) ? videos.length : 0;
+      await wixData.update(COLLECTIONS.MMFC_SHOUYUAN, item, {
+        suppressAuth: true,
+      });
+    } else {
+      await wixData.insert(
+        COLLECTIONS.MMFC_SHOUYUAN,
+        {
+          sequenceId,
+          title,
+          videosJson,
+          videoCount: Array.isArray(videos) ? videos.length : 0,
+        },
+        { suppressAuth: true }
+      );
+    }
+    upserted++;
+  }
+
+  return createSuccessResponse({ upserted });
+});
+
+/**
+ * 获取指定作品的手元视频列表
+ * GET /shouyuan/{sequenceId}
+ */
+export const get_shouyuan = asyncErrorHandler(async (request) => {
+  const sequenceId = validateNumberParam(request.path[0], "sequenceId");
+
+  const result = await wixData
+    .query(COLLECTIONS.MMFC_SHOUYUAN)
+    .eq("sequenceId", sequenceId)
+    .limit(1)
+    .find({ suppressAuth: true });
+
+  if (result.items.length === 0) {
+    return createSuccessResponse({ sequenceId, title: "", videos: [] });
+  }
+
+  const item = result.items[0];
+  let videos = [];
+  try {
+    videos = JSON.parse(item.videosJson || "[]");
+  } catch (_e) {
+    videos = [];
+  }
+
+  return createSuccessResponse({
+    sequenceId: item.sequenceId,
+    title: item.title || "",
+    videos,
+  });
+});
+
+// ===================== Bot 消息队列接口（续） =====================
+
 export const post_botQueueAck = asyncErrorHandler(async (request) => {
   const body = await request.body.json();
   if (!body || body.secret !== BOT_QUEUE_SECRET) {

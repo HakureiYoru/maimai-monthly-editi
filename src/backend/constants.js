@@ -90,6 +90,7 @@ export const COLLECTIONS = {
   BOT_QUEUE: "BotQueue",
   USER_SKINS: "UserSkins",
   RECOMMENDED_WORKS: "RecommendedWorks",
+  MMFC_SHOUYUAN: "mmfcShouyuan",
 };
 
 // Bot 消息队列安全密钥（Wix 后端 + mmfc_bot 共享）

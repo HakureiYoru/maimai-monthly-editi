@@ -1,0 +1,107 @@
+import wixData from "wix-data";
+import { COLLECTIONS } from "backend/constants";
+import { logError } from "backend/errorHandler";
+
+const AUTH_OPTS = { suppressAuth: true };
+
+/**
+ * 获取指定作品的手元视频列表
+ * @param {number} sequenceId
+ * @returns {Promise<Array>} 视频对象数组 [{url, cover, videoTitle, bvid}]
+ */
+export async function getShouyuanVideos(sequenceId) {
+  try {
+    const result = await wixData
+      .query(COLLECTIONS.MMFC_SHOUYUAN)
+      .eq("sequenceId", sequenceId)
+      .limit(1)
+      .find(AUTH_OPTS);
+
+    if (result.items.length === 0) {
+      return [];
+    }
+
+    const item = result.items[0];
+    const videosJson = item.videosJson || "[]";
+    try {
+      return JSON.parse(videosJson);
+    } catch (_e) {
+      return [];
+    }
+  } catch (error) {
+    logError("getShouyuanVideos", error, { sequenceId });
+    return [];
+  }
+}
+
+/**
+ * 批量获取多个作品的手元视频数量（用于 repeater 列表展示）
+ * @param {number[]} sequenceIds
+ * @returns {Promise<Object>} { sequenceId: videoCount, ... }
+ */
+export async function batchGetShouyuanCounts(sequenceIds) {
+  try {
+    if (!sequenceIds || sequenceIds.length === 0) return {};
+
+    const result = await wixData
+      .query(COLLECTIONS.MMFC_SHOUYUAN)
+      .hasSome("sequenceId", sequenceIds)
+      .limit(1000)
+      .find(AUTH_OPTS);
+
+    const countMap = {};
+    result.items.forEach((item) => {
+      let count = 0;
+      try {
+        const videos = JSON.parse(item.videosJson || "[]");
+        count = Array.isArray(videos) ? videos.length : 0;
+      } catch (_e) {
+        count = 0;
+      }
+      countMap[item.sequenceId] = count;
+    });
+
+    return countMap;
+  } catch (error) {
+    logError("batchGetShouyuanCounts", error, {});
+    return {};
+  }
+}
+
+/**
+ * 获取所有作品的手元视频数量
+ * @returns {Promise<Object>} { sequenceId: videoCount, ... }
+ */
+export async function getAllShouyuanCounts() {
+  try {
+    let allItems = [];
+    let result = await wixData
+      .query(COLLECTIONS.MMFC_SHOUYUAN)
+      .limit(1000)
+      .find(AUTH_OPTS);
+
+    allItems = allItems.concat(result.items);
+
+    while (result.hasNext()) {
+      result = await result.next();
+      allItems = allItems.concat(result.items);
+    }
+
+    const countMap = {};
+    allItems.forEach((item) => {
+      let count = 0;
+      try {
+        const videos = JSON.parse(item.videosJson || "[]");
+        count = Array.isArray(videos) ? videos.length : 0;
+      } catch (_e) {
+        count = 0;
+      }
+      countMap[item.sequenceId] = count;
+    });
+
+    return countMap;
+  } catch (error) {
+    logError("getAllShouyuanCounts", error, {});
+    return {};
+  }
+}
