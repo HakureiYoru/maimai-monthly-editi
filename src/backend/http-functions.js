@@ -479,6 +479,40 @@ export function options_shouyuan(request) {
   return createOptionsResponse();
 }
 
+export function options_shouyuanCounts(request) {
+  return createOptionsResponse();
+}
+
+/**
+ * 返回所有已同步记录的 sequenceId -> videoCount 映射，供 Bot 做差异比对
+ * GET /shouyuanCounts?secret=...
+ */
+export const get_shouyuanCounts = asyncErrorHandler(async (request) => {
+  const secret = request.query && request.query.secret;
+  if (secret !== BOT_QUEUE_SECRET) {
+    return createErrorResponse("Unauthorized", "forbidden");
+  }
+
+  let allItems = [];
+  let result = await wixData
+    .query(COLLECTIONS.MMFC_SHOUYUAN)
+    .limit(1000)
+    .find({ suppressAuth: true });
+
+  allItems = allItems.concat(result.items);
+  while (result.hasNext()) {
+    result = await result.next();
+    allItems = allItems.concat(result.items);
+  }
+
+  const counts = {};
+  allItems.forEach((item) => {
+    counts[item.sequenceId] = item.videoCount || 0;
+  });
+
+  return createSuccessResponse(counts);
+});
+
 /**
  * Bot 推送手元数据批量同步
  * Body: { secret, entries: { "sequenceId": { title, videos: [{url, cover, videoTitle, bvid}] } } }
