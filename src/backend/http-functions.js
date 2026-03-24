@@ -494,51 +494,70 @@ export const post_shouyuanSync = asyncErrorHandler(async (request) => {
     return createErrorResponse("Missing entries", "badRequest");
   }
 
-  let upserted = 0;
   const entryKeys = Object.keys(entries);
+  const sequenceIds = entryKeys
+    .map((k) => parseInt(k, 10))
+    .filter((n) => !isNaN(n));
 
-  for (const key of entryKeys) {
-    const sequenceId = parseInt(key, 10);
-    if (isNaN(sequenceId)) continue;
-
-    const entry = entries[key];
-    const title = entry.title || "";
-    const videos = entry.videos || [];
-
-    const videosJson = JSON.stringify(
-      Array.isArray(videos) ? videos : []
-    );
-
-    const existing = await wixData
-      .query(COLLECTIONS.MMFC_SHOUYUAN)
-      .eq("sequenceId", sequenceId)
-      .limit(1)
-      .find({ suppressAuth: true });
-
-    if (existing.items.length > 0) {
-      const item = existing.items[0];
-      item.title = title;
-      item.videosJson = videosJson;
-      item.videoCount = Array.isArray(videos) ? videos.length : 0;
-      await wixData.update(COLLECTIONS.MMFC_SHOUYUAN, item, {
-        suppressAuth: true,
-      });
-    } else {
-      await wixData.insert(
-        COLLECTIONS.MMFC_SHOUYUAN,
-        {
-          sequenceId,
-          title,
-          videosJson,
-          videoCount: Array.isArray(videos) ? videos.length : 0,
-        },
-        { suppressAuth: true }
-      );
-    }
-    upserted++;
+  if (sequenceIds.length === 0) {
+    return createSuccessResponse({ upserted: 0 });
   }
 
-  return createSuccessResponse({ upserted });
+  // 一次性查出这批已存在的记录
+  const existingResult = await wixData
+    .query(COLLECTIONS.MMFC_SHOUYUAN)
+    .hasSome("sequenceId", sequenceIds)
+    .limit(sequenceIds.length + 10)
+    .find({ suppressAuth: true });
+
+  const existingMap = {};
+  existingResult.items.forEach((item) => {
+    existingMap[item.sequenceId] = item;
+  });
+
+  const toUpdate = [];
+  const toInsert = [];
+
+  for (const sequenceId of sequenceIds) {
+    const entry = entries[String(sequenceId)];
+    if (!entry) continue;
+
+    const title = entry.title || "";
+    const videos = entry.videos || [];
+    const videosJson = JSON.stringify(Array.isArray(videos) ? videos : []);
+    const videoCount = Array.isArray(videos) ? videos.length : 0;
+
+    if (existingMap[sequenceId]) {
+      const item = existingMap[sequenceId];
+      item.title = title;
+      item.videosJson = videosJson;
+      item.videoCount = videoCount;
+      toUpdate.push(item);
+    } else {
+      toInsert.push({ sequenceId, title, videosJson, videoCount });
+    }
+  }
+
+  // 并发执行批量插入和批量更新
+  const ops = [];
+  if (toInsert.length > 0) {
+    ops.push(
+      wixData.bulkInsert(COLLECTIONS.MMFC_SHOUYUAN, toInsert, {
+        suppressAuth: true,
+      })
+    );
+  }
+  if (toUpdate.length > 0) {
+    ops.push(
+      wixData.bulkUpdate(COLLECTIONS.MMFC_SHOUYUAN, toUpdate, {
+        suppressAuth: true,
+      })
+    );
+  }
+
+  await Promise.all(ops);
+
+  return createSuccessResponse({ upserted: sequenceIds.length });
 });
 
 /**
