@@ -3488,9 +3488,11 @@
 
     function createCommentElement(comment) {
       const div = document.createElement('div');
-      const skinClass = comment.hasGoldSkin
-        ? ' gold-skin'
-        : (comment.isQualifiedPlayer ? ' qualified-player' : '');
+      const skinClass = comment.isAuthorComment
+        ? ''
+        : (comment.hasGoldSkin
+            ? ' gold-skin'
+            : (comment.isQualifiedPlayer ? ' qualified-player' : ''));
       div.className = 'comment-item' + skinClass;
 
       // 构建评分徽章

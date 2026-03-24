@@ -8,86 +8,126 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: transparent;
+      width: 100%; height: 100%; overflow: hidden; background: transparent;
       font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ── Swiper 容器：四边渐变淡出 ── */
+    /* ── Swiper 容器：边缘淡出 ── */
     .swiper {
-      width: 100%;
-      height: 100vh;
+      width: 100%; height: 100vh;
       -webkit-mask-image:
         linear-gradient(to right,  transparent 0%,  black 12%, black 88%, transparent 100%),
         linear-gradient(to bottom, transparent 0%,  black 10%, black 88%, transparent 100%);
       mask-image:
         linear-gradient(to right,  transparent 0%,  black 12%, black 88%, transparent 100%),
         linear-gradient(to bottom, transparent 0%,  black 10%, black 88%, transparent 100%);
-      -webkit-mask-composite: source-in;
-      mask-composite: intersect;
+      -webkit-mask-composite: source-in; mask-composite: intersect;
     }
+    .swiper-slide { position: relative; overflow: visible; background: transparent; }
 
-    .swiper-slide {
-      position: relative;
-      overflow: visible;
-      background: transparent;
-    }
-
-    /* ── 梦幻光晕：配合放大的封面，光晕也同步扩展 ── */
-    .s-aura {
+    /* ── 1. 星云背景层：取代单调的光晕，使用双色流体交融 ── */
+    .s-nebula {
       position: absolute;
-      left: 50%;
-      top: 40%;
-      width: 650px;
-      height: 650px;
-      transform: translate(-50%, -50%) scale(0.8);
+      left: 50%; top: 40%;
+      width: 700px; height: 500px;
+      transform: translate(-50%, -50%);
+      z-index: 1; pointer-events: none;
       opacity: 0;
+      transition: opacity 1.5s ease-out;
+    }
+    .swiper-slide-active .s-nebula { opacity: 1; }
+
+    /* 两个互相交叠、互相缠绕的发光体 */
+    .nebula-glow {
+      position: absolute;
       border-radius: 50%;
-      background: radial-gradient(circle, 
-        rgba(255, 255, 255, 0.08) 0%, 
-        rgba(255, 255, 255, 0.03) 45%, 
-        transparent 75%
-      );
-      filter: blur(25px);
-      z-index: 1;
-      pointer-events: none;
-      transition: all 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+      filter: blur(45px); /* 极度虚化产生气体感 */
+      mix-blend-mode: screen; /* 与底色进行光学滤色混合 */
     }
-    .swiper-slide-active .s-aura {
-      opacity: 1;
-      animation: auraPulse 6s ease-in-out infinite alternate;
+    .nebula-gold {
+      width: 500px; height: 350px;
+      background: rgba(230, 180, 80, 0.15); /* 金色星云 */
+      top: 10%; left: -5%;
+      animation: driftA 12s infinite alternate ease-in-out;
     }
-    @keyframes auraPulse {
-      0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.8; }
-      100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    .nebula-blue {
+      width: 550px; height: 400px;
+      background: rgba(80, 140, 255, 0.12); /* 蓝色星云 */
+      bottom: -10%; right: -5%;
+      animation: driftB 15s infinite alternate ease-in-out;
     }
 
-    /* ── 弹幕层 ── */
-    .dm-layer {
+    @keyframes driftA {
+      0% { transform: translate(0, 0) scale(0.9) rotate(0deg); }
+      100% { transform: translate(40px, -20px) scale(1.1) rotate(15deg); }
+    }
+    @keyframes driftB {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      100% { transform: translate(-30px, 30px) scale(0.95) rotate(-10deg); }
+    }
+
+    /* ── 2. 封面流体容器：不再是圆，而是呼吸的“水滴/阿米巴” ── */
+    .s-orb {
       position: absolute;
-      inset: 0;
-      overflow: hidden;
-      pointer-events: none;
-      z-index: 3;
-      filter: drop-shadow(0 0 8px rgba(255,255,255,0.1));
+      left: 50%; top: 40%;
+      width: 480px; height: 380px; /* 改为非正方形，更具流动张力 */
+      z-index: 2;
+      
+      /* 椭圆形的径向渐变 Mask，中心实，边缘散 */
+      -webkit-mask-image: radial-gradient(ellipse at center, black 35%, rgba(0,0,0,0.1) 75%, transparent 100%);
+      mask-image: radial-gradient(ellipse at center, black 35%, rgba(0,0,0,0.1) 75%, transparent 100%);
+
+      transform: translate(-50%, -35%) scale(0.85);
+      filter: blur(15px) brightness(0.6);
+      opacity: 0;
+      transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), filter 1.2s ease, opacity 1.2s ease;
+      
+      /* 核心：初始的流体形状 */
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
     }
-    .dm-row {
-      position: absolute; left: 0; right: 0; overflow: hidden;
-      height: 2em; line-height: 2em;
+    
+    .swiper-slide-active .s-orb {
+      transform: translate(-50%, -50%) scale(1);
+      filter: blur(0px) brightness(1);
+      opacity: 1;
+      /* 同时执行悬浮(transform)和流变(border-radius)动画 */
+      animation: 
+        orbFloat 6s ease-in-out 1.2s infinite alternate forwards,
+        blobMorph 12s linear infinite; 
     }
-    .dm-text {
-      display: inline-block;
-      color: #fff;
-      font-weight: 600;
-      letter-spacing: 1px;
-      white-space: nowrap;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.6);
-      transform: translateX(110%);
+
+    /* 悬浮控制位置 */
+    @keyframes orbFloat {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      100% { transform: translate(-50%, -53%) scale(1.02); }
     }
+
+    /* 流变控制边缘形状，产生有机生命感 */
+    @keyframes blobMorph {
+      0%   { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+      33%  { border-radius: 40% 60% 70% 30% / 50% 60% 30% 60%; }
+      66%  { border-radius: 70% 30% 50% 50% / 30% 40% 60% 70%; }
+      100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    }
+
+    .s-orb img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+      transition: transform 10s ease-out; /* 极其缓慢的视差呼吸 */
+    }
+    .swiper-slide-active .s-orb img { transform: scale(1.15); }
+    
+    .s-orb-fallback {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(30,32,66,0.5), rgba(45,19,78,0.5));
+      color: rgba(255,255,255,0.6); font-size: 24px; font-weight: 700; letter-spacing: 3px;
+    }
+
+    /* ── 弹幕、信息栏与控件保持不变，仅调整层级和模糊 ── */
+    .dm-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; filter: drop-shadow(0 0 8px rgba(255,255,255,0.1)); }
+    .dm-row { position: absolute; left: 0; right: 0; overflow: hidden; height: 2em; line-height: 2em; }
+    .dm-text { display: inline-block; color: #fff; font-weight: 600; letter-spacing: 1px; white-space: nowrap; text-shadow: 0 2px 10px rgba(0,0,0,0.6); transform: translateX(110%); }
     .dm-text.fly { animation: dm-scroll var(--dur) var(--dly) linear forwards; }
     @keyframes dm-scroll {
       0%   { transform: translateX(110%); opacity: 0; filter: blur(4px); }
@@ -96,139 +136,18 @@
       100% { transform: translateX(-110%); opacity: 0; filter: blur(2px); }
     }
 
-    /* ── 封面圆泡：放大 2.5倍 + 边缘遮罩虚化 ── */
-    .s-orb {
-      position: absolute;
-      left: 50%;
-      top: 40%;
-      width: 420px;  /* 扩大尺寸 */
-      height: 420px;
-      border-radius: 50%;
-      z-index: 2;
-      
-      /* 核心：径向渐变 Mask，中心不透明，边缘逐渐变透明，实现极致的融合感 */
-      -webkit-mask-image: radial-gradient(circle, black 40%, rgba(0,0,0,0.1) 75%, transparent 100%);
-      mask-image: radial-gradient(circle, black 40%, rgba(0,0,0,0.1) 75%, transparent 100%);
+    .s-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 20px 30px; z-index: 4; text-align: center; transform: translateY(20px); filter: blur(8px); opacity: 0; transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s; }
+    .swiper-slide-active .s-info { transform: translateY(0); filter: blur(0); opacity: 1; }
+    .s-seq { font-size: 13px; font-weight: 500; letter-spacing: 4px; color: rgba(255, 255, 255, 0.55); margin-bottom: 8px; text-transform: uppercase; }
+    .s-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #fff; text-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.3); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-      /* 起始状态（未激活） */
-      transform: translate(-50%, -35%) scale(0.85);
-      filter: blur(15px) brightness(0.6);
-      opacity: 0;
-      
-      /* 统一由 transition 处理入场 */
-      transition: all 1.2s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    
-    .swiper-slide-active .s-orb {
-      /* 明确设置到达状态，修复之前的跳变闪烁 */
-      transform: translate(-50%, -50%) scale(1);
-      filter: blur(0px) brightness(1);
-      opacity: 1;
+    .swiper-button-prev, .swiper-button-next { color: rgba(255,255,255,0.6) !important; background: transparent; width: 44px !important; height: 44px !important; border-radius: 50%; transition: all 0.4s ease; }
+    .swiper-button-prev:hover, .swiper-button-next:hover { color: #fff !important; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); }
+    .swiper-button-prev::after, .swiper-button-next::after { font-size: 16px !important; font-weight: 300; }
+    .swiper-pagination-bullet { background: rgba(255,255,255,0.3) !important; width: 6px !important; height: 6px !important; transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
+    .swiper-pagination-bullet-active { background: rgba(255,255,255,0.95) !important; width: 24px !important; border-radius: 3px !important; box-shadow: 0 0 8px rgba(255,255,255,0.4); }
 
-      /* 动画等待 transition(1.2s) 结束后再无缝启动 */
-      animation: orbFloat 6s ease-in-out 1.2s infinite alternate forwards;
-    }
-
-    /* 悬浮动画仅控制 Y轴和轻微缩放，起点严格对齐 transform终点 */
-    @keyframes orbFloat {
-      0% { transform: translate(-50%, -50%) scale(1); }
-      100% { transform: translate(-50%, -53%) scale(1.02); }
-    }
-
-    .s-orb img {
-      width: 100%; height: 100%;
-      object-fit: cover; display: block;
-      transition: transform 8s ease-out; /* 内部图片的超慢视差放大 */
-    }
-    .swiper-slide-active .s-orb img { transform: scale(1.1); }
-    
-    .s-orb-fallback {
-      width: 100%; height: 100%;
-      display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, rgba(30,32,66,0.5), rgba(45,19,78,0.5));
-      color: rgba(255,255,255,0.6);
-      font-size: 24px; font-weight: 700;
-      letter-spacing: 3px;
-    }
-
-    /* ── 信息栏 ── */
-    .s-info {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 14px 20px 30px;
-      z-index: 4;
-      text-align: center;
-      transform: translateY(20px);
-      filter: blur(8px);
-      opacity: 0;
-      transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s;
-    }
-    .swiper-slide-active .s-info {
-      transform: translateY(0);
-      filter: blur(0);
-      opacity: 1;
-    }
-
-    .s-seq {
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: 4px;
-      color: rgba(255, 255, 255, 0.55);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-    .s-title {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      color: #fff;
-      text-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.3);
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    /* ── Swiper 控件 ── */
-    .swiper-button-prev,
-    .swiper-button-next {
-      color: rgba(255,255,255,0.6) !important;
-      background: transparent;
-      width: 44px !important;
-      height: 44px !important;
-      border-radius: 50%;
-      transition: all 0.4s ease;
-    }
-    .swiper-button-prev:hover,
-    .swiper-button-next:hover { 
-      color: #fff !important;
-      background: rgba(255,255,255,0.08); 
-      backdrop-filter: blur(4px);
-    }
-    .swiper-button-prev::after,
-    .swiper-button-next::after { font-size: 16px !important; font-weight: 300; }
-
-    .swiper-pagination-bullet {
-      background: rgba(255,255,255,0.3) !important;
-      width: 6px !important; height: 6px !important;
-      transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-    }
-    .swiper-pagination-bullet-active {
-      background: rgba(255,255,255,0.95) !important;
-      width: 24px !important;
-      border-radius: 3px !important;
-      box-shadow: 0 0 8px rgba(255,255,255,0.4);
-    }
-
-    /* ── 状态屏 ── */
-    .state-screen {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 100vh; gap: 12px; background: transparent;
-      color: rgba(255,255,255,0.5); font-size: 14px; text-shadow: 0 2px 8px rgba(0,0,0,0.5);
-      letter-spacing: 1px;
-      animation: pulseAura 2s infinite alternate;
-    }
+    .state-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 12px; background: transparent; color: rgba(255,255,255,0.5); font-size: 14px; text-shadow: 0 2px 8px rgba(0,0,0,0.5); letter-spacing: 1px; }
     .state-screen strong { color: rgba(255,255,255,0.9); font-size: 18px; font-weight: 400; letter-spacing: 3px; }
   </style>
 </head>
@@ -240,14 +159,7 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script>
     const API = "https://mmfc.majdata.net/_functions";
-
-    const esc = s => String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-
+    const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const setApp = html => (document.getElementById("app").innerHTML = html);
 
     async function fetchCover(seqId) {
@@ -276,9 +188,13 @@
           </span>
         </div>`).join("");
 
+      /* 在这里加入了底层的双色星云容器 s-nebula */
       return `
         <div class="swiper-slide">
-          <div class="s-aura"></div>
+          <div class="s-nebula">
+            <div class="nebula-glow nebula-gold"></div>
+            <div class="nebula-glow nebula-blue"></div>
+          </div>
           <div class="dm-layer">${dm}</div>
           <div class="s-orb">${orbInner}</div>
           <div class="s-info">
@@ -329,11 +245,7 @@
         effect:      "fade",
         fadeEffect:  { crossFade: true },
         speed:       1200, 
-        autoplay: {
-          delay:               7000,
-          disableOnInteraction:  false,
-          pauseOnMouseEnter:     true,
-        },
+        autoplay: { delay: 7000, disableOnInteraction: false, pauseOnMouseEnter: true },
         loop:        items.length > 1,
         pagination:  { el: ".swiper-pagination", clickable: true },
         navigation:  { prevEl: ".swiper-button-prev", nextEl: ".swiper-button-next" },
