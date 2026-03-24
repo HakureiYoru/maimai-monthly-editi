@@ -362,7 +362,7 @@
                     <div class="video-item" onclick="openVideo('${escapeAttr(url)}')">
                         <div class="video-cover">
                             ${cover
-                                ? `<img src="${escapeAttr(cover)}" alt="封面" onerror="this.parentElement.innerHTML='<div class=\\'placeholder\\'>▶</div>'">`
+                                ? `<img src="${escapeAttr(cover)}" alt="封面" referrerpolicy="no-referrer" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'placeholder\\'>▶</div>'">`
                                 : '<div class="placeholder">▶</div>'
                             }
                             <div class="play-overlay"></div>
