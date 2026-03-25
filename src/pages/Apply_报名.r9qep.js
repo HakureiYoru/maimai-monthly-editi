@@ -47,7 +47,7 @@ function checkTotalRegistrations() {
     wixData.query('jobApplication089')
         .count()
         .then(count => {
-            if (count >= 300) {
+            if (count >= 800) {
                 // 报名人数已达到上限
                 $w("#button3").label = "报名已满";
                 $w("#button3").disable();
