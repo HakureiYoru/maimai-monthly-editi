@@ -67,8 +67,6 @@ let qualifiedPlayersCache = null;
 // 【新增】任务数据缓存 - 避免重复调用
 let userTaskDataCache = null; // 缓存用户任务数据
 
-// 手元视频数量缓存
-let shouyuanCountsCache = null;
 
 // 用户验证功能
 async function checkUserVerification() {
@@ -262,8 +260,6 @@ $w.onReady(async function () {
   // 初始化手元视频面板
   initShouyuanPanel();
 
-  // 预加载手元视频数量
-  loadShouyuanCounts();
 
   // 【新增】初始化评论系统HTML元件
   initCommentSystemPanel();
@@ -293,8 +289,6 @@ $w.onReady(async function () {
       $item("#container2").style.backgroundColor = "rgba(128, 128, 128, 0.2)";
     }
 
-    // 手元视频数量显示
-    updateShouyuanCount($item, itemData.sequenceId);
 
     setupItemEventListeners($item, itemData);
   });
@@ -1061,7 +1055,6 @@ function clearCaches() {
   userTaskDataCache = null; // 清理任务数据缓存
   goldSkinUsersCache = null; // 清理金皮肤用户缓存
   qualifiedPlayersCache = null; // 清理Q选手缓存
-  shouyuanCountsCache = null; // 清理手元数量缓存
   resetCommentDataCache(); // 清理评论分页缓存
 
   // 重置所有加载锁
@@ -2930,29 +2923,6 @@ async function handleGotoWork(workNumber) {
 
 // ==================== 手元视频面板 ====================
 
-async function loadShouyuanCounts() {
-  try {
-    shouyuanCountsCache = await getAllShouyuanCounts();
-  } catch (error) {
-    console.error("[手元] 预加载手元数量失败:", error);
-    shouyuanCountsCache = {};
-  }
-}
-
-function updateShouyuanCount($item, sequenceId) {
-  try {
-    const count =
-      shouyuanCountsCache && shouyuanCountsCache[sequenceId]
-        ? shouyuanCountsCache[sequenceId]
-        : 0;
-
-    if ($item("#shouyuanCount")) {
-      $item("#shouyuanCount").text = count > 0 ? `${count}` : "0";
-    }
-  } catch (_e) {
-    // 元件可能不存在（编辑器未添加），静默忽略
-  }
-}
 
 function initShouyuanPanel() {
   try {
