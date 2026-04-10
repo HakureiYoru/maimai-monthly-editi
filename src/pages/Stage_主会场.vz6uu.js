@@ -1,6 +1,5 @@
 import wixUsers from "wix-users";
 import wixData from "wix-data";
-import wixWindow from "wix-window";
 import { getBatchDownloadUrls } from "backend/mediaManagement.jsw";
 import { updateUserPoints } from "backend/userPoints.jsw";
 import {
@@ -399,11 +398,6 @@ async function updateCommentStatus($item, itemData) {
     $item("#ifComment").text = "检查失败";
     $item("#ifComment").style.color = "#A9A9A9";
   }
-}
-
-// Lightbox弹窗管理
-function showTextPopup(content) {
-  wixWindow.openLightbox("TextPopup", { content: content });
 }
 
 // 显示删除确认面板（替代原来的 lightbox）
@@ -1340,11 +1334,6 @@ async function displayReplyCount($item, commentId) {
 // 设置作品项目的事件监听器
 function setupItemEventListeners($item, itemData) {
   // 【已移除】下载按钮事件监听器 - 不再使用 getMediaDownloadUrls
-
-  $item("#checkText").onClick(() => {
-    const descriptionText = $item("#descriptionBox").value;
-    showTextPopup(descriptionText);
-  });
 
   // 手元视频按钮
   $item("#shouyuanBtn").onClick(async () => {
