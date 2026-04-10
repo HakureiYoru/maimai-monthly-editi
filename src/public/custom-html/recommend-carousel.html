@@ -124,22 +124,162 @@
       color: rgba(255,255,255,0.6); font-size: 24px; font-weight: 700; letter-spacing: 3px;
     }
 
-    /* ── 弹幕、信息栏与控件保持不变，仅调整层级和模糊 ── */
-    .dm-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; filter: drop-shadow(0 0 8px rgba(255,255,255,0.1)); }
-    .dm-row { position: absolute; left: 0; right: 0; overflow: hidden; height: 2em; line-height: 2em; }
-    .dm-text { display: inline-block; color: #fff; font-weight: 600; letter-spacing: 1px; white-space: nowrap; text-shadow: 0 2px 10px rgba(0,0,0,0.6); transform: translateX(110%); }
-    .dm-text.fly { animation: dm-scroll var(--dur) var(--dly) linear forwards; }
-    @keyframes dm-scroll {
-      0%   { transform: translateX(110%); opacity: 0; filter: blur(4px); }
-      5%   { opacity: 1; filter: blur(0px); }
-      90%  { opacity: 0.8; filter: blur(0px); }
-      100% { transform: translateX(-110%); opacity: 0; filter: blur(2px); }
+    /* ── 3. 透明气泡云：从封面向外延展，替代一次性滚动弹幕 ── */
+    .dm-layer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 3;
+      filter: drop-shadow(0 16px 30px rgba(16, 24, 48, 0.18));
+    }
+    .dm-node {
+      position: absolute;
+      left: 50%;
+      top: 40%;
+      width: 0;
+      height: 0;
+      --bubble-bg-a: rgba(255, 255, 255, 0.22);
+      --bubble-bg-b: rgba(146, 190, 255, 0.08);
+      --bubble-ring: rgba(255, 255, 255, 0.18);
+      --bubble-glow: rgba(126, 182, 255, 0.18);
+      --bubble-line: rgba(255, 255, 255, 0.5);
+    }
+    .dm-tone-warm {
+      --bubble-bg-a: rgba(255, 236, 209, 0.22);
+      --bubble-bg-b: rgba(255, 187, 117, 0.08);
+      --bubble-ring: rgba(255, 228, 183, 0.2);
+      --bubble-glow: rgba(255, 185, 122, 0.18);
+      --bubble-line: rgba(255, 223, 176, 0.52);
+    }
+    .dm-tone-cool {
+      --bubble-bg-a: rgba(223, 239, 255, 0.22);
+      --bubble-bg-b: rgba(117, 171, 255, 0.08);
+      --bubble-ring: rgba(211, 232, 255, 0.22);
+      --bubble-glow: rgba(119, 184, 255, 0.18);
+      --bubble-line: rgba(196, 224, 255, 0.52);
+    }
+    .dm-tone-neutral {
+      --bubble-bg-a: rgba(255, 255, 255, 0.2);
+      --bubble-bg-b: rgba(208, 190, 255, 0.08);
+      --bubble-ring: rgba(255, 255, 255, 0.18);
+      --bubble-glow: rgba(190, 164, 255, 0.16);
+      --bubble-line: rgba(245, 239, 255, 0.48);
+    }
+    .dm-link {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--line-w);
+      height: 1px;
+      opacity: 0;
+      transform-origin: left center;
+      transform: rotate(var(--angle)) scaleX(0.12);
+      background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, var(--bubble-line) 18%, rgba(255,255,255,0.12) 72%, rgba(255,255,255,0) 100%);
+      box-shadow: 0 0 12px rgba(255,255,255,0.12);
+      transition:
+        transform 1.15s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.9s ease;
+      transition-delay: var(--delay);
+    }
+    .dm-shell {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      filter: blur(12px);
+      transform: translate(calc(var(--dx) * 0.18), calc(var(--dy) * 0.18)) scale(0.52);
+      transition:
+        transform 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.9s ease,
+        filter 1s ease;
+      transition-delay: var(--delay);
+    }
+    .dm-bubble {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: max-content;
+      max-width: min(var(--size), 42vw);
+      min-height: 52px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--bubble-ring);
+      color: rgba(255,255,255,0.94);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 45%),
+        linear-gradient(135deg, var(--bubble-bg-a), var(--bubble-bg-b));
+      backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      box-shadow:
+        0 20px 40px rgba(9, 16, 36, 0.24),
+        0 0 28px var(--bubble-glow),
+        inset 0 1px 0 rgba(255,255,255,0.22),
+        inset 0 -12px 18px rgba(255,255,255,0.04);
+      transform: translate3d(0, 0, 0);
+      animation:
+        bubbleFloat 7.5s ease-in-out infinite alternate,
+        bubblePulse 5.5s ease-in-out infinite;
+      animation-delay: var(--delay), calc(var(--delay) * -1.4);
+      animation-play-state: paused;
+    }
+    .dm-bubble::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      background: linear-gradient(150deg, rgba(255,255,255,0.24), rgba(255,255,255,0) 48%, rgba(255,255,255,0.08) 100%);
+      pointer-events: none;
+    }
+    .dm-bubble::after {
+      content: "";
+      position: absolute;
+      left: 14%;
+      top: 14%;
+      width: 34%;
+      height: 28%;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(255,255,255,0.36), rgba(255,255,255,0));
+      filter: blur(8px);
+      opacity: 0.85;
+      pointer-events: none;
+    }
+    .dm-label {
+      position: relative;
+      z-index: 1;
+      font-size: 13px;
+      line-height: 1.55;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      text-shadow: 0 1px 10px rgba(5, 11, 28, 0.35);
+      word-break: break-word;
+      text-align: center;
+    }
+    .swiper-slide-active .dm-link {
+      opacity: 0.9;
+      transform: rotate(var(--angle)) scaleX(1);
+    }
+    .swiper-slide-active .dm-shell {
+      opacity: 1;
+      filter: blur(0px);
+      transform: translate(var(--dx), var(--dy)) scale(1);
+    }
+    .swiper-slide-active .dm-bubble { animation-play-state: running; }
+    @keyframes bubbleFloat {
+      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      50%  { transform: translate3d(calc(var(--drift-x) * 0.55), calc(var(--drift-y) * 0.55), 0) scale(1.02); }
+      100% { transform: translate3d(var(--drift-x), var(--drift-y), 0) scale(0.985); }
+    }
+    @keyframes bubblePulse {
+      0%, 100% { box-shadow: 0 20px 40px rgba(9, 16, 36, 0.22), 0 0 20px var(--bubble-glow), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -12px 18px rgba(255,255,255,0.04); }
+      50% { box-shadow: 0 24px 48px rgba(9, 16, 36, 0.3), 0 0 32px var(--bubble-glow), inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -12px 18px rgba(255,255,255,0.06); }
     }
 
     .s-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 20px 30px; z-index: 4; text-align: center; transform: translateY(20px); filter: blur(8px); opacity: 0; transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s; }
     .swiper-slide-active .s-info { transform: translateY(0); filter: blur(0); opacity: 1; }
     .s-seq { font-size: 13px; font-weight: 500; letter-spacing: 4px; color: rgba(255, 255, 255, 0.55); margin-bottom: 8px; text-transform: uppercase; }
-    .s-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #fff; text-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.3); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .s-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #fff; text-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.3); line-height: 1.4; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
     .swiper-button-prev, .swiper-button-next { color: rgba(255,255,255,0.6) !important; background: transparent; width: 44px !important; height: 44px !important; border-radius: 50%; transition: all 0.4s ease; }
     .swiper-button-prev:hover, .swiper-button-next:hover { color: #fff !important; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); }
@@ -170,23 +310,53 @@
       } catch (_) { return ""; }
     }
 
+    function toCommentFragments(comment) {
+      const raw = String(comment || "").replace(/\s+/g, " ").trim();
+      if (!raw) return [];
+
+      const byPunctuation = raw
+        .split(/[，,。！？!?；;、|/]+/)
+        .map(part => part.trim())
+        .filter(Boolean);
+
+      const pieces = (byPunctuation.length > 1 ? byPunctuation : (raw.match(/.{1,12}/g) || [raw]))
+        .map(part => part.length > 20 ? `${part.slice(0, 20)}…` : part);
+
+      return pieces.slice(0, 5);
+    }
+
+    function bubbleNodeHTML(spec, text) {
+      const length = Math.max(56, Math.hypot(spec.dx, spec.dy) - spec.size * 0.28);
+      const angle = `${(Math.atan2(spec.dy, spec.dx) * 180) / Math.PI}deg`;
+      const tone = spec.tone || "neutral";
+      const nodeClass = `dm-node dm-tone-${tone}`;
+
+      return `
+        <div class="${nodeClass}" style="--dx:${spec.dx}px;--dy:${spec.dy}px;--size:${spec.size}px;--line-w:${length}px;--angle:${angle};--delay:${spec.delay}s;--drift-x:${spec.driftX}px;--drift-y:${spec.driftY}px;">
+          <span class="dm-link"></span>
+          <span class="dm-shell">
+            <span class="dm-bubble"><span class="dm-label">${esc(text)}</span></span>
+          </span>
+        </div>`;
+    }
+
+    function buildCommentCloud(comment) {
+      const textSpecs = [
+        { dx: 220, dy: -138, size: 210, delay: 0.18, driftX: 14, driftY: -10, tone: "warm" },
+        { dx: -228, dy: -76, size: 180, delay: 0.44, driftX: -12, driftY: 12, tone: "cool" },
+        { dx: 250, dy: 64, size: 188, delay: 0.72, driftX: 10, driftY: 10, tone: "neutral" },
+        { dx: -190, dy: 144, size: 186, delay: 0.96, driftX: -14, driftY: -8, tone: "warm" },
+        { dx: 26, dy: 192, size: 200, delay: 1.2, driftX: 0, driftY: 14, tone: "cool" }
+      ];
+      const fragments = toCommentFragments(comment);
+      return fragments.map((text, index) => bubbleNodeHTML(textSpecs[index], text)).join("");
+    }
+
     function slideHTML(item, cover) {
       const orbInner = cover
         ? `<img src="${esc(cover)}" alt="" onerror="this.parentElement.innerHTML='<div class=s-orb-fallback>#${item.sequenceId}</div>'" />`
         : `<div class="s-orb-fallback">#${item.sequenceId}</div>`;
-
-      const tracks = [
-        { top: "15%", size: "20px", opacity: "0.85", dur: "6.5s",  dly: "0.4s"  },
-        { top: "45%", size: "15px", opacity: "0.55", dur: "10.5s", dly: "1.8s"  },
-        { top: "70%", size: "12px", opacity: "0.30", dur: "14s",   dly: "1.0s" },
-      ];
-
-      const dm = tracks.map(t => `
-        <div class="dm-row" style="top:${t.top}">
-          <span class="dm-text" style="font-size:${t.size};opacity:${t.opacity};--dur:${t.dur};--dly:${t.dly}">
-            ${esc(item.comment || "")}
-          </span>
-        </div>`).join("");
+      const dm = buildCommentCloud(item.comment);
 
       /* 在这里加入了底层的双色星云容器 s-nebula */
       return `
@@ -202,14 +372,6 @@
             <div class="s-title">${esc(item.workTitle || "")}</div>
           </div>
         </div>`;
-    }
-
-    function startDanmaku() {
-      document.querySelectorAll(".swiper-slide-active .dm-text").forEach(el => {
-        el.classList.remove("fly");
-        void el.offsetWidth;
-        el.classList.add("fly");
-      });
     }
 
     async function init() {
@@ -250,9 +412,6 @@
         pagination:  { el: ".swiper-pagination", clickable: true },
         navigation:  { prevEl: ".swiper-button-prev", nextEl: ".swiper-button-next" },
       });
-
-      sw.on("slideChangeTransitionEnd", startDanmaku);
-      requestAnimationFrame(() => setTimeout(startDanmaku, 100));
     }
 
     init();
