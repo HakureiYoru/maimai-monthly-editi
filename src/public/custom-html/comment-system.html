@@ -224,6 +224,63 @@
       margin-bottom: 12px;
     }
 
+    .rating-tip {
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.72);
+      margin-bottom: 14px;
+    }
+
+    .rating-examples {
+      margin-bottom: 16px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .rating-examples-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
+      margin-bottom: 10px;
+    }
+
+    .rating-examples-group + .rating-examples-group {
+      margin-top: 10px;
+    }
+
+    .rating-examples-group-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.84);
+      margin-bottom: 6px;
+    }
+
+    .rating-examples-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .rating-examples-links a {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      color: #cfe1ff;
+      text-decoration: none;
+      font-size: 12px;
+      background: rgba(120, 170, 255, 0.16);
+      border: 1px solid rgba(120, 170, 255, 0.28);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .rating-examples-links a:hover {
+      background: rgba(120, 170, 255, 0.24);
+      border-color: rgba(120, 170, 255, 0.42);
+    }
+
     .rating-close {
       border: none;
       background: rgba(255, 255, 255, 0.2);
@@ -1896,10 +1953,28 @@
         <button type="button" class="rating-close" id="ratingCloseBtn">×</button>
       </div>
       <div class="rating-note">系统自动按权重换算到 100-1000（C 维度权重最高）</div>
+      <div class="rating-tip" id="ratingTip">该维度分配是一种参考性结构，星级评论的设计初步是为了缩小各选手在均分设置上的标准差。谱面评价切忌以偏概全，我们的建议是多角度考虑。目前参考维度的分数分配可能具有偏极端的误导性，您可以调整到自认为综合方面更合理的分数。您需要遵守的只是不要直接给出极端高/低的分数，一个谱面具体要划分到何种档位需要您自己心中有一个标准判断。</div>
+      <div class="rating-examples" id="ratingExamples">
+        <div class="rating-examples-title">往届的分档展示（仍仅供参考）</div>
+        <div class="rating-examples-group">
+          <div class="rating-examples-group-title">高分档（T1+）</div>
+          <div class="rating-examples-links">
+            <a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">示例 1</a>
+            <a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">示例 2</a>
+          </div>
+        </div>
+        <div class="rating-examples-group">
+          <div class="rating-examples-group-title">优秀分档（T2-T3+）</div>
+          <div class="rating-examples-links">
+            <a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">示例 1</a>
+            <a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">示例 2</a>
+          </div>
+        </div>
+      </div>
       <div class="rating-body">
         <div class="rating-dimension" data-dimension="A">
           <div class="rating-dimension-label">
-            <span>维度A（合理性）</span>
+            <span>维度A（合理性，仅供参考）</span>
             <span class="rating-weight">15%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度A评分">
@@ -1911,7 +1986,7 @@
         </div>
         <div class="rating-dimension" data-dimension="B">
           <div class="rating-dimension-label">
-            <span>维度B（可玩性）</span>
+            <span>维度B（可玩性，仅供参考）</span>
             <span class="rating-weight">30%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度B评分">
@@ -1925,7 +2000,7 @@
         </div>
         <div class="rating-dimension" data-dimension="C">
           <div class="rating-dimension-label">
-            <span>维度C（创意）</span>
+            <span>维度C（创意性，仅供参考）</span>
             <span class="rating-weight">55%</span>
           </div>
           <div class="rating-stars" role="group" aria-label="维度C评分">
@@ -2095,9 +2170,11 @@
         noComments: '暂无评论',
         ratingModalTitle: '星级评分',
         ratingNote: '系统自动按权重换算到 100-1000（C 维度权重最高）',
-        dimA: '维度A（合理性）',
-        dimB: '维度B（可玩性）',
-        dimC: '维度C（创意）',
+        ratingTip: '该维度分配是一种参考性结构，星级评论的设计初步是为了缩小各选手在均分设置上的标准差。谱面评价切忌以偏概全，我们的建议是多角度考虑。目前参考维度的分数分配可能具有偏极端的误导性，您可以调整到自认为综合方面更合理的分数。您需要遵守的只是不要直接给出极端高/低的分数，一个谱面具体要划分到何种档位需要您自己心中有一个标准判断。',
+        ratingExamplesHtml: `<div class="rating-examples-title">往届的分档展示（仍仅供参考）</div><div class="rating-examples-group"><div class="rating-examples-group-title">高分档（T1+）</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">示例 1</a><a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">示例 2</a></div></div><div class="rating-examples-group"><div class="rating-examples-group-title">优秀分档（T2-T3+）</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">示例 1</a><a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">示例 2</a></div></div>`,
+        dimA: '维度A（合理性，仅供参考）',
+        dimB: '维度B（可玩性，仅供参考）',
+        dimC: '维度C（创意性，仅供参考）',
         ratingDescA: '是否存在违和谱音，或多押难度不合理的情况。',
         ratingDescB: '手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。',
         ratingDescC: '是否让人眼前一亮、脱颖而出，配置是否有新意。',
@@ -2198,9 +2275,11 @@
         noComments: 'No comments yet',
         ratingModalTitle: 'Star rating',
         ratingNote: 'Converted to 100–1000 by weights (dimension C has the highest weight)',
-        dimA: 'A · Reasonableness',
-        dimB: 'B · Playability',
-        dimC: 'C · Creativity',
+        ratingTip: 'This dimension split is only a reference. The star-rating design was initially intended to reduce variance in how different participants set their average scores. Avoid judging a chart from a single angle; we recommend considering it from multiple perspectives. The current reference split across dimensions may be somewhat misleading in an overly extreme way, so you may adjust the result to what you believe is a more reasonable overall score. The main thing is to avoid giving extreme high/low scores directly; where a chart belongs should depend on your own internal standard.',
+        ratingExamplesHtml: `<div class="rating-examples-title">Examples from previous score brackets (still for reference only)</div><div class="rating-examples-group"><div class="rating-examples-group-title">High tier (T1+)</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">Example 1</a><a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">Example 2</a></div></div><div class="rating-examples-group"><div class="rating-examples-group-title">Strong tier (T2-T3+)</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">Example 1</a><a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">Example 2</a></div></div>`,
+        dimA: 'A · Reasonableness (reference only)',
+        dimB: 'B · Playability (reference only)',
+        dimC: 'C · Creativity (reference only)',
         ratingDescA: 'Charting vs. music, or unreasonable multi-press difficulty.',
         ratingDescB: 'Flow, readability, and feel — is it fun? Any extremely awkward patterns?',
         ratingDescC: 'Does it stand out? Fresh patterns or ideas?',
@@ -2349,6 +2428,10 @@
 
       const ratingNoteEl = document.querySelector('#ratingModal .rating-note');
       if (ratingNoteEl) ratingNoteEl.textContent = t('ratingNote');
+      const ratingTipEl = document.getElementById('ratingTip');
+      if (ratingTipEl) ratingTipEl.textContent = t('ratingTip');
+      const ratingExamplesEl = document.getElementById('ratingExamples');
+      if (ratingExamplesEl) ratingExamplesEl.innerHTML = t('ratingExamplesHtml');
 
       const inputScore = document.getElementById('inputScore');
       if (inputScore) inputScore.placeholder = t('ratingPlaceholder');
