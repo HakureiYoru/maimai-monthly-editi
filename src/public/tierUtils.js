@@ -68,8 +68,8 @@ export function getTierFromPercentile(percentile) {
   if (percentile <= 0.05) return "↑";
   if (percentile <= 0.15) return "↑";
   if (percentile <= 0.40) return "↑";
-  if (percentile <= 0.60) return "↑";
-  return "↑";
+  if (percentile <= 0.60) return "↓";
+  return "↓";
 }
 
 
