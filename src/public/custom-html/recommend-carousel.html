@@ -201,7 +201,7 @@
       align-items: center;
       justify-content: center;
       width: max-content;
-      max-width: min(var(--size), 42vw);
+      max-width: min(calc(var(--size) * 1.45), 50vw);
       min-height: 52px;
       padding: 12px 18px;
       border-radius: 999px;
@@ -332,7 +332,7 @@
     function formatBubbleText(entry) {
       const comment = String((entry && entry.comment) || "").replace(/\s+/g, " ").trim();
       if (!comment) return "推荐";
-      return comment.length > 28 ? `${comment.slice(0, 28)}…` : comment;
+      return comment;
     }
 
     function bubbleNodeHTML(spec, text) {
