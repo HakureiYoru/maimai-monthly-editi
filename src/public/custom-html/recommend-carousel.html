@@ -279,7 +279,26 @@
     .s-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 20px 30px; z-index: 4; text-align: center; transform: translateY(20px); filter: blur(8px); opacity: 0; transition: all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s; }
     .swiper-slide-active .s-info { transform: translateY(0); filter: blur(0); opacity: 1; }
     .s-seq { font-size: 13px; font-weight: 500; letter-spacing: 4px; color: rgba(255, 255, 255, 0.55); margin-bottom: 8px; text-transform: uppercase; }
+    .s-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
     .s-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #fff; text-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.3); line-height: 1.4; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .s-count {
+      flex-shrink: 0;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.88);
+      font-size: 12px;
+      letter-spacing: 1px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
 
     .swiper-button-prev, .swiper-button-next { color: rgba(255,255,255,0.6) !important; background: transparent; width: 44px !important; height: 44px !important; border-radius: 50%; transition: all 0.4s ease; }
     .swiper-button-prev:hover, .swiper-button-next:hover { color: #fff !important; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); }
@@ -310,19 +329,10 @@
       } catch (_) { return ""; }
     }
 
-    function toCommentFragments(comment) {
-      const raw = String(comment || "").replace(/\s+/g, " ").trim();
-      if (!raw) return [];
-
-      const byPunctuation = raw
-        .split(/[，,。！？!?；;、|/]+/)
-        .map(part => part.trim())
-        .filter(Boolean);
-
-      const pieces = (byPunctuation.length > 1 ? byPunctuation : (raw.match(/.{1,12}/g) || [raw]))
-        .map(part => part.length > 20 ? `${part.slice(0, 20)}…` : part);
-
-      return pieces.slice(0, 5);
+    function formatBubbleText(entry) {
+      const comment = String((entry && entry.comment) || "").replace(/\s+/g, " ").trim();
+      if (!comment) return "推荐";
+      return comment.length > 28 ? `${comment.slice(0, 28)}…` : comment;
     }
 
     function bubbleNodeHTML(spec, text) {
@@ -340,23 +350,40 @@
         </div>`;
     }
 
-    function buildCommentCloud(comment) {
+    function buildCommentCloud(comments) {
       const textSpecs = [
         { dx: 220, dy: -138, size: 210, delay: 0.18, driftX: 14, driftY: -10, tone: "warm" },
         { dx: -228, dy: -76, size: 180, delay: 0.44, driftX: -12, driftY: 12, tone: "cool" },
         { dx: 250, dy: 64, size: 188, delay: 0.72, driftX: 10, driftY: 10, tone: "neutral" },
         { dx: -190, dy: 144, size: 186, delay: 0.96, driftX: -14, driftY: -8, tone: "warm" },
-        { dx: 26, dy: 192, size: 200, delay: 1.2, driftX: 0, driftY: 14, tone: "cool" }
+        { dx: 26, dy: 192, size: 200, delay: 1.2, driftX: 0, driftY: 14, tone: "cool" },
+        { dx: 6, dy: -214, size: 180, delay: 1.36, driftX: 0, driftY: -12, tone: "neutral" }
       ];
-      const fragments = toCommentFragments(comment);
-      return fragments.map((text, index) => bubbleNodeHTML(textSpecs[index], text)).join("");
+      const entries = Array.isArray(comments) ? comments : [];
+      const labels = entries.map(formatBubbleText).filter(Boolean);
+
+      if (!labels.length) {
+        labels.push("推荐");
+      }
+
+      let visibleLabels = labels;
+      if (labels.length > textSpecs.length) {
+        visibleLabels = labels.slice(0, textSpecs.length - 1);
+        visibleLabels.push(`+${labels.length - textSpecs.length + 1} 条推荐`);
+      }
+
+      return visibleLabels.map((text, index) => bubbleNodeHTML(textSpecs[index], text)).join("");
     }
 
     function slideHTML(item, cover) {
       const orbInner = cover
         ? `<img src="${esc(cover)}" alt="" onerror="this.parentElement.innerHTML='<div class=s-orb-fallback>#${item.sequenceId}</div>'" />`
         : `<div class="s-orb-fallback">#${item.sequenceId}</div>`;
-      const dm = buildCommentCloud(item.comment);
+      const comments = Array.isArray(item.comments) && item.comments.length
+        ? item.comments
+        : [{ comment: item.comment, recommenderName: item.recommenderName }];
+      const dm = buildCommentCloud(comments);
+      const recommendCount = Math.max(Number(item.recommendCount) || comments.length || 0, 1);
 
       /* 在这里加入了底层的双色星云容器 s-nebula */
       return `
@@ -369,7 +396,10 @@
           <div class="s-orb">${orbInner}</div>
           <div class="s-info">
             <div class="s-seq">NO.${item.sequenceId}</div>
-            <div class="s-title">${esc(item.workTitle || "")}</div>
+            <div class="s-title-row">
+              <div class="s-title">${esc(item.workTitle || "")}</div>
+              <div class="s-count">${recommendCount} 条推荐</div>
+            </div>
           </div>
         </div>`;
     }

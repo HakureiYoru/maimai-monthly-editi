@@ -430,14 +430,26 @@ async function resolveRecommenderName(item) {
   }
 }
 
-/**
- * 推荐榜公开展示接口：无需鉴权，供前端轮播直接调用
- */
-export function options_recommendBoard(request) {
-  return createOptionsResponse();
-}
+async function loadGroupedRecommendedWorks() {
+  const normalizeSequenceId = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
 
-export const get_recommendBoard = asyncErrorHandler(async (request) => {
+    const num = Number(value);
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      return String(Math.trunc(num));
+    }
+
+    return String(value).trim() || null;
+  };
+
+  const normalizeTitleKey = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
   const result = await wixData
     .query(COLLECTIONS.RECOMMENDED_WORKS)
     .eq("status", "active")
@@ -445,8 +457,9 @@ export const get_recommendBoard = asyncErrorHandler(async (request) => {
     .limit(50)
     .find({ suppressAuth: true });
 
-  const items = await Promise.all(
+  const rawItems = await Promise.all(
     result.items.map(async (item) => ({
+      _id: item._id,
       sequenceId: item.sequenceId,
       workTitle: item.workTitle,
       comment: item.comment,
@@ -455,6 +468,95 @@ export const get_recommendBoard = asyncErrorHandler(async (request) => {
     }))
   );
 
+  const groupedMap = new Map();
+
+  rawItems.forEach((item) => {
+    const normalizedSequenceId = normalizeSequenceId(item.sequenceId);
+    const normalizedTitle = normalizeTitleKey(item.workTitle);
+    const key = normalizedSequenceId
+      ? `seq::${normalizedSequenceId}`
+      : `title::${normalizedTitle || "unknown"}`;
+    const timestamp = new Date(item.createdDate || 0).getTime() || 0;
+    const commentText = String(item.comment || "").trim();
+    const commentEntry = {
+      _id: item._id,
+      comment: commentText,
+      recommenderName: item.recommenderName || "匿名推荐者",
+      createdDate: item.createdDate,
+    };
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        sequenceId: item.sequenceId,
+        workTitle: item.workTitle || `#${item.sequenceId || "?"}`,
+        comment: commentText,
+        comments: [commentEntry],
+        recommendCount: 1,
+        recommenderName: item.recommenderName || "匿名推荐者",
+        createdDate: item.createdDate,
+        latestCreatedDate: item.createdDate,
+        _latestTimestamp: timestamp,
+      });
+      return;
+    }
+
+    const group = groupedMap.get(key);
+    group.comments.push(commentEntry);
+    group.recommendCount += 1;
+
+    if (!group.sequenceId && item.sequenceId) {
+      group.sequenceId = item.sequenceId;
+    }
+    if ((!group.workTitle || /^#/.test(group.workTitle)) && item.workTitle) {
+      group.workTitle = item.workTitle;
+    }
+
+    if (timestamp >= group._latestTimestamp) {
+      group.comment = commentText;
+      group.recommenderName = item.recommenderName || "匿名推荐者";
+      group.createdDate = item.createdDate;
+      group.latestCreatedDate = item.createdDate;
+      group._latestTimestamp = timestamp;
+      if (item.workTitle) {
+        group.workTitle = item.workTitle;
+      }
+    }
+  });
+
+  return Array.from(groupedMap.values())
+    .map((group) => {
+      group.comments.sort(
+        (a, b) => (new Date(b.createdDate || 0).getTime() || 0) - (new Date(a.createdDate || 0).getTime() || 0)
+      );
+      delete group._latestTimestamp;
+      return group;
+    })
+    .sort((a, b) => {
+      const countDiff = (b.recommendCount || 0) - (a.recommendCount || 0);
+      if (countDiff !== 0) {
+        return countDiff;
+      }
+
+      const timeDiff =
+        (new Date(b.latestCreatedDate || b.createdDate || 0).getTime() || 0) -
+        (new Date(a.latestCreatedDate || a.createdDate || 0).getTime() || 0);
+      if (timeDiff !== 0) {
+        return timeDiff;
+      }
+
+      return (a.sequenceId || 0) - (b.sequenceId || 0);
+    });
+}
+
+/**
+ * 推荐榜公开展示接口：无需鉴权，供前端轮播直接调用
+ */
+export function options_recommendBoard(request) {
+  return createOptionsResponse();
+}
+
+export const get_recommendBoard = asyncErrorHandler(async (request) => {
+  const items = await loadGroupedRecommendedWorks();
   return createSuccessResponse(items);
 });
 
@@ -472,24 +574,7 @@ export const get_recommendedWorks = asyncErrorHandler(async (request) => {
     return createErrorResponse("Unauthorized", "forbidden");
   }
 
-  const result = await wixData
-    .query(COLLECTIONS.RECOMMENDED_WORKS)
-    .eq("status", "active")
-    .descending("_createdDate")
-    .limit(50)
-    .find({ suppressAuth: true });
-
-  const items = await Promise.all(
-    result.items.map(async (item) => ({
-      _id: item._id,
-      sequenceId: item.sequenceId,
-      workTitle: item.workTitle,
-      comment: item.comment,
-      recommenderName: await resolveRecommenderName(item),
-      createdDate: item._createdDate,
-    }))
-  );
-
+  const items = await loadGroupedRecommendedWorks();
   return createSuccessResponse(items);
 });
 
