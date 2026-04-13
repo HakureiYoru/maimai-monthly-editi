@@ -1,5 +1,9 @@
 import { currentMember } from "wix-members";
-import { purchaseItem, hasGoldSkin, getRecommendedSequenceIds } from "backend/botBridge";
+import {
+  purchaseItem,
+  hasGoldSkin,
+  getCurrentUserRecommendedSequenceIds,
+} from "backend/botBridge";
 import { getUserPoints } from "backend/userPoints";
 
 $w.onReady(async function () {
@@ -19,7 +23,7 @@ $w.onReady(async function () {
     let ownedSkins = [];
     let recommendedSequenceIds = [];
     try {
-      recommendedSequenceIds = await getRecommendedSequenceIds();
+      recommendedSequenceIds = await getCurrentUserRecommendedSequenceIds();
     } catch (e) {
       console.warn("获取推荐榜编号失败", e);
     }

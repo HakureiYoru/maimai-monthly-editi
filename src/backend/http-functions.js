@@ -27,6 +27,7 @@ import {
   CRYPTO_CONFIG,
   BOT_QUEUE_SECRET,
 } from "backend/constants";
+import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 
 /**
  * 处理比赛列表的CORS预检请求
@@ -412,6 +413,23 @@ export const get_botQueueHistory = asyncErrorHandler(async (request) => {
  * Bot 确认接口：将已处理的任务标记为 done
  * Body: { secret: string, id: string }
  */
+async function resolveRecommenderName(item) {
+  if (item && item.recommenderName) {
+    return item.recommenderName;
+  }
+
+  if (!item || !item.userId) {
+    return "匿名推荐者";
+  }
+
+  try {
+    const userInfo = await getUserPublicInfo(item.userId);
+    return (userInfo && userInfo.name) || "匿名推荐者";
+  } catch (_error) {
+    return "匿名推荐者";
+  }
+}
+
 /**
  * 推荐榜公开展示接口：无需鉴权，供前端轮播直接调用
  */
@@ -427,12 +445,15 @@ export const get_recommendBoard = asyncErrorHandler(async (request) => {
     .limit(50)
     .find({ suppressAuth: true });
 
-  const items = result.items.map((item) => ({
-    sequenceId: item.sequenceId,
-    workTitle: item.workTitle,
-    comment: item.comment,
-    createdDate: item._createdDate,
-  }));
+  const items = await Promise.all(
+    result.items.map(async (item) => ({
+      sequenceId: item.sequenceId,
+      workTitle: item.workTitle,
+      comment: item.comment,
+      recommenderName: await resolveRecommenderName(item),
+      createdDate: item._createdDate,
+    }))
+  );
 
   return createSuccessResponse(items);
 });
@@ -458,13 +479,16 @@ export const get_recommendedWorks = asyncErrorHandler(async (request) => {
     .limit(50)
     .find({ suppressAuth: true });
 
-  const items = result.items.map((item) => ({
-    _id: item._id,
-    sequenceId: item.sequenceId,
-    workTitle: item.workTitle,
-    comment: item.comment,
-    createdDate: item._createdDate,
-  }));
+  const items = await Promise.all(
+    result.items.map(async (item) => ({
+      _id: item._id,
+      sequenceId: item.sequenceId,
+      workTitle: item.workTitle,
+      comment: item.comment,
+      recommenderName: await resolveRecommenderName(item),
+      createdDate: item._createdDate,
+    }))
+  );
 
   return createSuccessResponse(items);
 });
