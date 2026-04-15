@@ -398,8 +398,8 @@ function computeRegistrationStats(registrations = []) {
   const total = registrations.length;
   const submitted = registrations.filter((r) => r.hasSubmittedWork).length;
   const withoutSubmission = total - submitted;
-  const reachedTarget = registrations.filter(
-    (r) => (r.completedCount || 0) >= (r.targetCompletion || 0)
+  const reachedTarget = registrations.filter((r) =>
+    userHasReachedTaskTarget(r)
   ).length;
   const inProgress = registrations.filter(
     (r) =>
@@ -679,7 +679,18 @@ function applySorting() {
 }
 
 /**
- * 计算每个作品当前被多少用户持有为任务，并按数量排序
+ * 是否已完成任务目标（如 10/10），与报名统计等处口径一致
+ * @param {Object} user
+ * @returns {boolean}
+ */
+function userHasReachedTaskTarget(user) {
+  const target = user.targetCompletion != null ? user.targetCompletion : 10;
+  return (user.completedCount || 0) >= target;
+}
+
+/**
+ * 计算每个作品当前被多少用户持有为任务，并按数量排序。
+ * 已达任务目标的用户虽可能仍持有「冷门作品」槽位，但不计入本汇总（当前持有人数、总人次、均值等）。
  * @param {Array<Object>} usersData
  * @returns {{items: Array, totals: {totalAssignments: number, uniqueWorks: number}}}
  */
@@ -688,6 +699,9 @@ function computeTaskAssignmentSummary(usersData) {
   let totalAssignments = 0;
 
   usersData.forEach((user) => {
+    if (userHasReachedTaskTarget(user)) {
+      return;
+    }
     (user.currentTasks || []).forEach((task) => {
       if (!task || task.workNumber === undefined || task.workNumber === null) {
         return;
