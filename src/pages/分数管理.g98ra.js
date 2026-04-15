@@ -19,6 +19,11 @@ import { getTierFromPercentile, computeWeightedRating } from "public/tierUtils.j
 let allWorksData = [];
 let filteredWorksData = [];
 let userInfoCache = {}; // 缓存用户信息（包括 isHighQuality）
+let currentFilters = {
+  tier: "all",
+  search: "",
+};
+let currentSortBy = "id";
 
 $w.onReady(async function () {
   // 权限检查
@@ -262,10 +267,9 @@ async function loadAllWorksData() {
 
     // 6. 计算排名和等级（基于加权平均分）
     allWorksData = calculateTiers(worksWithRatings);
-    filteredWorksData = [...allWorksData];
 
-    // 7. 发送数据到HTML元件
-    sendDataToHTML(filteredWorksData);
+    // 7. 应用当前筛选和排序后发送数据到 HTML 元件
+    applyCurrentView();
   } catch (error) {
     console.error("加载数据失败:", error);
     $w("#htmlScore").postMessage({
@@ -396,6 +400,7 @@ function calculateTiers(worksData) {
 
 /**
  * 发送数据到HTML元件
+ * score-management.html 会基于 works[].raters 与 originalAverage（作品内简单均分）做评分分析。
  */
 function sendDataToHTML(data) {
   $w("#htmlScore").postMessage({
@@ -403,6 +408,31 @@ function sendDataToHTML(data) {
     works: data,
     config: { minRatingsForRanking: RATING_CONFIG.MIN_RATINGS_FOR_RANKING },
   });
+}
+
+function applyCurrentView() {
+  const searchTerm = currentFilters.search.trim().toLowerCase();
+
+  filteredWorksData = allWorksData.filter((work) => {
+    const tierMatched =
+      currentFilters.tier === "all" || work.tier === currentFilters.tier;
+    const searchMatched =
+      !searchTerm ||
+      work.sequenceId.toString().includes(searchTerm) ||
+      work.title.toLowerCase().includes(searchTerm);
+
+    return tierMatched && searchMatched;
+  });
+
+  if (currentSortBy === "id") {
+    filteredWorksData.sort((a, b) => a.sequenceId - b.sequenceId);
+  } else if (currentSortBy === "score") {
+    filteredWorksData.sort((a, b) => b.weightedAverage - a.weightedAverage);
+  } else if (currentSortBy === "ratings") {
+    filteredWorksData.sort((a, b) => b.numRatings - a.numRatings);
+  }
+
+  sendDataToHTML(filteredWorksData);
 }
 
 /**
@@ -427,33 +457,17 @@ function setupEventListeners() {
  */
 function handleFilter(filterType, value) {
   if (filterType === "tier") {
-    if (value === "all") {
-      filteredWorksData = [...allWorksData];
-    } else {
-      filteredWorksData = allWorksData.filter((w) => w.tier === value);
-    }
+    currentFilters.tier = value || "all";
   } else if (filterType === "search") {
-    const searchTerm = value.toLowerCase();
-    filteredWorksData = allWorksData.filter(
-      (w) =>
-        w.sequenceId.toString().includes(searchTerm) ||
-        w.title.toLowerCase().includes(searchTerm)
-    );
+    currentFilters.search = (value || "").toString();
   }
-  sendDataToHTML(filteredWorksData);
+  applyCurrentView();
 }
 
 /**
  * 处理排序
  */
 function handleSort(sortBy) {
-  if (sortBy === "id") {
-    filteredWorksData.sort((a, b) => a.sequenceId - b.sequenceId);
-  } else if (sortBy === "score") {
-    // 按加权平均分排序
-    filteredWorksData.sort((a, b) => b.weightedAverage - a.weightedAverage);
-  } else if (sortBy === "ratings") {
-    filteredWorksData.sort((a, b) => b.numRatings - a.numRatings);
-  }
-  sendDataToHTML(filteredWorksData);
+  currentSortBy = sortBy || "id";
+  applyCurrentView();
 }

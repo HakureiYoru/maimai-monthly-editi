@@ -469,6 +469,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             display: -webkit-box;
+            line-clamp: 3;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
         }
@@ -516,6 +517,278 @@
             padding: 40px;
             color: #888;
             font-size: 16px;
+        }
+
+        /* --- Rating analysis (native charts, dark theme) --- */
+        .rating-analysis {
+            background: rgba(42, 42, 42, 0.92);
+            border: 1px solid #555;
+            padding: 18px 20px;
+            margin-bottom: 20px;
+        }
+
+        .rating-analysis h2 {
+            font-size: 18px;
+            color: #fff;
+            margin-bottom: 14px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .analysis-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .analysis-toolbar label {
+            font-size: 13px;
+            color: #ccc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analysis-toolbar select#raterSelect {
+            min-width: 220px;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .analysis-card {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .analysis-card .label {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+
+        .analysis-card .value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #eee;
+            word-break: break-word;
+        }
+
+        .analysis-card .sub {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .analysis-summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .analysis-summary-pill {
+            background: #333;
+            border: 1px solid #555;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: #ddd;
+            line-height: 1.45;
+        }
+
+        .analysis-summary-pill strong {
+            color: #FFD700;
+        }
+
+        .chart-block {
+            margin-bottom: 18px;
+        }
+
+        .chart-title {
+            font-size: 13px;
+            color: #bbb;
+            margin-bottom: 8px;
+        }
+
+        .hist-chart {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 12px 12px 8px;
+        }
+
+        .hist-legend {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .hist-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hist-legend-swatch {
+            width: 14px;
+            height: 8px;
+            display: inline-block;
+            border-radius: 999px;
+        }
+
+        .hist-legend-swatch.bar {
+            background: linear-gradient(180deg, #6ab0ff 0%, #3d7dcc 100%);
+        }
+
+        .hist-legend-swatch.line {
+            height: 2px;
+            background: #FFD700;
+        }
+
+        .hist-svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .hist-grid-line {
+            stroke: #454545;
+            stroke-width: 1;
+        }
+
+        .hist-axis {
+            stroke: #666;
+            stroke-width: 1;
+        }
+
+        .hist-axis-text {
+            fill: #8f8f8f;
+            font-size: 10px;
+        }
+
+        .hist-bar-rect {
+            fill: url(#histBarGradient);
+        }
+
+        .hist-line {
+            fill: none;
+            stroke: #FFD700;
+            stroke-width: 2.5;
+        }
+
+        .hist-point {
+            fill: #FFD700;
+        }
+
+        .hist-bar-value {
+            fill: #cfcfcf;
+            font-size: 10px;
+        }
+
+        .deviation-chart {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 10px;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .deviation-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 52px 1fr;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .deviation-row .work-title {
+            color: #ccc;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .deviation-bar-wrap {
+            position: relative;
+            height: 18px;
+            background: #444;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .deviation-bar-wrap::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #888;
+            z-index: 1;
+        }
+
+        .deviation-bar {
+            position: absolute;
+            top: 2px;
+            bottom: 2px;
+            border-radius: 1px;
+        }
+
+        .deviation-bar.neg {
+            right: 50%;
+            background: rgba(231, 76, 60, 0.75);
+        }
+
+        .deviation-bar.pos {
+            left: 50%;
+            background: rgba(46, 204, 113, 0.75);
+        }
+
+        .deviation-val {
+            text-align: right;
+            color: #FFD700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .recent-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .recent-table th,
+        .recent-table td {
+            border: 1px solid #444;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        .recent-table th {
+            background: #333;
+            color: #aaa;
+            font-weight: normal;
+        }
+
+        .recent-table tr:nth-child(even) td {
+            background: #2f2f2f;
+        }
+
+        .analysis-empty {
+            color: #888;
+            font-size: 14px;
+            padding: 20px;
+            text-align: center;
         }
 
         @media (max-width: 768px) {
@@ -573,6 +846,19 @@
             <!-- 统计卡片会动态生成 -->
         </div>
 
+        <section id="ratingAnalysisSection" class="rating-analysis" style="display: none;" aria-label="评分分析">
+            <h2>评分分析 / 用户打分分析</h2>
+            <div class="analysis-toolbar">
+                <label>
+                    评分者
+                    <select id="raterSelect" title="选择评分者或查看全体">
+                        <option value="__all__">全部评分者</option>
+                    </select>
+                </label>
+            </div>
+            <div id="analysisBody"></div>
+        </section>
+
         <div id="content">
             <div class="loading">
                 <div class="spinner"></div>
@@ -584,6 +870,428 @@
     <script>
         let allWorks = [];
         let config = { minRatingsForRanking: 5 };
+        /** Remember dropdown when works refresh (filter/sort). */
+        let lastRaterSelection = '__all__';
+        const RECENT_RATINGS_LIMIT = 25;
+        const MIN_RATINGS_FOR_STRICT_LOOSE = 3;
+        const SCORE_MIN = 100;
+        const SCORE_MAX = 1000;
+        const BUCKET_SIZE = 100;
+        const NUM_BUCKETS = 10; /* 100-199 ... 900-1000 */
+
+        function isValidRaterEntry(r) {
+            if (!r || r.userId === 'invalid-user') return false;
+            const s = r.score;
+            return typeof s === 'number' && !Number.isNaN(s);
+        }
+
+        /**
+         * Flatten works -> per-rating rows with work mean (simple average) for deviation charts.
+         */
+        function buildAllRatings(works) {
+            const rows = [];
+            (works || []).forEach((work) => {
+                const mean =
+                    typeof work.originalAverage === 'number' && !Number.isNaN(work.originalAverage)
+                        ? work.originalAverage
+                        : null;
+                (work.raters || []).forEach((r) => {
+                    if (!isValidRaterEntry(r)) return;
+                    rows.push({
+                        userId: r.userId,
+                        userName: r.userName || '未知用户',
+                        userSlug: r.userSlug || '',
+                        isHighQuality: r.isHighQuality === true,
+                        score: r.score,
+                        comment: r.comment || '',
+                        createdDate: r.createdDate,
+                        workSequenceId: work.sequenceId,
+                        workTitle: work.title || '未命名作品',
+                        workMean: mean,
+                        deltaFromWorkMean:
+                            mean != null ? r.score - mean : null,
+                    });
+                });
+            });
+            return rows;
+        }
+
+        function medianOfSorted(sorted) {
+            const n = sorted.length;
+            if (n === 0) return null;
+            const mid = Math.floor(n / 2);
+            return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+
+        function medianValues(arr) {
+            if (!arr.length) return null;
+            const s = [...arr].sort((a, b) => a - b);
+            return medianOfSorted(s);
+        }
+
+        function populationStdev(values) {
+            const n = values.length;
+            if (n < 2) return 0;
+            const mean = values.reduce((a, b) => a + b, 0) / n;
+            const v = values.reduce((sum, x) => sum + (x - mean) * (x - mean), 0) / n;
+            return Math.sqrt(v);
+        }
+
+        /** 10 buckets for 100-1000: [100,200) ... [900,1000] */
+        function histogramBuckets(scores) {
+            const counts = new Array(NUM_BUCKETS).fill(0);
+            scores.forEach((s) => {
+                let idx = Math.floor((s - SCORE_MIN) / BUCKET_SIZE);
+                if (idx < 0) idx = 0;
+                if (idx >= NUM_BUCKETS) idx = NUM_BUCKETS - 1;
+                counts[idx]++;
+            });
+            return counts;
+        }
+
+        function maxBucketInfo(counts) {
+            let maxI = 0;
+            for (let i = 1; i < counts.length; i++) {
+                if (counts[i] > counts[maxI]) maxI = i;
+            }
+            const lo = SCORE_MIN + maxI * BUCKET_SIZE;
+            const hi = maxI === NUM_BUCKETS - 1 ? SCORE_MAX : SCORE_MIN + (maxI + 1) * BUCKET_SIZE - 1;
+            return { lo, hi, count: counts[maxI], index: maxI };
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function formatAnalysisDate(d) {
+            if (!d) return '-';
+            try {
+                const t = new Date(d);
+                if (Number.isNaN(t.getTime())) return String(d);
+                return t.toLocaleString('zh-CN', { hour12: false });
+            } catch (e) {
+                return String(d);
+            }
+        }
+
+        function clearRatingAnalysis() {
+            const sec = document.getElementById('ratingAnalysisSection');
+            const body = document.getElementById('analysisBody');
+            const sel = document.getElementById('raterSelect');
+            if (sec) sec.style.display = 'none';
+            if (body) body.innerHTML = '';
+            if (sel) {
+                sel.innerHTML = '<option value="__all__">全部评分者</option>';
+            }
+        }
+
+        function renderHistogram(title, counts) {
+            const chartWidth = 760;
+            const chartHeight = 250;
+            const paddingTop = 18;
+            const paddingRight = 16;
+            const paddingBottom = 42;
+            const paddingLeft = 42;
+            const plotWidth = chartWidth - paddingLeft - paddingRight;
+            const plotHeight = chartHeight - paddingTop - paddingBottom;
+            const maxC = Math.max(1, ...counts);
+            const slotWidth = plotWidth / counts.length;
+            const barWidth = Math.max(26, slotWidth * 0.55);
+            const ticks = 4;
+            let bars = '';
+            let labels = '';
+            let values = '';
+            const points = [];
+
+            for (let i = 0; i < counts.length; i++) {
+                const lo = SCORE_MIN + i * BUCKET_SIZE;
+                const hi = i === NUM_BUCKETS - 1 ? SCORE_MAX : SCORE_MIN + (i + 1) * BUCKET_SIZE - 1;
+                const x = paddingLeft + i * slotWidth + (slotWidth - barWidth) / 2;
+                const barHeight = maxC > 0 ? (counts[i] / maxC) * plotHeight : 0;
+                const y = paddingTop + plotHeight - barHeight;
+                const centerX = paddingLeft + i * slotWidth + slotWidth / 2;
+                const labelY = chartHeight - 12;
+
+                bars += `<rect class="hist-bar-rect" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(barHeight, 2).toFixed(2)}" rx="3"></rect>`;
+                values += `<text class="hist-bar-value" x="${centerX.toFixed(2)}" y="${Math.max(y - 6, 12).toFixed(2)}" text-anchor="middle">${counts[i]}</text>`;
+                labels += `<text class="hist-axis-text" x="${centerX.toFixed(2)}" y="${labelY}" text-anchor="middle">${lo}-${hi}</text>`;
+                points.push(`${centerX.toFixed(2)},${y.toFixed(2)}`);
+            }
+
+            let gridLines = '';
+            for (let i = 0; i <= ticks; i++) {
+                const value = (maxC / ticks) * i;
+                const y = paddingTop + plotHeight - (plotHeight / ticks) * i;
+                gridLines += `<line class="hist-grid-line" x1="${paddingLeft}" y1="${y.toFixed(2)}" x2="${chartWidth - paddingRight}" y2="${y.toFixed(2)}"></line>`;
+                gridLines += `<text class="hist-axis-text" x="${paddingLeft - 8}" y="${(y + 3).toFixed(2)}" text-anchor="end">${Math.round(value)}</text>`;
+            }
+
+            return `
+                <div class="chart-block">
+                    <div class="chart-title">${escapeHtml(title)}</div>
+                    <div class="hist-chart" role="img" aria-label="分数分布柱状折线图">
+                        <div class="hist-legend">
+                            <span class="hist-legend-item"><span class="hist-legend-swatch bar"></span>柱状表示该分段评分数</span>
+                            <span class="hist-legend-item"><span class="hist-legend-swatch line"></span>折线表示数量趋势</span>
+                        </div>
+                        <svg class="hist-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="histBarGradient" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stop-color="#6ab0ff"></stop>
+                                    <stop offset="100%" stop-color="#3d7dcc"></stop>
+                                </linearGradient>
+                            </defs>
+                            ${gridLines}
+                            <line class="hist-axis" x1="${paddingLeft}" y1="${paddingTop + plotHeight}" x2="${chartWidth - paddingRight}" y2="${paddingTop + plotHeight}"></line>
+                            <line class="hist-axis" x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${paddingTop + plotHeight}"></line>
+                            ${bars}
+                            <polyline class="hist-line" points="${points.join(' ')}"></polyline>
+                            ${points.map((point) => {
+                                const [cx, cy] = point.split(',');
+                                return `<circle class="hist-point" cx="${cx}" cy="${cy}" r="3.5"></circle>`;
+                            }).join('')}
+                            ${values}
+                            ${labels}
+                        </svg>
+                    </div>
+                </div>`;
+        }
+
+        /**
+         * Horizontal bars: deviation from per-work mean (user score - work simple average).
+         */
+        function renderDeviationBars(items, maxAbs) {
+            const cap = maxAbs > 0 ? maxAbs : 1;
+            let rows = '';
+            items.forEach((it) => {
+                const d = it.delta;
+                const pct = Math.min(50, (Math.abs(d) / cap) * 50);
+                const bar =
+                    d < 0
+                        ? `<div class="deviation-bar neg" style="width:${pct}%"></div>`
+                        : `<div class="deviation-bar pos" style="width:${pct}%"></div>`;
+                rows += `
+                    <div class="deviation-row">
+                        <span class="work-title" title="${escapeHtml(it.workTitle)}">#${it.workId} ${escapeHtml(it.workTitle)}</span>
+                        <span class="deviation-val">${d > 0 ? '+' : ''}${d.toFixed(1)}</span>
+                        <div class="deviation-bar-wrap">${bar}</div>
+                    </div>`;
+            });
+            return `<div class="deviation-chart">${rows}</div>`;
+        }
+
+        function aggregateByUser(allRatings) {
+            const map = {};
+            allRatings.forEach((row) => {
+                if (!map[row.userId]) {
+                    map[row.userId] = {
+                        userId: row.userId,
+                        userName: row.userName,
+                        scores: [],
+                        isHighQuality: row.isHighQuality,
+                    };
+                }
+                map[row.userId].scores.push(row.score);
+                map[row.userId].isHighQuality = map[row.userId].isHighQuality || row.isHighQuality;
+            });
+            return map;
+        }
+
+        function updateRatingAnalysis(works) {
+            const sec = document.getElementById('ratingAnalysisSection');
+            const body = document.getElementById('analysisBody');
+            const sel = document.getElementById('raterSelect');
+            if (!sec || !body || !sel) return;
+
+            const allRatings = buildAllRatings(works);
+            if (allRatings.length === 0) {
+                sec.style.display = 'block';
+                body.innerHTML =
+                    '<div class="analysis-empty">当前列表下暂无有效评分数据（已排除无效用户或空分）。</div>';
+                sel.innerHTML = '<option value="__all__">全部评分者</option>';
+                return;
+            }
+
+            const byUser = aggregateByUser(allRatings);
+            const globalScores = allRatings.map((r) => r.score);
+            const globalMean = globalScores.reduce((a, b) => a + b, 0) / globalScores.length;
+            const globalMedian = medianValues(globalScores);
+            const globalStd = populationStdev(globalScores);
+
+            const userList = Object.keys(byUser)
+                .map((uid) => ({
+                    userId: uid,
+                    userName: byUser[uid].userName,
+                    count: byUser[uid].scores.length,
+                    isHighQuality: byUser[uid].isHighQuality,
+                }))
+                .sort((a, b) => {
+                    if (b.count !== a.count) return b.count - a.count;
+                    return String(a.userName).localeCompare(String(b.userName), 'zh');
+                });
+
+            const prev =
+                sel.value && Array.from(sel.options).some((o) => o.value === sel.value)
+                    ? sel.value
+                    : lastRaterSelection;
+            sel.innerHTML =
+                '<option value="__all__">全部评分者</option>' +
+                userList
+                    .map(
+                        (u) =>
+                            `<option value="${escapeHtml(u.userId)}">${escapeHtml(u.userName)} (${u.count}次)</option>`
+                    )
+                    .join('');
+            const pick =
+                prev && userList.some((u) => u.userId === prev) ? prev : '__all__';
+            sel.value = pick;
+            lastRaterSelection = pick;
+
+            function renderAllView() {
+                const n = globalScores.length;
+                const uniq = userList.length;
+                const highN = allRatings.filter((r) => r.isHighQuality).length;
+                const highPct = n ? ((highN / n) * 100).toFixed(1) : '0';
+                const counts = histogramBuckets(globalScores);
+                const mode = maxBucketInfo(counts);
+
+                let strictLoose = '';
+                const candidates = userList.filter((u) => u.count >= MIN_RATINGS_FOR_STRICT_LOOSE);
+                if (candidates.length) {
+                    let strict = candidates[0];
+                    let loose = candidates[0];
+                    let bestS = Infinity;
+                    let bestL = -Infinity;
+                    candidates.forEach((u) => {
+                        const scores = byUser[u.userId].scores;
+                        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                        if (avg < bestS) {
+                            bestS = avg;
+                            strict = u;
+                        }
+                        if (avg > bestL) {
+                            bestL = avg;
+                            loose = u;
+                        }
+                    });
+                    const active = userList[0];
+                    strictLoose = `
+                        <div class="analysis-summary-row">
+                            <div class="analysis-summary-pill"><strong>最活跃</strong>：${escapeHtml(active.userName)}（${active.count} 次）</div>
+                            <div class="analysis-summary-pill"><strong>最严格</strong>（均分最低，>=${MIN_RATINGS_FOR_STRICT_LOOSE}次）：${escapeHtml(strict.userName)}（${bestS.toFixed(2)}）</div>
+                            <div class="analysis-summary-pill"><strong>最宽松</strong>（均分最高，>=${MIN_RATINGS_FOR_STRICT_LOOSE}次）：${escapeHtml(loose.userName)}（${bestL.toFixed(2)}）</div>
+                        </div>`;
+                } else {
+                    const active = userList[0];
+                    strictLoose = `
+                        <div class="analysis-summary-row">
+                            <div class="analysis-summary-pill"><strong>最活跃</strong>：${escapeHtml(active.userName)}（${active.count} 次）</div>
+                            <div class="analysis-summary-pill">参与人数不足，未计算最严/最宽（需每人至少 ${MIN_RATINGS_FOR_STRICT_LOOSE} 次）。</div>
+                        </div>`;
+                }
+
+                const summaryLine = `分数主要集中在 <strong>${mode.lo}-${mode.hi}</strong> 分区间（${mode.count} 条，占 ${((mode.count / n) * 100).toFixed(1)}%）。`;
+
+                return `
+                    ${strictLoose}
+                    <div class="analysis-grid">
+                        <div class="analysis-card"><div class="label">评分总数</div><div class="value">${n}</div></div>
+                        <div class="analysis-card"><div class="label">参与评分人数</div><div class="value">${uniq}</div></div>
+                        <div class="analysis-card"><div class="label">平均分</div><div class="value">${globalMean.toFixed(2)}</div></div>
+                        <div class="analysis-card"><div class="label">中位数</div><div class="value">${globalMedian != null ? globalMedian.toFixed(2) : '-'}</div></div>
+                        <div class="analysis-card"><div class="label">标准差</div><div class="value">${globalStd.toFixed(2)}</div><div class="sub">波动度</div></div>
+                        <div class="analysis-card"><div class="label">高权重评分占比</div><div class="value">${highPct}%</div><div class="sub">${highN} / ${n}</div></div>
+                    </div>
+                    <div class="chart-block"><div class="chart-title">概要</div><p style="font-size:13px;color:#ccc;line-height:1.5;">${summaryLine}</p></div>
+                    ${renderHistogram('全体评分分布（每 100 分一档）', counts)}
+                `;
+            }
+
+            function renderUserView(userId) {
+                const rows = allRatings.filter((r) => r.userId === userId);
+                if (!rows.length) {
+                    return '<div class="analysis-empty">无该用户数据。</div>';
+                }
+                const scores = rows.map((r) => r.score);
+                const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+                const med = medianValues(scores);
+                const min = Math.min(...scores);
+                const max = Math.max(...scores);
+                const offset = mean - globalMean;
+                const hq = rows[0].isHighQuality;
+                const counts = histogramBuckets(scores);
+
+                const devItems = rows
+                    .filter((r) => r.deltaFromWorkMean != null && !Number.isNaN(r.deltaFromWorkMean))
+                    .map((r) => ({
+                        workId: r.workSequenceId,
+                        workTitle: r.workTitle,
+                        delta: r.deltaFromWorkMean,
+                    }))
+                    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+                const maxAbs = devItems.reduce((m, x) => Math.max(m, Math.abs(x.delta)), 0);
+
+                const recent = [...rows]
+                    .sort((a, b) => {
+                        const ta = a.createdDate ? new Date(a.createdDate).getTime() : 0;
+                        const tb = b.createdDate ? new Date(b.createdDate).getTime() : 0;
+                        return tb - ta;
+                    })
+                    .slice(0, RECENT_RATINGS_LIMIT);
+
+                let table = `
+                    <table class="recent-table">
+                        <thead><tr><th>时间</th><th>作品</th><th>分</th><th>相对作品均分</th></tr></thead>
+                        <tbody>`;
+                recent.forEach((r) => {
+                    const d =
+                        r.deltaFromWorkMean != null && !Number.isNaN(r.deltaFromWorkMean)
+                            ? (r.deltaFromWorkMean > 0 ? '+' : '') + r.deltaFromWorkMean.toFixed(1)
+                            : '-';
+                    table += `<tr>
+                        <td>${escapeHtml(formatAnalysisDate(r.createdDate))}</td>
+                        <td>#${r.workSequenceId} ${escapeHtml(r.workTitle)}</td>
+                        <td>${r.score}</td>
+                        <td>${d}</td>
+                    </tr>`;
+                });
+                table += '</tbody></table>';
+
+                return `
+                    <div class="analysis-grid">
+                        <div class="analysis-card"><div class="label">评分次数</div><div class="value">${scores.length}</div></div>
+                        <div class="analysis-card"><div class="label">平均分</div><div class="value">${mean.toFixed(2)}</div></div>
+                        <div class="analysis-card"><div class="label">中位数</div><div class="value">${med != null ? med.toFixed(2) : '-'}</div></div>
+                        <div class="analysis-card"><div class="label">最高 / 最低</div><div class="value" style="font-size:18px">${max} / ${min}</div></div>
+                        <div class="analysis-card"><div class="label">相对全体均分</div><div class="value">${offset > 0 ? '+' : ''}${offset.toFixed(2)}</div><div class="sub">全体均分 ${globalMean.toFixed(2)}</div></div>
+                        <div class="analysis-card"><div class="label">高权重</div><div class="value" style="font-size:16px">${hq ? '是' : '否'}</div></div>
+                    </div>
+                    <div class="chart-block">
+                        <div class="chart-title">相对各作品简单均分的偏移（相对作品内其他人共识；按绝对偏差排序）</div>
+                        ${devItems.length ? renderDeviationBars(devItems, maxAbs) : '<p class="analysis-empty">无作品均分，无法计算偏移。</p>'}
+                    </div>
+                    ${renderHistogram('该用户评分分布（每 100 分一档）', counts)}
+                    <div class="chart-block">
+                        <div class="chart-title">最近 ${Math.min(RECENT_RATINGS_LIMIT, recent.length)} 条评分</div>
+                        ${table}
+                    </div>
+                `;
+            }
+
+            sec.style.display = 'block';
+            body.innerHTML =
+                sel.value === '__all__' ? renderAllView() : renderUserView(sel.value);
+
+            sel.onchange = function () {
+                lastRaterSelection = sel.value;
+                body.innerHTML =
+                    sel.value === '__all__' ? renderAllView() : renderUserView(sel.value);
+            };
+        }
 
         // 监听来自Wix页面的消息
         window.addEventListener('message', (event) => {
@@ -594,9 +1302,12 @@
                 }
                 renderWorks(allWorks);
                 updateStats(allWorks);
+                updateRatingAnalysis(allWorks);
             } else if (event.data.type === 'loading') {
+                clearRatingAnalysis();
                 showLoading(event.data.message);
             } else if (event.data.type === 'error') {
+                clearRatingAnalysis();
                 showError(event.data.message);
             }
         });

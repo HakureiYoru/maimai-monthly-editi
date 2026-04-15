@@ -726,7 +726,7 @@
       {
         id: "recommend_work",
         name: "推荐榜推送",
-        description: "消耗 20 积分，将一个主会场作品推入推荐榜，并附上你的评语！每个作品只能被推荐一次。",
+        description: "消耗 20 积分，将一个主会场作品推入推荐榜，并附上你的评语！同一用户不能重复推荐同一作品。",
         cost: 20,
         type: "recommend_work",
       },
@@ -817,7 +817,7 @@
                   <button class="ws-change-btn" onclick="clearWorkSelection('${item.id}')">更换</button>
                 </div>
                 <div class="already-recommended-warning" id="rec-warn-${item.id}">
-                  ⚠️ 该作品已在推荐榜中，每个作品只能被推荐一次！
+                  ⚠️ 你已经推荐过这部作品了，同一作品不能重复推荐。
                 </div>
                 <!-- 评语输入 -->
                 <textarea
@@ -994,7 +994,7 @@
       dd.innerHTML = list.map(w => {
         const isRec    = recommendedSeqSet.has(w.sequenceId);
         const disabled = isRec ? "ws-disabled" : "";
-        const recBadge = isRec ? '<span class="ws-badge ws-badge-rec">已推荐</span>' : "";
+        const recBadge = isRec ? '<span class="ws-badge ws-badge-rec">已推荐过</span>' : "";
         const dqBadge  = w.isDQ ? '<span class="ws-badge ws-badge-dq">已淘汰</span>' : "";
         return `<div class="ws-item ${disabled}" data-seq="${w.sequenceId}" data-title="${escHtml(w.title)}">
             <div class="ws-item-info">
@@ -1174,6 +1174,9 @@
         isBuying = false;
         if (data.success) {
           myPoints = data.remainingPoints != null ? data.remainingPoints : myPoints;
+          if (data.recommendedSequenceId != null) {
+            recommendedSeqSet.add(Number(data.recommendedSequenceId));
+          }
           document.getElementById("myPoints").textContent = myPoints;
           showToast(data.message, "success");
           addLog(data.message + `（剩余积分：${myPoints}）`, "success");
