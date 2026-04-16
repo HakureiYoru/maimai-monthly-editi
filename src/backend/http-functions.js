@@ -105,7 +105,46 @@ function normalizeSequenceIds(sequenceIds) {
 }
 
 /**
- * 批量获取作品封面下载链接，避免客户端逐条调用 contestEntry 接口。
+ * 从 Wix 图片标识构造 static.wixstatic.com 原图地址。
+ * @param {string} imageRef
+ * @returns {string}
+ */
+function getStaticWixImageBaseUrl(imageRef) {
+  const rawValue = String(imageRef || "").trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  if (rawValue.startsWith("wix:image://")) {
+    const match = rawValue.match(/^wix:image:\/\/v1\/([^/#]+)(?:\/[^#]*)?(?:#.*)?$/);
+    return match ? `https://static.wixstatic.com/media/${match[1]}` : "";
+  }
+
+  if (rawValue.startsWith("https://static.wixstatic.com/media/")) {
+    return rawValue.replace(/\/v1\/(fit|fill|crop)\/.*$/i, "");
+  }
+
+  return "";
+}
+
+/**
+ * 构造 Wix 图片缩略图 URL，交给 Wix CDN 做服务端缩放和缓存。
+ * @param {string} imageRef
+ * @param {number} width
+ * @param {number} height
+ * @returns {string}
+ */
+function buildWixThumbnailUrl(imageRef, width = 60, height = 60) {
+  const baseUrl = getStaticWixImageBaseUrl(imageRef);
+  if (!baseUrl) {
+    return "";
+  }
+
+  return `${baseUrl}/v1/fill/w_${width},h_${height}/file.webp`;
+}
+
+/**
+ * 批量获取作品封面缩略图链接，避免客户端逐条调用 contestEntry 接口。
  * @param {Array<number>} sequenceIds
  * @returns {Promise<Object>}
  */
@@ -135,7 +174,7 @@ async function getContestCoverUrlMapBySequenceIds(sequenceIds) {
         }
 
         try {
-          coverUrlMap[item.sequenceId] = await mediaManager.getDownloadUrl(bgFileRef);
+          coverUrlMap[item.sequenceId] = buildWixThumbnailUrl(bgFileRef, 60, 60);
         } catch (error) {
           logError("getContestCoverUrlMapBySequenceIds media", error, {
             sequenceId: item.sequenceId,
@@ -156,7 +195,7 @@ async function getContestCoverUrlMapBySequenceIds(sequenceIds) {
 }
 
 /**
- * 批量获取作品封面下载链接
+ * 批量获取作品封面缩略图链接
  * Body: { sequenceIds: number[] }
  */
 export const post_contestCoverUrls = asyncErrorHandler(async (request) => {
