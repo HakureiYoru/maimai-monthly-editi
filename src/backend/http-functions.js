@@ -44,6 +44,13 @@ export function options_contestEntry(request) {
 }
 
 /**
+ * 处理比赛封面批量查询的 CORS 预检请求
+ */
+export function options_contestCoverUrls(request) {
+  return createOptionsResponse();
+}
+
+/**
  * 根据序列ID获取比赛数据
  * @param {number} sequenceId - 序列ID
  * @returns {Promise<Object|null>} 比赛数据或null
@@ -77,6 +84,90 @@ export async function getEnterContest034DataBySequenceId(sequenceId) {
     return null;
   }
 }
+
+/**
+ * 规范化并去重 sequenceId 列表
+ * @param {Array<*>} sequenceIds
+ * @returns {Array<number>}
+ */
+function normalizeSequenceIds(sequenceIds) {
+  if (!Array.isArray(sequenceIds)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      sequenceIds
+        .map((value) => parseInt(value, 10))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+}
+
+/**
+ * 批量获取作品封面下载链接，避免客户端逐条调用 contestEntry 接口。
+ * @param {Array<number>} sequenceIds
+ * @returns {Promise<Object>}
+ */
+async function getContestCoverUrlMapBySequenceIds(sequenceIds) {
+  const normalizedIds = normalizeSequenceIds(sequenceIds);
+  if (normalizedIds.length === 0) {
+    return {};
+  }
+
+  const coverUrlMap = {};
+  const batchSize = 100;
+
+  for (let index = 0; index < normalizedIds.length; index += batchSize) {
+    const batchIds = normalizedIds.slice(index, index + batchSize);
+    const result = await wixData
+      .query(COLLECTIONS.ENTER_CONTEST_034)
+      .hasSome("sequenceId", batchIds)
+      .limit(batchIds.length)
+      .find({ suppressAuth: true });
+
+    await Promise.all(
+      result.items.map(async (item) => {
+        const bgFileRef = item.track的複本;
+        if (!bgFileRef) {
+          coverUrlMap[item.sequenceId] = "";
+          return;
+        }
+
+        try {
+          coverUrlMap[item.sequenceId] = await mediaManager.getDownloadUrl(bgFileRef);
+        } catch (error) {
+          logError("getContestCoverUrlMapBySequenceIds media", error, {
+            sequenceId: item.sequenceId,
+          });
+          coverUrlMap[item.sequenceId] = "";
+        }
+      })
+    );
+  }
+
+  normalizedIds.forEach((sequenceId) => {
+    if (!Object.prototype.hasOwnProperty.call(coverUrlMap, sequenceId)) {
+      coverUrlMap[sequenceId] = "";
+    }
+  });
+
+  return coverUrlMap;
+}
+
+/**
+ * 批量获取作品封面下载链接
+ * Body: { sequenceIds: number[] }
+ */
+export const post_contestCoverUrls = asyncErrorHandler(async (request) => {
+  const body = await request.body.json();
+  if (!body || !Array.isArray(body.sequenceIds)) {
+    return createErrorResponse("Missing sequenceIds", "badRequest");
+  }
+
+  const coverUrlMap = await getContestCoverUrlMapBySequenceIds(body.sequenceIds);
+  return createSuccessResponse(coverUrlMap);
+});
 
 /**
  * 获取比赛列表
