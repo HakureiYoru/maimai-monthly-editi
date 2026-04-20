@@ -4,6 +4,9 @@ import wixData from 'wix-data';
 import wixUsers from 'wix-users';
 import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
+const RECORD_REFRESH_INTERVAL_MS = 8000;
+let refreshTimer = null;
+
 /**
  * 获取用户昵称（支持访客占位）
  */
@@ -54,21 +57,21 @@ async function getWorkTitle(workNumber) {
 }
 
 $w.onReady(async function () {
-    await loadReportRecords();
-
-    // 监听来自自定义HTML元件的消息
     const htmlElement = $w('#reportRecordsHtml');
     if (htmlElement && htmlElement.onMessage) {
         htmlElement.onMessage((event) => {
             handleHtmlMessage(event);
         });
     }
+
+    await loadReportRecords('init');
+    startAutoRefresh();
 });
 
 /**
  * 加载检举记录数据
  */
-async function loadReportRecords() {
+async function loadReportRecords(action = 'init') {
     try {
         const results = await wixData.query('reportInfor')
             .descending('reportedAt')
@@ -79,13 +82,23 @@ async function loadReportRecords() {
         const htmlElement = $w('#reportRecordsHtml');
         if (htmlElement && htmlElement.postMessage) {
             htmlElement.postMessage({
-                action: 'init',
+                action: action,
                 records: results.items
             });
         }
     } catch (error) {
         console.error('加载检举记录失败:', error);
     }
+}
+
+function startAutoRefresh() {
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+    }
+
+    refreshTimer = setInterval(() => {
+        loadReportRecords('recordsRefresh');
+    }, RECORD_REFRESH_INTERVAL_MS);
 }
 
 /**
@@ -185,6 +198,44 @@ async function handleHtmlMessage(event) {
                     processed: processed,
                     success: false,
                     message: error.message || '更新失败'
+                });
+            }
+        }
+    } else if (data.action === 'savePublicNote') {
+        const recordId = data.recordId;
+        const publicNote = typeof data.publicNote === 'string' ? data.publicNote : '';
+
+        if (!recordId) {
+            return;
+        }
+
+        try {
+            const existingRecord = await wixData.get('reportInfor', recordId);
+            const updatedAt = new Date();
+
+            existingRecord.publicNote = publicNote;
+            existingRecord.publicNoteUpdatedAt = updatedAt;
+            await wixData.update('reportInfor', existingRecord);
+
+            const htmlElement = $w('#reportRecordsHtml');
+            if (htmlElement && htmlElement.postMessage) {
+                htmlElement.postMessage({
+                    action: 'savePublicNoteResult',
+                    recordId: recordId,
+                    publicNote: publicNote,
+                    publicNoteUpdatedAt: updatedAt.toISOString(),
+                    success: true
+                });
+            }
+        } catch (error) {
+            console.error('保存公共备注失败:', error);
+            const htmlElement = $w('#reportRecordsHtml');
+            if (htmlElement && htmlElement.postMessage) {
+                htmlElement.postMessage({
+                    action: 'savePublicNoteResult',
+                    recordId: recordId,
+                    success: false,
+                    message: error.message || '保存失败'
                 });
             }
         }

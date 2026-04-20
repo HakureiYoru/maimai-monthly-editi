@@ -229,6 +229,71 @@
             color: #ddd;
         }
 
+        .public-note-box {
+            margin-top: 12px;
+            padding: 12px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+
+        .public-note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .public-note-status {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .public-note-textarea {
+            width: 100%;
+            min-height: 82px;
+            resize: vertical;
+            padding: 10px;
+            background: #202020;
+            border: 1px solid #555;
+            color: #fff;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .public-note-textarea:focus {
+            outline: none;
+            border-color: #777;
+        }
+
+        .public-note-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .note-save-btn {
+            padding: 8px 18px;
+            background: #555;
+            color: #fff;
+            border: 1px solid #666;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .note-save-btn:hover:not(:disabled) {
+            background: #666;
+            border-color: #777;
+        }
+
+        .note-save-btn:disabled,
+        .public-note-textarea:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .process-checkbox {
             width: 16px;
             height: 16px;
@@ -394,6 +459,7 @@
         let userCache = {};
         let workTitleCache = {};
         let pendingUpdates = new Map();
+        let noteStates = new Map();
         let currentFilters = {
             search: '',
             user: '',
@@ -401,28 +467,256 @@
             work: '',
             processed: ''
         };
+        const RECORD_RENDER_CHUNK_SIZE = 12;
+        let activeRenderToken = 0;
+        let activeFilterRun = 0;
+        let pendingUserRequests = new Map();
+        let pendingWorkTitleRequests = new Map();
+        const USER_DISPLAY_TEXT = {
+            loading: '加载中...',
+            guest: '访客',
+            invalid: '失效账号',
+            unknown: '未知用户'
+        };
 
         window.addEventListener('message', async (event) => {
             const data = event.data;
 
             if (data.action === 'init') {
-                allRecords = data.records || [];
-                await initializeFilters();
+                allRecords = hydrateRecords(data.records || []);
+                initializeFilters();
                 await applyFilters();
+            } else if (data.action === 'recordsRefresh') {
+                handleRecordsRefresh(data.records || []);
             } else if (data.action === 'userInfo') {
-                if (data.userId && data.userName) {
-                    userCache[data.userId] = data.userName;
+                if (hasUsableUserId(data.userId) && Object.prototype.hasOwnProperty.call(data, 'userName')) {
+                    userCache[data.userId] = resolveUserDisplayName(data.userId, data.userName);
+                    refreshRenderedUserNames(data.userId);
+                    refreshUserFilterOptions(data.userId);
                 }
             } else if (data.action === 'workTitle') {
                 if (data.workNumber && data.workTitle) {
                     workTitleCache[data.workNumber] = data.workTitle;
+                    refreshRenderedWorkTitles(data.workNumber);
+                    refreshWorkFilterOptions(data.workNumber);
                 }
             } else if (data.action === 'updateProcessedResult') {
                 handleProcessedUpdateResult(data);
+            } else if (data.action === 'savePublicNoteResult') {
+                handlePublicNoteSaveResult(data);
             }
         });
 
-        async function initializeFilters() {
+        function hydrateRecords(records) {
+            return records.map(record => {
+                const hydratedRecord = {
+                    ...record,
+                    publicNote: normalizeNote(record.publicNote),
+                    publicNoteUpdatedAt: record.publicNoteUpdatedAt || ''
+                };
+                syncNoteStateFromRecord(hydratedRecord);
+                return hydratedRecord;
+            });
+        }
+
+        function normalizeNote(value) {
+            return value == null ? '' : String(value);
+        }
+
+        function getOrCreateNoteState(recordId, noteValue = '', updatedAt = '') {
+            if (!noteStates.has(recordId)) {
+                const savedValue = normalizeNote(noteValue);
+                noteStates.set(recordId, {
+                    savedValue: savedValue,
+                    currentValue: savedValue,
+                    savedUpdatedAt: updatedAt || '',
+                    dirty: false,
+                    isSaving: false
+                });
+            }
+
+            return noteStates.get(recordId);
+        }
+
+        function syncNoteStateFromRecord(record) {
+            if (!record || !record._id) {
+                return;
+            }
+
+            const state = getOrCreateNoteState(record._id, record.publicNote, record.publicNoteUpdatedAt);
+            if (state.dirty || state.isSaving) {
+                return;
+            }
+
+            state.savedValue = normalizeNote(record.publicNote);
+            state.currentValue = state.savedValue;
+            state.savedUpdatedAt = record.publicNoteUpdatedAt || '';
+            state.dirty = false;
+        }
+
+        function updateRecordInStore(recordId, updater) {
+            allRecords = allRecords.map(record => {
+                if (record._id !== recordId) {
+                    return record;
+                }
+                return updater(record);
+            });
+        }
+
+        function getNoteStatusText(state) {
+            if (!state || !state.savedValue) {
+                return '暂无备注';
+            }
+
+            if (!state.savedUpdatedAt) {
+                return '备注已保存';
+            }
+
+            return `上次更新: ${formatDateTime(state.savedUpdatedAt)}`;
+        }
+
+        function formatDateTime(value) {
+            const date = value ? new Date(value) : null;
+            if (!date || isNaN(date.getTime())) {
+                return '未知时间';
+            }
+
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function renderNoteState(recordId, root = document) {
+            const state = noteStates.get(recordId);
+            if (!state) {
+                return;
+            }
+
+            const textarea = root.querySelector(`.public-note-textarea[data-record-id="${recordId}"]`);
+            const saveBtn = root.querySelector(`.note-save-btn[data-record-id="${recordId}"]`);
+            const statusEl = root.querySelector(`.public-note-status[data-record-id="${recordId}"]`);
+
+            if (!textarea || !saveBtn || !statusEl) {
+                return;
+            }
+
+            if (textarea.value !== state.currentValue && (document.activeElement !== textarea || !state.dirty)) {
+                textarea.value = state.currentValue;
+            }
+
+            textarea.disabled = state.isSaving;
+            saveBtn.disabled = !state.dirty || state.isSaving;
+            saveBtn.textContent = state.isSaving ? '保存中...' : '保存备注';
+            statusEl.textContent = state.dirty ? '有未保存修改' : getNoteStatusText(state);
+        }
+
+        function updateProcessedUi(record) {
+            if (!record || !record._id || pendingUpdates.has(record._id)) {
+                return;
+            }
+
+            const checkbox = document.querySelector(`.process-checkbox[data-record-id="${record._id}"]`);
+            const processedByEl = document.querySelector(`.processed-by[data-record-id="${record._id}"]`);
+            const processed = record.processed === true;
+
+            if (checkbox) {
+                checkbox.checked = processed;
+                checkbox.disabled = processed;
+            }
+
+            if (processedByEl) {
+                processedByEl.textContent = processed ? (record.processedByName || '未知') : '未处理';
+            }
+        }
+
+        function handlePublicNoteInput(recordId, nextValue) {
+            const state = getOrCreateNoteState(recordId);
+            state.currentValue = nextValue;
+            state.dirty = nextValue !== state.savedValue;
+
+            updateRecordInStore(recordId, record => ({
+                ...record,
+                publicNote: nextValue
+            }));
+
+            renderNoteState(recordId);
+        }
+
+        function savePublicNote(recordId) {
+            const state = noteStates.get(recordId);
+            if (!state || !state.dirty || state.isSaving) {
+                return;
+            }
+
+            state.isSaving = true;
+            renderNoteState(recordId);
+
+            window.parent.postMessage({
+                action: 'savePublicNote',
+                recordId: recordId,
+                publicNote: state.currentValue
+            }, '*');
+        }
+
+        function handlePublicNoteSaveResult(data) {
+            const recordId = data.recordId;
+            const state = noteStates.get(recordId);
+
+            if (!recordId || !state) {
+                return;
+            }
+
+            state.isSaving = false;
+
+            if (data.success !== true) {
+                state.dirty = state.currentValue !== state.savedValue;
+                renderNoteState(recordId);
+                showMessage(`备注保存失败: ${data.message || '未知错误'}`, 'error');
+                return;
+            }
+
+            state.savedValue = normalizeNote(data.publicNote);
+            state.currentValue = state.savedValue;
+            state.savedUpdatedAt = data.publicNoteUpdatedAt || '';
+            state.dirty = false;
+
+            updateRecordInStore(recordId, record => ({
+                ...record,
+                publicNote: state.savedValue,
+                publicNoteUpdatedAt: state.savedUpdatedAt
+            }));
+
+            renderNoteState(recordId);
+            showMessage('备注已保存', 'success');
+        }
+
+        function handleRecordsRefresh(records) {
+            const incomingRecords = records.map(record => ({
+                ...record,
+                publicNote: normalizeNote(record.publicNote),
+                publicNoteUpdatedAt: record.publicNoteUpdatedAt || ''
+            }));
+
+            allRecords = incomingRecords.map(record => {
+                const state = getOrCreateNoteState(record._id, record.publicNote, record.publicNoteUpdatedAt);
+
+                if (!state.dirty && !state.isSaving) {
+                    state.savedValue = record.publicNote;
+                    state.currentValue = record.publicNote;
+                    state.savedUpdatedAt = record.publicNoteUpdatedAt;
+                    state.dirty = false;
+                    renderNoteState(record._id);
+                }
+
+                updateProcessedUi(record);
+
+                return {
+                    ...record,
+                    publicNote: state.dirty || state.isSaving ? state.currentValue : record.publicNote,
+                    publicNoteUpdatedAt: state.dirty || state.isSaving ? state.savedUpdatedAt : record.publicNoteUpdatedAt
+                };
+            });
+        }
+
+        function initializeFilters() {
             const userSet = new Set();
             const reporterSet = new Set();
             const workSet = new Set();
@@ -439,38 +733,29 @@
                 }
             }
 
-            const userFilter = document.getElementById('userFilter');
-            userFilter.innerHTML = '<option value="">全部用户</option>';
-            for (const userId of Array.from(userSet).sort()) {
-                const userName = await getUserNickname(userId);
-                const option = document.createElement('option');
-                option.value = userId;
-                option.textContent = userName;
-                userFilter.appendChild(option);
-            }
+            populateUserFilterOptions(
+                document.getElementById('userFilter'),
+                Array.from(userSet).sort(),
+                '全部用户',
+                currentFilters.user
+            );
 
-            const reporterFilter = document.getElementById('reporterFilter');
-            reporterFilter.innerHTML = '<option value="">全部检举人</option>';
-            for (const userId of Array.from(reporterSet).sort()) {
-                const userName = await getUserNickname(userId);
-                const option = document.createElement('option');
-                option.value = userId;
-                option.textContent = userName;
-                reporterFilter.appendChild(option);
-            }
+            populateUserFilterOptions(
+                document.getElementById('reporterFilter'),
+                Array.from(reporterSet).sort(),
+                '全部检举人',
+                currentFilters.reporter
+            );
 
-            const workFilter = document.getElementById('workFilter');
-            workFilter.innerHTML = '<option value="">全部作品</option>';
-            for (const workNumber of Array.from(workSet).sort((a, b) => a - b)) {
-                const workTitle = await getWorkTitle(workNumber);
-                const option = document.createElement('option');
-                option.value = workNumber;
-                option.textContent = `#${workNumber} - ${workTitle}`;
-                workFilter.appendChild(option);
-            }
+            populateWorkFilterOptions(
+                document.getElementById('workFilter'),
+                Array.from(workSet).sort((a, b) => a - b),
+                currentFilters.work
+            );
         }
 
         async function applyFilters() {
+            const filterRunId = ++activeFilterRun;
             let filteredRecords = [...allRecords];
 
             if (currentFilters.search) {
@@ -512,6 +797,10 @@
 
             await displayRecords(filteredRecords);
 
+            if (filterRunId !== activeFilterRun) {
+                return;
+            }
+
             const activeFiltersCount = Object.values(currentFilters).filter(v => v).length;
             if (activeFiltersCount > 0 && filteredRecords.length === 0) {
                 showMessage('没有符合筛选条件的记录', 'error');
@@ -520,6 +809,7 @@
 
         async function displayRecords(records) {
             const container = document.getElementById('recordsContainer');
+            const renderToken = ++activeRenderToken;
 
             if (records.length === 0) {
                 container.innerHTML = '<div class="no-records">暂无检举记录</div>';
@@ -528,19 +818,31 @@
 
             container.innerHTML = '';
 
-            for (const record of records) {
-                const recordElement = await createRecordElement(record);
-                container.appendChild(recordElement);
+            for (let index = 0; index < records.length; index += RECORD_RENDER_CHUNK_SIZE) {
+                if (renderToken !== activeRenderToken) {
+                    return;
+                }
+
+                const fragment = document.createDocumentFragment();
+                const chunk = records.slice(index, index + RECORD_RENDER_CHUNK_SIZE);
+
+                for (const record of chunk) {
+                    const recordElement = createRecordElement(record);
+                    fragment.appendChild(recordElement);
+                    hydrateRecordElement(record, recordElement, renderToken);
+                }
+
+                container.appendChild(fragment);
+
+                if (index + RECORD_RENDER_CHUNK_SIZE < records.length) {
+                    await nextPaint();
+                }
             }
         }
 
-        async function createRecordElement(record) {
+        function createRecordElement(record) {
             const div = document.createElement('div');
             div.className = 'record-item';
-
-            const originalUserName = await getUserNickname(record.originalCommentOwner);
-            const reporterName = await getUserNickname(record.reportedBy);
-            const workTitle = await getWorkTitle(record.workNumber);
 
             const reportDate = record.reportedAt ? new Date(record.reportedAt) : null;
             const formattedDate = reportDate && !isNaN(reportDate.getTime())
@@ -549,20 +851,21 @@
 
             const processed = record.processed === true;
             const processedByName = record.processedByName || '';
+            const noteState = getOrCreateNoteState(record._id, record.publicNote, record.publicNoteUpdatedAt);
 
             div.innerHTML = `
                 <div class="record-header">
-                    <div class="work-number">#${record.workNumber} - ${escapeHtml(workTitle)}</div>
+                    <div class="work-number work-title">#${record.workNumber} - ${escapeHtml(getCachedWorkTitle(record.workNumber))}</div>
                     <div class="report-time">${formattedDate}</div>
                 </div>
                 <div class="record-info">
                     <div class="info-item">
                         <span class="info-label">原评论用户:</span>
-                        <strong>${escapeHtml(originalUserName)}</strong>
+                        <strong class="user-name original-user-name">${escapeHtml(getCachedUserNickname(record.originalCommentOwner))}</strong>
                     </div>
                     <div class="info-item">
                         <span class="info-label">检举人:</span>
-                        <strong>${escapeHtml(reporterName)}</strong>
+                        <strong class="user-name reporter-user-name">${escapeHtml(getCachedUserNickname(record.reportedBy))}</strong>
                     </div>
                     <div class="info-item">
                         <span class="info-label">处理人:</span>
@@ -579,14 +882,39 @@
                         是否已处理
                     </label>
                 </div>
+                <div class="public-note-box">
+                    <div class="public-note-header">
+                        <span class="info-label">备注</span>
+                        <span class="public-note-status" data-record-id="${record._id}">${escapeHtml(getNoteStatusText(noteState))}</span>
+                    </div>
+                    <textarea class="public-note-textarea" data-record-id="${record._id}" placeholder="填写审核公共备注，其他审核员也可继续编辑"></textarea>
+                    <div class="public-note-actions">
+                        <button class="note-save-btn" type="button" data-record-id="${record._id}" disabled>保存备注</button>
+                    </div>
+                </div>
                 <button class="view-btn">查看评论内容</button>
                 <div class="comment-content">
                     ${escapeHtml(record.reportedComment || '评论内容获取失败').replace(/\\n/g, '<br>')}
                 </div>
             `;
 
+            const workTitleEl = div.querySelector('.work-title');
+            const originalUserEl = div.querySelector('.original-user-name');
+            const reporterUserEl = div.querySelector('.reporter-user-name');
             const viewBtn = div.querySelector('.view-btn');
             const commentContent = div.querySelector('.comment-content');
+            const noteTextarea = div.querySelector('.public-note-textarea');
+            const noteSaveBtn = div.querySelector('.note-save-btn');
+
+            if (workTitleEl) {
+                workTitleEl.dataset.workNumber = String(record.workNumber || '');
+            }
+            if (originalUserEl) {
+                originalUserEl.dataset.userId = String(record.originalCommentOwner || '');
+            }
+            if (reporterUserEl) {
+                reporterUserEl.dataset.userId = String(record.reportedBy || '');
+            }
 
             viewBtn.addEventListener('click', () => {
                 commentContent.classList.toggle('show');
@@ -611,43 +939,308 @@
                 }, '*');
             });
 
+            noteTextarea.value = noteState.currentValue;
+            noteTextarea.addEventListener('input', () => {
+                handlePublicNoteInput(record._id, noteTextarea.value);
+            });
+            noteSaveBtn.addEventListener('click', () => {
+                savePublicNote(record._id);
+            });
+            renderNoteState(record._id, div);
+
             return div;
         }
 
+        async function hydrateRecordElement(record, root, renderToken) {
+            const [originalUserName, reporterName, workTitle] = await Promise.all([
+                getUserNickname(record.originalCommentOwner),
+                getUserNickname(record.reportedBy),
+                getWorkTitle(record.workNumber)
+            ]);
+
+            if (!isRenderCurrent(renderToken, root)) {
+                return;
+            }
+
+            const workTitleEl = root.querySelector('.work-title');
+            const originalUserEl = root.querySelector('.original-user-name');
+            const reporterUserEl = root.querySelector('.reporter-user-name');
+
+            if (workTitleEl) {
+                workTitleEl.textContent = `#${record.workNumber} - ${workTitle}`;
+            }
+            if (originalUserEl) {
+                originalUserEl.textContent = originalUserName;
+            }
+            if (reporterUserEl) {
+                reporterUserEl.textContent = reporterName;
+            }
+        }
+
         async function getUserNickname(userId) {
+            if (!hasUsableUserId(userId)) {
+                return USER_DISPLAY_TEXT.invalid;
+            }
+
             if (userCache[userId]) {
                 return userCache[userId];
             }
 
-            window.parent.postMessage({
-                action: 'getUserInfo',
-                userId: userId
-            }, '*');
+            if (!pendingUserRequests.has(userId)) {
+                window.parent.postMessage({
+                    action: 'getUserInfo',
+                    userId: userId
+                }, '*');
 
-            const startTime = Date.now();
-            while (!userCache[userId] && Date.now() - startTime < 2000) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                pendingUserRequests.set(userId, waitForCacheValue(() => userCache[userId])
+                    .finally(() => {
+                        pendingUserRequests.delete(userId);
+                    }));
             }
 
-            return userCache[userId] || '失效账号';
+            const resolvedName = await pendingUserRequests.get(userId);
+            return resolvedName || getUnresolvedUserFallback(userId);
         }
 
         async function getWorkTitle(workNumber) {
+            if (!workNumber && workNumber !== 0) {
+                return '未知标题';
+            }
+
             if (workTitleCache[workNumber]) {
                 return workTitleCache[workNumber];
             }
 
-            window.parent.postMessage({
-                action: 'getWorkTitle',
-                workNumber: workNumber
-            }, '*');
+            if (!pendingWorkTitleRequests.has(workNumber)) {
+                window.parent.postMessage({
+                    action: 'getWorkTitle',
+                    workNumber: workNumber
+                }, '*');
 
-            const startTime = Date.now();
-            while (!workTitleCache[workNumber] && Date.now() - startTime < 2000) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                pendingWorkTitleRequests.set(workNumber, waitForCacheValue(() => workTitleCache[workNumber])
+                    .finally(() => {
+                        pendingWorkTitleRequests.delete(workNumber);
+                    }));
             }
 
-            return workTitleCache[workNumber] || '未知标题';
+            const resolvedTitle = await pendingWorkTitleRequests.get(workNumber);
+            return resolvedTitle || '未知标题';
+        }
+
+        function populateUserFilterOptions(filterEl, userIds, defaultLabel, selectedValue) {
+            filterEl.innerHTML = `<option value="">${defaultLabel}</option>`;
+
+            for (const userId of userIds) {
+                const option = document.createElement('option');
+                option.value = userId;
+                option.dataset.userId = String(userId);
+                option.textContent = getCachedUserNickname(userId);
+                filterEl.appendChild(option);
+
+                getUserNickname(userId).then(userName => {
+                    if (option.isConnected && option.dataset.userId === String(userId)) {
+                        option.textContent = userName;
+                    }
+                });
+            }
+
+            filterEl.value = selectedValue || '';
+        }
+
+        function populateWorkFilterOptions(filterEl, workNumbers, selectedValue) {
+            filterEl.innerHTML = '<option value="">全部作品</option>';
+
+            for (const workNumber of workNumbers) {
+                const option = document.createElement('option');
+                option.value = workNumber;
+                option.dataset.workNumber = String(workNumber);
+                option.textContent = `#${workNumber} - ${getCachedWorkTitle(workNumber)}`;
+                filterEl.appendChild(option);
+
+                getWorkTitle(workNumber).then(workTitle => {
+                    if (option.isConnected && option.dataset.workNumber === String(workNumber)) {
+                        option.textContent = `#${workNumber} - ${workTitle}`;
+                    }
+                });
+            }
+
+            filterEl.value = selectedValue || '';
+        }
+
+        function refreshRenderedUserNames(userId) {
+            const resolvedName = userCache[userId];
+            if (!resolvedName) {
+                return;
+            }
+
+            document.querySelectorAll('.user-name').forEach(element => {
+                if (element.dataset.userId === String(userId)) {
+                    element.textContent = resolvedName;
+                }
+            });
+        }
+
+        function refreshRenderedWorkTitles(workNumber) {
+            const resolvedTitle = workTitleCache[workNumber];
+            if (!resolvedTitle) {
+                return;
+            }
+
+            document.querySelectorAll('.work-title').forEach(element => {
+                if (element.dataset.workNumber === String(workNumber)) {
+                    element.textContent = `#${workNumber} - ${resolvedTitle}`;
+                }
+            });
+        }
+
+        function refreshUserFilterOptions(userId) {
+            const resolvedName = userCache[userId];
+            if (!resolvedName) {
+                return;
+            }
+
+            document.querySelectorAll('option[data-user-id]').forEach(option => {
+                if (option.dataset.userId === String(userId)) {
+                    option.textContent = resolvedName;
+                }
+            });
+        }
+
+        function refreshWorkFilterOptions(workNumber) {
+            const resolvedTitle = workTitleCache[workNumber];
+            if (!resolvedTitle) {
+                return;
+            }
+
+            document.querySelectorAll('option[data-work-number]').forEach(option => {
+                if (option.dataset.workNumber === String(workNumber)) {
+                    option.textContent = `#${workNumber} - ${resolvedTitle}`;
+                }
+            });
+        }
+
+        function getCachedUserNickname(userId) {
+            if (!hasUsableUserId(userId)) {
+                return USER_DISPLAY_TEXT.invalid;
+            }
+            return userCache[userId] || getPendingUserDisplay(userId);
+        }
+
+        function getCachedWorkTitle(workNumber) {
+            if (!workNumber && workNumber !== 0) {
+                return '未知标题';
+            }
+            return workTitleCache[workNumber] || '加载中...';
+        }
+
+        function waitForCacheValue(getValue, timeout = 2000) {
+            return new Promise(resolve => {
+                const existingValue = getValue();
+                if (existingValue) {
+                    resolve(existingValue);
+                    return;
+                }
+
+                const startTime = Date.now();
+                const intervalId = setInterval(() => {
+                    const nextValue = getValue();
+                    if (nextValue || Date.now() - startTime >= timeout) {
+                        clearInterval(intervalId);
+                        resolve(nextValue || '');
+                    }
+                }, 100);
+            });
+        }
+
+        function hasUsableUserId(userId) {
+            return userId !== null && userId !== undefined && String(userId).trim() !== '';
+        }
+
+        function isGuestUserId(userId) {
+            if (!hasUsableUserId(userId)) {
+                return false;
+            }
+
+            const normalizedUserId = String(userId).trim().toLowerCase();
+            return normalizedUserId === 'guest' ||
+                   normalizedUserId === 'visitor' ||
+                   normalizedUserId === '游客' ||
+                   normalizedUserId === '访客';
+        }
+
+        function isGuestUserName(userName) {
+            if (typeof userName !== 'string') {
+                return false;
+            }
+
+            const normalizedUserName = userName.trim().toLowerCase();
+            return normalizedUserName === 'guest' ||
+                   normalizedUserName === 'guest user' ||
+                   normalizedUserName === '游客' ||
+                   normalizedUserName === '访客';
+        }
+
+        function resolveUserDisplayName(userId, userName) {
+            if (!hasUsableUserId(userId)) {
+                return USER_DISPLAY_TEXT.invalid;
+            }
+
+            if (typeof userName === 'string') {
+                const trimmedUserName = userName.trim();
+                if (trimmedUserName) {
+                    if (trimmedUserName === USER_DISPLAY_TEXT.invalid) {
+                        return USER_DISPLAY_TEXT.invalid;
+                    }
+                    if (isGuestUserName(trimmedUserName) || isGuestUserId(userId)) {
+                        return USER_DISPLAY_TEXT.guest;
+                    }
+                    return trimmedUserName;
+                }
+            }
+
+            if (isGuestUserId(userId)) {
+                return USER_DISPLAY_TEXT.guest;
+            }
+
+            return USER_DISPLAY_TEXT.unknown;
+        }
+
+        function getPendingUserDisplay(userId) {
+            if (!hasUsableUserId(userId)) {
+                return USER_DISPLAY_TEXT.invalid;
+            }
+
+            if (isGuestUserId(userId)) {
+                return USER_DISPLAY_TEXT.guest;
+            }
+
+            return USER_DISPLAY_TEXT.loading;
+        }
+
+        function getUnresolvedUserFallback(userId) {
+            if (!hasUsableUserId(userId)) {
+                return USER_DISPLAY_TEXT.invalid;
+            }
+
+            if (isGuestUserId(userId)) {
+                return USER_DISPLAY_TEXT.guest;
+            }
+
+            return USER_DISPLAY_TEXT.unknown;
+        }
+
+        function nextPaint() {
+            return new Promise(resolve => {
+                if (typeof window.requestAnimationFrame === 'function') {
+                    window.requestAnimationFrame(() => resolve());
+                    return;
+                }
+                setTimeout(resolve, 0);
+            });
+        }
+
+        function isRenderCurrent(renderToken, root) {
+            return renderToken === activeRenderToken && root && root.isConnected;
         }
 
         function handleProcessedUpdateResult(data) {
