@@ -23,7 +23,7 @@ let currentFilters = {
   tier: "all",
   search: "",
 };
-let currentSortBy = "id";
+let currentSortBy = "id-asc";
 
 $w.onReady(async function () {
   // 权限检查
@@ -410,6 +410,16 @@ function sendDataToHTML(data) {
   });
 }
 
+function getSortConfig(sortValue) {
+  const [field, direction] = (sortValue || "").split("-");
+  const safeField = ["id", "score", "ratings"].includes(field) ? field : "id";
+  const defaultDirection = safeField === "id" ? "asc" : "desc";
+  const safeDirection =
+    direction === "asc" || direction === "desc" ? direction : defaultDirection;
+
+  return { field: safeField, direction: safeDirection };
+}
+
 function applyCurrentView() {
   const searchTerm = currentFilters.search.trim().toLowerCase();
 
@@ -424,13 +434,26 @@ function applyCurrentView() {
     return tierMatched && searchMatched;
   });
 
-  if (currentSortBy === "id") {
-    filteredWorksData.sort((a, b) => a.sequenceId - b.sequenceId);
-  } else if (currentSortBy === "score") {
-    filteredWorksData.sort((a, b) => b.weightedAverage - a.weightedAverage);
-  } else if (currentSortBy === "ratings") {
-    filteredWorksData.sort((a, b) => b.numRatings - a.numRatings);
-  }
+  const { field: sortField, direction: sortDirection } = getSortConfig(currentSortBy);
+  const directionMultiplier = sortDirection === "desc" ? -1 : 1;
+
+  filteredWorksData.sort((a, b) => {
+    let diff = 0;
+
+    if (sortField === "id") {
+      diff = a.sequenceId - b.sequenceId;
+    } else if (sortField === "score") {
+      diff = a.weightedAverage - b.weightedAverage;
+    } else if (sortField === "ratings") {
+      diff = a.numRatings - b.numRatings;
+    }
+
+    if (diff !== 0) {
+      return diff * directionMultiplier;
+    }
+
+    return a.sequenceId - b.sequenceId;
+  });
 
   sendDataToHTML(filteredWorksData);
 }
@@ -468,6 +491,6 @@ function handleFilter(filterType, value) {
  * 处理排序
  */
 function handleSort(sortBy) {
-  currentSortBy = sortBy || "id";
+  currentSortBy = sortBy || "id-asc";
   applyCurrentView();
 }
