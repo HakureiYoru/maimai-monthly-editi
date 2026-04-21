@@ -104,6 +104,7 @@ $w.onReady(async function () {
     const registrationResults = await wixData
       .query("jobApplication089")
       .eq("_owner", currentUserId)
+      .limit(1000)
       .find();
 
     if (registrationResults.items.length === 0) {
@@ -115,7 +116,7 @@ $w.onReady(async function () {
     const submissionResults = await wixData
       .query("enterContest034")
       .eq("_owner", currentUserId)
-      .limit(300)
+      .limit(1000)
       .find();
 
     if (submissionResults.items.length > 0) {
