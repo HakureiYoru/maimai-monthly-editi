@@ -26,6 +26,7 @@ function checkIfUserRegistered() {
     // 首先查询当前用户是否已经报名
     wixData.query('jobApplication089')
         .eq("_owner", wixUsers.currentUser.id)
+        .limit(500)
         .find()
         .then(results => {
             if (results.items.length > 0) {
