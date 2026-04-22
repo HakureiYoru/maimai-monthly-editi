@@ -510,15 +510,19 @@
       if (!item || !item.hasSubmittedWork) {
         return '';
       }
-      const works = Array.isArray(item.ownWorks) ? item.ownWorks : [];
-      const normalized = works
-        .map((num) => Number(num))
-        .filter((num) => Number.isFinite(num));
+      const normalized = getNormalizedOwnWorks(item);
       if (!normalized.length) {
         return '';
       }
       const worksText = normalized.map((num) => `#${num}`).join(', ');
       return `作品编号：${worksText}`;
+    }
+
+    function getNormalizedOwnWorks(item) {
+      const works = Array.isArray(item?.ownWorks) ? item.ownWorks : [];
+      return works
+        .map((num) => Number(num))
+        .filter((num) => Number.isFinite(num));
     }
 
     function getProgress(item) {
@@ -607,11 +611,12 @@
 
     function buildCsvContent(list) {
       const rows = [
-        ['用户ID', '用户名', '报名名', '高权重', '状态', '完成数', '目标数', '完成率', '当前任务数', '淘汰', '最后刷新', '联系方式'],
+        ['用户ID', '用户名', '报名名', '高权重', '状态', '完成数', '目标数', '完成率', '当前任务数', '淘汰', '最后刷新', '作品编号', '联系方式'],
       ];
 
       list.forEach((item) => {
         const progress = getProgress(item);
+        const ownWorks = getNormalizedOwnWorks(item).join('、');
         rows.push([
           item.userId || '',
           item.userName || '',
@@ -624,6 +629,7 @@
           item.currentTaskCount || 0,
           item.isDQ ? '是' : '否',
           formatDate(item.lastRefreshTime),
+          ownWorks,
           item.contactUrl || '',
         ]);
       });
