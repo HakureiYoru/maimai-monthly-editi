@@ -263,8 +263,8 @@
         </div>
 
         <div class="input-group">
-          <label class="input-label">请选择三个选项</label>
-          <div class="selection-count" id="selectionCount">已选 0/3</div>
+          <label class="input-label">请选择两个选项</label>
+          <div class="selection-count" id="selectionCount">已选 0/2</div>
           <div class="radio-group" id="themeOptions"></div>
         </div>
 
@@ -435,9 +435,9 @@
 
         const checkbox = optionElement.querySelector('input');
         checkbox.addEventListener('change', () => {
-          if (checkbox.checked && getSelectedCount() > 3) {
+          if (checkbox.checked && getSelectedCount() > 2) {
             checkbox.checked = false;
-            showStatus('请选择三个选项', 'error');
+            showStatus('请选择两个选项', 'error');
           }
           optionElement.classList.toggle('selected', checkbox.checked);
           validateForm();
@@ -448,8 +448,8 @@
             return;
           }
           const willCheck = !checkbox.checked;
-          if (willCheck && getSelectedCount() >= 3) {
-            showStatus('请选择三个选项', 'error');
+          if (willCheck && getSelectedCount() >= 2) {
+            showStatus('请选择两个选项', 'error');
             return;
           }
           checkbox.checked = willCheck;
@@ -574,13 +574,13 @@
     function updateSelectedCount() {
       const countEl = document.getElementById('selectionCount');
       if (!countEl) return;
-      countEl.textContent = `已选 ${getSelectedCount()}/3`;
+      countEl.textContent = `已选 ${getSelectedCount()}/2`;
     }
 
     function validateForm() {
       const userName = document.getElementById('userName').value.trim();
       const selectedCount = getSelectedCount();
-      const isValid = userName && selectedCount === 3 && !hasVoted;
+      const isValid = userName && selectedCount === 2 && !hasVoted;
       document.getElementById('submitVote').disabled = !isValid;
       updateSelectedCount();
     }
@@ -618,8 +618,8 @@
         return;
       }
 
-      if (selectedOptions.length !== 3) {
-        showStatus('请选择三个选项', 'error');
+      if (selectedOptions.length !== 2) {
+        showStatus('请选择两个选项', 'error');
         return;
       }
 
