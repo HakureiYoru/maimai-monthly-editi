@@ -51,6 +51,13 @@ export function options_contestCoverUrls(request) {
 }
 
 /**
+ * 处理最近评论作品接口的 CORS 预检请求
+ */
+export function options_recentComments(request) {
+  return createOptionsResponse();
+}
+
+/**
  * 根据序列ID获取比赛数据
  * @param {number} sequenceId - 序列ID
  * @returns {Promise<Object|null>} 比赛数据或null
@@ -397,6 +404,68 @@ export const get_comment = asyncErrorHandler(async (request) => {
   });
 
   return createSuccessResponse(responseItems);
+});
+
+/**
+ * 获取最近一段时间内有新评论的作品。
+ * Query: ?hours=24，返回作品编号、最近评论时间和近期评论数，不暴露评论正文。
+ * @param {Object} request - HTTP request
+ * @returns {Promise<Object>} HTTP response
+ */
+export const get_recentComments = asyncErrorHandler(async (request) => {
+  const rawHours = Number(request.query?.hours || 24);
+  const hours = Number.isFinite(rawHours)
+    ? Math.min(Math.max(Math.floor(rawHours), 1), 168)
+    : 24;
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const query = wixData
+    .query(COLLECTIONS.BOF_COMMENT)
+    .ge("_createdDate", since)
+    .descending("_createdDate");
+  const comments = await loadAllData(query);
+
+  const groupedMap = new Map();
+  comments.forEach((comment) => {
+    const sequenceId = parseInt(comment.workNumber, 10);
+    if (!Number.isInteger(sequenceId) || sequenceId <= 0) {
+      return;
+    }
+
+    const createdDate = comment._createdDate;
+    const timestamp = new Date(createdDate || 0).getTime() || 0;
+    const existing = groupedMap.get(sequenceId);
+
+    if (!existing) {
+      groupedMap.set(sequenceId, {
+        sequenceId,
+        latestCommentDate: createdDate,
+        recentCommentCount: 1,
+        _latestTimestamp: timestamp,
+      });
+      return;
+    }
+
+    existing.recentCommentCount += 1;
+    if (timestamp > existing._latestTimestamp) {
+      existing.latestCommentDate = createdDate;
+      existing._latestTimestamp = timestamp;
+    }
+  });
+
+  const items = Array.from(groupedMap.values())
+    .sort((a, b) => b._latestTimestamp - a._latestTimestamp)
+    .map((item) => {
+      delete item._latestTimestamp;
+      return item;
+    });
+
+  return createSuccessResponse({
+    hours,
+    since: since.toISOString(),
+    totalWorks: items.length,
+    items,
+  });
 });
 
 /**
