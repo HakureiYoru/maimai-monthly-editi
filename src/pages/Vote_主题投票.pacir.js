@@ -299,7 +299,11 @@ async function handleVote2OptionsRequest() {
 
 async function handleVote2ResultsRequest() {
   try {
-    const results = await getVote2Results();
+    if (!currentUserId) {
+      throw new Error("用户未登录");
+    }
+
+    const results = await getVote2Results(currentUserId);
     postMessageToVote2("VOTE2_RESULTS", results);
   } catch (error) {
     console.error("[Vote2] 获取投票结果失败:", error);

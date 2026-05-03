@@ -202,6 +202,21 @@
       position: relative;
     }
 
+    .result-locked {
+      padding: 36px 20px;
+      color: #fff;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .hidden {
+      display: none;
+    }
+
     .loading {
       text-align: center;
       padding: 36px 20px;
@@ -275,7 +290,8 @@
 
     <div class="glass-card">
       <div class="section-title">投票结果</div>
-      <div class="chart-container" id="votingChartContainer">
+      <div class="result-locked" id="resultLockedMessage">投票后即可查看结果</div>
+      <div class="chart-container hidden" id="votingChartContainer">
         <canvas id="votingChart"></canvas>
       </div>
     </div>
@@ -344,7 +360,15 @@
 
     async function handleInit(data) {
       currentUserId = data.currentUserId;
+      hasVoted = false;
+      votingResults = null;
+      loadingStates = {
+        status: false,
+        options: false,
+        results: false
+      };
       disableInitialControls();
+      setResultsVisibility(false);
 
       if (loadingTimeout) {
         clearTimeout(loadingTimeout);
@@ -357,7 +381,6 @@
 
       requestStatus();
       requestOptions();
-      requestResults();
     }
 
     function handleStatus(data) {
@@ -365,8 +388,12 @@
 
       if (hasVoted) {
         disableVotingForm();
+        setResultsVisibility(true);
         showStatus('您已经投过票了', 'info');
+        requestResults();
       } else {
+        setResultsVisibility(false);
+        loadingStates.results = true;
         enableFormControls();
       }
 
@@ -382,7 +409,16 @@
     }
 
     function handleResults(data) {
+      if (!hasVoted || data?.allowed === false) {
+        votingResults = null;
+        setResultsVisibility(false);
+        loadingStates.results = true;
+        checkAllDataLoaded();
+        return;
+      }
+
       votingResults = data;
+      setResultsVisibility(true);
       updateVotingChart();
       loadingStates.results = true;
       checkAllDataLoaded();
@@ -393,6 +429,7 @@
         showStatus('投票提交成功！', 'success');
         hasVoted = true;
         disableVotingForm();
+        setResultsVisibility(true);
         requestResults();
       } else {
         showStatus(`投票提交失败: ${data.message || '未知错误'}`, 'error');
@@ -409,6 +446,21 @@
         loadingTimeout = null;
       }
       hideLoading();
+    }
+
+    function setResultsVisibility(canViewResults) {
+      const lockedMessage = document.getElementById('resultLockedMessage');
+      const chartContainer = document.getElementById('votingChartContainer');
+
+      if (!lockedMessage || !chartContainer) return;
+
+      lockedMessage.classList.toggle('hidden', canViewResults);
+      chartContainer.classList.toggle('hidden', !canViewResults);
+
+      if (!canViewResults && votingChart) {
+        votingChart.destroy();
+        votingChart = null;
+      }
     }
 
     function checkAllDataLoaded() {
