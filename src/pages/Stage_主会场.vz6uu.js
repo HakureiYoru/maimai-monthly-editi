@@ -40,6 +40,12 @@ let currentCommentSystemState = {
   currentPage: 1
 };
 
+// 作品列表筛选状态（由自定义 HTML 元件驱动，替代旧的 #input1/#dropdown1）
+let currentWorkListFilterState = {
+  searchValue: "",
+  sortMode: "default",
+};
+
 // 缓存数据以减少API调用（性能优化）
 let userFormalRatingsCache = null; // 缓存用户正式评分状态
 let replyCountsCache = {}; // 缓存回复数量
@@ -263,6 +269,9 @@ $w.onReady(async function () {
   // 【新增】初始化评论系统HTML元件
   initCommentSystemPanel();
 
+  // 初始化作品列表筛选 HTML 元件
+  initWorkListFilterPanel();
+
   // Repeater2: 作品显示
   $w("#repeater2").onItemReady(async ($item, itemData, index) => {
     const bgVideoUrl = itemData.上傳檔案欄;
@@ -315,8 +324,8 @@ $w.onReady(async function () {
   // 预加载当前显示评论的回复数量（新系统会自动处理）
   // 【注释】旧repeater1的回复数量预加载已不需要
 
-  // 【保留】作品列表（Repeater2）的事件监听器
-  setupSearchAndPaginationEvents(); // 作品搜索、分页、排序
+  // 【保留】作品列表（Repeater2）的分页事件监听器
+  setupWorkListPaginationEvents();
 
   // 【已迁移到新HTML元件】评论系统的事件监听器已移除
   // 所有评论相关功能现在由 commentSystemPanel HTML元件处理
@@ -1200,9 +1209,11 @@ async function refreshRepeaters() {
     }
 
     const currentPage = $w("#paginator").currentPage || 1;
-    const searchValue = $w("#input1").value;
-    const dropdownValue = $w("#dropdown1").value;
-    await updateRepeaterData(currentPage, searchValue, dropdownValue);
+    await updateRepeaterData(
+      currentPage,
+      currentWorkListFilterState.searchValue,
+      currentWorkListFilterState.sortMode
+    );
 
     // 重新加载用户评分缓存
     if (currentUserId && isUserVerified) {
@@ -1368,14 +1379,24 @@ function formatDate(date) {
 
 // 数据处理与分页
 async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
-  $w("#loadingSpinner").show();
+  sendWorkListFilterState({ isLoading: true });
 
+  try {
   let query = wixData.query("enterContest034");
+  const normalizedSearchValue = (searchValue || "").trim();
+  const normalizedSortMode = dropdownValue || "default";
 
-  if (searchValue) {
-    query = query
-      .contains("firstName", searchValue)
-      .or(query.eq("sequenceId", Number(searchValue)));
+  if (normalizedSearchValue) {
+    const titleQuery = wixData
+      .query("enterContest034")
+      .contains("firstName", normalizedSearchValue);
+    const numericSearchValue = Number(normalizedSearchValue);
+
+    query = Number.isFinite(numericSearchValue)
+      ? titleQuery.or(
+          wixData.query("enterContest034").eq("sequenceId", numericSearchValue)
+        )
+      : titleQuery;
   }
 
   let results = await query.limit(1000).find();
@@ -1396,10 +1417,10 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
 
   let items = results.items;
 
-  if (dropdownValue === "rating") {
+  if (normalizedSortMode === "rating") {
     items = await sortByRating(items);
-  } else if (dropdownValue === "task") {
-    items = await sortByTask(items);
+  } else if (normalizedSortMode === "task") {
+    items = await filterTaskWorks(items);
   }
 
   // 分页处理
@@ -1417,14 +1438,23 @@ async function updateRepeaterData(pageNumber, searchValue, dropdownValue) {
   $w("#repeater2").forEachItem(async ($item, itemData, index) => {
     const commentCount = commentsCountByWorkNumber[itemData.sequenceId] || 0;
     $item("#Commments").text = `${commentCount}`;
-
-    if (index === pagedItems.length - 1) {
-      $w("#loadingSpinner").hide();
-    }
   });
 
-  if (pagedItems.length === 0) {
-    $w("#loadingSpinner").hide();
+  sendWorkListFilterState({
+    isLoading: false,
+    currentPage: pageNumber,
+    totalPages,
+    totalItems: items.length,
+  });
+  } catch (error) {
+    console.error("[作品筛选] 更新作品列表失败:", error);
+    $w("#repeater2").data = [];
+    sendWorkListFilterState({
+      isLoading: false,
+      currentPage: 1,
+      totalPages: 1,
+      totalItems: 0,
+    });
   }
 }
 
@@ -1587,12 +1617,12 @@ async function updateItemEvaluationDisplay($item, itemData) {
   }
 }
 
-// 基于任务排序作品（任务作品优先，淘汰作品后置）
-async function sortByTask(items) {
+// 只显示当前用户未完成的任务作品
+async function filterTaskWorks(items) {
   try {
-    // 如果用户未登录或未验证，按默认顺序返回
+    // 未登录或未报名时没有任务列表，返回空列表更符合“只显示任务作品”
     if (!currentUserId || !isUserVerified) {
-      return items;
+      return [];
     }
 
     const itemsWithTaskStatus = await Promise.all(
@@ -1607,41 +1637,22 @@ async function sortByTask(items) {
 
         return {
           ...item,
-          isTask: isTask, // 未完成的任务
-          isTaskCompleted: isTaskCompleted, // 已完成的任务
-          isDQ: isDQ, // 淘汰作品
+          isTask: isTask,
+          isTaskCompleted: isTaskCompleted,
+          isDQ: isDQ,
         };
       })
     );
 
-    // 四级分类：未完成的任务 > 已完成的任务 > 其他作品 > 淘汰作品
-    const uncompletedTaskItems = itemsWithTaskStatus.filter(
+    const taskItems = itemsWithTaskStatus.filter(
       (item) => item.isTask && !item.isDQ
     );
-    const completedTaskItems = itemsWithTaskStatus.filter(
-      (item) => item.isTaskCompleted && !item.isDQ && !item.isTask
-    );
-    const otherItems = itemsWithTaskStatus.filter(
-      (item) => !item.isTask && !item.isTaskCompleted && !item.isDQ
-    );
-    const disqualifiedItems = itemsWithTaskStatus.filter((item) => item.isDQ);
 
-    // 各分类内部按sequenceId排序
-    uncompletedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
-    completedTaskItems.sort((a, b) => a.sequenceId - b.sequenceId);
-    otherItems.sort((a, b) => a.sequenceId - b.sequenceId);
-    disqualifiedItems.sort((a, b) => a.sequenceId - b.sequenceId);
-
-    // 排序优先级：未完成任务 > 已完成任务 > 其他作品 > 淘汰作品
-    return [
-      ...uncompletedTaskItems,
-      ...completedTaskItems,
-      ...otherItems,
-      ...disqualifiedItems,
-    ];
+    taskItems.sort((a, b) => a.sequenceId - b.sequenceId);
+    return taskItems;
   } catch (error) {
-    console.error("按任务排序时出错:", error);
-    return items;
+    console.error("筛选任务作品时出错:", error);
+    return [];
   }
 }
 
@@ -1728,27 +1739,65 @@ async function sortByRating(items) {
   }
 }
 
-// 【保留 - Repeater2作品列表】搜索和分页事件监听器
-// ⚠️ 此函数用于作品列表（repeater2），不是评论系统
-function setupSearchAndPaginationEvents() {
-  $w("#input1").onInput(async () => {
-    const searchValue = $w("#input1").value;
-    const dropdownValue = $w("#dropdown1").value;
-    await updateRepeaterData(1, searchValue, dropdownValue);
-  });
+// 初始化作品列表筛选 HTML 元件（替代旧的 #input1/#dropdown1）
+function initWorkListFilterPanel() {
+  let workListFilterPanel;
 
+  try {
+    workListFilterPanel = $w("#workListFilterPanel");
+  } catch (error) {
+    console.warn("[作品筛选] HTML元件 #workListFilterPanel 未找到，请在编辑器中添加后使用");
+    return;
+  }
+
+  workListFilterPanel.onMessage(async (event) => {
+    const { type, data } = event.data || {};
+
+    switch (type) {
+      case "WORK_LIST_FILTER_READY":
+        sendWorkListFilterState();
+        break;
+      case "WORK_LIST_FILTER_CHANGED":
+        currentWorkListFilterState = {
+          searchValue: data?.searchValue || "",
+          sortMode: data?.sortMode || "default",
+        };
+        await updateRepeaterData(
+          1,
+          currentWorkListFilterState.searchValue,
+          currentWorkListFilterState.sortMode
+        );
+        break;
+      default:
+        break;
+    }
+  });
+}
+
+function sendWorkListFilterState(extraData = {}) {
+  try {
+    $w("#workListFilterPanel").postMessage({
+      type: "WORK_LIST_FILTER_STATE",
+      data: {
+        ...currentWorkListFilterState,
+        ...extraData,
+      },
+    });
+  } catch (error) {
+    // 页面尚未添加该 HTML 元件时不影响作品列表基础加载。
+  }
+}
+
+// 【保留 - Repeater2作品列表】分页事件监听器
+// ⚠️ 此函数用于作品列表（repeater2），不是评论系统
+function setupWorkListPaginationEvents() {
   $w("#paginator, #paginator2").onClick(async (event) => {
     const pageNumber = event.target.currentPage;
-    const searchValue = $w("#input1").value;
-    const dropdownValue = $w("#dropdown1").value;
-    await updateRepeaterData(pageNumber, searchValue, dropdownValue);
-  });
-
-  $w("#dropdown1").onChange(async () => {
-    const searchValue = $w("#input1").value;
-    const pageNumber = 1;
-    const dropdownValue = $w("#dropdown1").value;
-    await updateRepeaterData(pageNumber, searchValue, dropdownValue);
+    await updateRepeaterData(
+      pageNumber,
+      currentWorkListFilterState.searchValue,
+      currentWorkListFilterState.sortMode
+    );
   });
 }
 
@@ -2884,26 +2933,26 @@ async function handleGotoWork(workNumber) {
         }
       }
 
-      // 更新作品搜索框（input1）的值为作品名称
-      // 这会触发作品列表的搜索和刷新
-      if ($w("#input1")) {
-        $w("#input1").value = workTitle;
+      // 更新作品列表筛选 HTML 元件的搜索值，并刷新作品列表（repeater2）
+      currentWorkListFilterState = {
+        ...currentWorkListFilterState,
+        searchValue: workTitle,
+      };
+      sendWorkListFilterState();
 
-        // 刷新作品列表（repeater2）
-        await refreshRepeaters();
+      await refreshRepeaters();
 
-        // 滚动到 anchor2 位置
-        try {
-          if ($w("#anchor2")) {
-            await $w("#anchor2").scrollTo();
-            // console.log(`[评论系统] 已滚动到 #anchor2`);
-          }
-        } catch (scrollError) {
-          console.error("[评论系统] 滚动到anchor2失败:", scrollError);
+      // 滚动到 anchor2 位置
+      try {
+        if ($w("#anchor2")) {
+          await $w("#anchor2").scrollTo();
+          // console.log(`[评论系统] 已滚动到 #anchor2`);
         }
-
-        // console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
+      } catch (scrollError) {
+        console.error("[评论系统] 滚动到anchor2失败:", scrollError);
       }
+
+      // console.log(`[评论系统] 已跳转到作品: #${workNumber} - ${workTitle}`);
     }
   } catch (error) {
     console.error("[评论系统] 跳转到作品失败:", error);
