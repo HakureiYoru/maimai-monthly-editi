@@ -30,47 +30,6 @@ export async function getCurrentMemberRoles() {
 }
 
 /**
- * 根据角色ID获取用户列表
- * @param {string} roleId - 角色ID
- * @param {string} roleTitle - 角色标题（可选，作为兜底匹配）
- * @returns {Promise<Array<string>>} 用户ID数组
- */
-export async function getUsersByRole(roleId, roleTitle = "") {
-  return safeExecute(
-    async () => {
-      const normalizedRoleTitle =
-        typeof roleTitle === "string" ? roleTitle.trim() : "";
-      if (!roleId && !normalizedRoleTitle) {
-        return [];
-      }
-
-      // 优先通过 Members/Badges 获取角色对应成员，避免逐个查询导致超时
-      const badgesResult = await wixData
-        .query("Members/Badges")
-        .limit(1000)
-        .find({ suppressAuth: true });
-
-      const targetBadge = (badgesResult.items || []).find((badge) => {
-        const byRoleId = roleId && badge?.roleId === roleId;
-        const byRoleTitle =
-          normalizedRoleTitle &&
-          typeof badge?.title === "string" &&
-          badge.title.trim() === normalizedRoleTitle;
-        return byRoleId || byRoleTitle;
-      });
-
-      if (targetBadge && Array.isArray(targetBadge.members)) {
-        return Array.from(new Set(targetBadge.members.filter(Boolean)));
-      }
-
-      return [];
-    },
-    "getUsersByRole",
-    []
-  );
-}
-
-/**
  * 检查用户是否为审核员
  * @param {string} userId - 用户ID，默认为当前用户
  * @returns {Promise<boolean>} 是否为审核员
