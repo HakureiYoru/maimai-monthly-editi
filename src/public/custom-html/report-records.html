@@ -300,22 +300,6 @@
             cursor: pointer;
         }
 
-        .view-btn {
-            background: #555;
-            color: #fff;
-            border: 1px solid #666;
-            padding: 8px 20px;
-            font-size: 13px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: all 0.3s;
-        }
-
-        .view-btn:hover {
-            background: #666;
-            border-color: #777;
-        }
-
         .comment-content {
             background: #2a2a2a;
             padding: 15px;
@@ -326,12 +310,8 @@
             line-height: 1.6;
             max-height: 300px;
             overflow-y: auto;
-            display: none;
-            border: 1px solid #444;
-        }
-
-        .comment-content.show {
             display: block;
+            border: 1px solid #444;
         }
 
         .comment-content::-webkit-scrollbar {
@@ -876,6 +856,10 @@
                     <span class="info-label">检举理由:</span>
                     ${escapeHtml(record.reportReason || '未填写')}
                 </div>
+                <div class="comment-content">
+                    <span class="info-label">评论内容:</span><br>
+                    ${escapeHtml(record.reportedComment || '评论内容获取失败').replace(/\\n/g, '<br>')}
+                </div>
                 <div class="process-box">
                     <label>
                         <input class="process-checkbox" type="checkbox" data-record-id="${record._id}" ${processed ? 'checked disabled' : ''} />
@@ -892,17 +876,11 @@
                         <button class="note-save-btn" type="button" data-record-id="${record._id}" disabled>保存备注</button>
                     </div>
                 </div>
-                <button class="view-btn">查看评论内容</button>
-                <div class="comment-content">
-                    ${escapeHtml(record.reportedComment || '评论内容获取失败').replace(/\\n/g, '<br>')}
-                </div>
             `;
 
             const workTitleEl = div.querySelector('.work-title');
             const originalUserEl = div.querySelector('.original-user-name');
             const reporterUserEl = div.querySelector('.reporter-user-name');
-            const viewBtn = div.querySelector('.view-btn');
-            const commentContent = div.querySelector('.comment-content');
             const noteTextarea = div.querySelector('.public-note-textarea');
             const noteSaveBtn = div.querySelector('.note-save-btn');
 
@@ -915,15 +893,6 @@
             if (reporterUserEl) {
                 reporterUserEl.dataset.userId = String(record.reportedBy || '');
             }
-
-            viewBtn.addEventListener('click', () => {
-                commentContent.classList.toggle('show');
-                if (commentContent.classList.contains('show')) {
-                    viewBtn.textContent = '收起评论内容';
-                } else {
-                    viewBtn.textContent = '查看评论内容';
-                }
-            });
 
             const checkbox = div.querySelector('.process-checkbox');
             checkbox.addEventListener('change', () => {
