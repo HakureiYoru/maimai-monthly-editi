@@ -408,22 +408,31 @@ export const get_comment = asyncErrorHandler(async (request) => {
 
 /**
  * 获取最近一段时间内有新评论的作品。
- * Query: ?hours=24，返回作品编号、最近评论时间和近期评论数，不暴露评论正文。
+ * Query: ?hours=24，最多 720 小时。返回作品编号、最近评论时间和近期评论数，不暴露评论正文。
  * @param {Object} request - HTTP request
  * @returns {Promise<Object>} HTTP response
  */
 export const get_recentComments = asyncErrorHandler(async (request) => {
   const rawHours = Number(request.query?.hours || 24);
   const hours = Number.isFinite(rawHours)
-    ? Math.min(Math.max(Math.floor(rawHours), 1), 168)
+    ? Math.min(Math.max(Math.floor(rawHours), 1), 720)
     : 24;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const query = wixData
+  let result = await wixData
     .query(COLLECTIONS.BOF_COMMENT)
     .ge("_createdDate", since)
-    .descending("_createdDate");
-  const comments = await loadAllData(query);
+    .descending("_createdDate")
+    .limit(1000)
+    .find({ suppressAuth: true });
+
+  const comments = [...result.items];
+  let pageCount = 1;
+  while (result.hasNext()) {
+    result = await result.next();
+    comments.push(...result.items);
+    pageCount += 1;
+  }
 
   const groupedMap = new Map();
   comments.forEach((comment) => {
@@ -463,7 +472,10 @@ export const get_recentComments = asyncErrorHandler(async (request) => {
   return createSuccessResponse({
     hours,
     since: since.toISOString(),
+    totalComments: comments.length,
     totalWorks: items.length,
+    pageCount,
+    isComplete: true,
     items,
   });
 });
