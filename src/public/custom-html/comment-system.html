@@ -300,72 +300,193 @@
     .rating-body {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
     }
 
-    .rating-dimension {
-      background: rgba(255, 255, 255, 0.15);
-      border: 1px solid rgba(255, 255, 255, 0.25);
+    .rating-stage-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .rating-tier-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .rating-tier-option {
+      min-height: 112px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
       border-radius: 14px;
       padding: 12px;
+      color: #fff;
+      text-align: left;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.12);
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     }
 
-    .rating-dimension-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 14px;
-      font-weight: 600;
+    .rating-tier-option:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 215, 0, 0.45);
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .rating-tier-option.active {
+      border-color: rgba(255, 215, 0, 0.85);
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.24), rgba(255, 165, 0, 0.16));
+      box-shadow: 0 0 18px rgba(255, 215, 0, 0.18);
+    }
+
+    .rating-tier-name {
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.45;
       margin-bottom: 8px;
     }
 
-    .rating-weight {
-      font-size: 11px;
+    .rating-tier-range {
+      display: inline-flex;
+      align-items: center;
       padding: 2px 8px;
       border-radius: 999px;
-      background: rgba(255, 215, 0, 0.2);
-      border: 1px solid rgba(255, 215, 0, 0.4);
+      font-size: 11px;
+      color: #ffe9a8;
+      background: rgba(255, 215, 0, 0.16);
+      border: 1px solid rgba(255, 215, 0, 0.24);
+      margin-bottom: 8px;
     }
 
-    .rating-stars {
-      display: flex;
-      gap: 8px;
-    }
-
-    .rating-dimension-desc {
-      margin-top: 8px;
+    .rating-tier-desc {
       font-size: 12px;
       line-height: 1.5;
-      color: rgba(255, 255, 255, 0.85);
+      color: rgba(255, 255, 255, 0.78);
     }
 
-    .rating-star {
-      background: transparent;
-      border: none;
+    .rating-slider-panel {
+      display: none;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.13);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .rating-slider-panel.show {
+      display: block;
+    }
+
+    .rating-slider-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .rating-slider-value {
       font-size: 24px;
-      color: rgba(255, 255, 255, 0.35);
+      font-weight: 800;
+      color: #ffd700;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.36);
+    }
+
+    .rating-range-input {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: linear-gradient(90deg, rgba(255, 96, 96, 0.9), rgba(255, 215, 0, 0.95));
+      outline: none;
       cursor: pointer;
-      transition: transform 0.15s ease, color 0.2s ease, text-shadow 0.2s ease;
     }
 
-    .rating-star:hover {
-      transform: scale(1.15);
-      color: #FFE58A;
+    .rating-range-input::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fff4b8;
+      border: 3px solid #ffb300;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
+      cursor: grab;
     }
 
-    .rating-star.active {
-      color: #FFD700;
-      text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+    .rating-range-input::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff4b8;
+      border: 3px solid #ffb300;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
+      cursor: grab;
     }
 
-    .rating-star:focus-visible {
-      outline: 2px solid rgba(255, 215, 0, 0.7);
-      outline-offset: 2px;
-      border-radius: 4px;
+    .rating-slider-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.78);
     }
 
-    .rating-star.pulse {
-      animation: starPulse 0.25s ease;
+    .rating-slider-labels span:last-child {
+      text-align: right;
+    }
+
+    .rating-band-guide {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .rating-band-guide-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .rating-band-guide ul {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .rating-distribution {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .rating-distribution-note {
+      font-size: 12px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.78);
+      margin-bottom: 8px;
+    }
+
+    .rating-distribution-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 46px;
+    }
+
+    .rating-distribution-bars span {
+      flex: 1;
+      min-width: 8px;
+      border-radius: 5px 5px 2px 2px;
+      background: linear-gradient(180deg, rgba(255, 215, 0, 0.9), rgba(255, 120, 80, 0.72));
+      opacity: 0.8;
     }
 
     .rating-summary-panel {
@@ -461,6 +582,10 @@
     @media (max-width: 600px) {
       .rating-dialog {
         padding: 16px;
+      }
+
+      .rating-tier-grid {
+        grid-template-columns: 1fr;
       }
 
       .rating-footer {
@@ -1725,10 +1850,10 @@
           </select>
         </div>
         <div class="input-group">
-          <label class="input-label" id="labelRating">评分（点击打星）</label>
+          <label class="input-label" id="labelRating">评分（点击打分）</label>
           <input type="text" class="input-field rating-input" id="inputScore" 
                  placeholder="点击评分" readonly>
-          <div class="rating-summary" id="ratingSummary">A: - / B: - / C: -</div>
+          <div class="rating-summary" id="ratingSummary">档位：- / 分数：-</div>
         </div>
       </div>
 
@@ -1813,25 +1938,17 @@
         <div class="info-content" id="mechanismContent">
           <h4>评分方式</h4>
           <ul>
-            <li><strong>合理性：</strong>1-3星，占比15%</li>
-            <li><strong>可玩性：</strong>1-5星，占比30%</li>
-            <li><strong>创意性：</strong>1-7星，占比55%</li>
-            <li><strong>自动换算：</strong>按权重计算后映射到100-1000分</li>
-          </ul>
-
-          <h4>维度说明</h4>
-          <ul>
-            <li><strong>合理性：</strong>是否存在违和谱音，或多押难度不合理的情况。</li>
-            <li><strong>可玩性：</strong>手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。</li>
-            <li><strong>创意性：</strong>是否让人眼前一亮、脱颖而出，配置是否有新意。</li>
+            <li><strong>先选档位：</strong>较低水平（100-600）、normal / 平均水平（600-750）、较优水平（750-1000）。</li>
+            <li><strong>再细调分数：</strong>进入对应区间后，用进度条按 10 分步进调整。</li>
+            <li><strong>分布建议：</strong>越靠近 1000 的分数越难被给出，整体最好接近正态分布。</li>
           </ul>
 
           <h4>评分区间参考</h4>
           <ul>
-            <li><strong>100-400（miss）：</strong>整体未达参赛水平。</li>
-            <li><strong>400-600（good）：</strong>存在争议点或完成度一般，缺乏竞争力（亮眼之处）。</li>
-            <li><strong>600-800：</strong>没有明显缺点但仍可提升，800以上基本说明是活动里的优秀作品。</li>
-            <li><strong>800-1000（perfect）：</strong>您心中“最高档位的谱面”。</li>
+            <li><strong>100-400（miss）：</strong>都来比赛了，底子先打好再说啦。</li>
+            <li><strong>400-600（good）：</strong>存在争议点，或者谱面虽然成功创作出来，但很缺乏竞争力（亮眼之处）。</li>
+            <li><strong>600-800：</strong>没有明显争议点，但存在可提升的地方，800以上基本上说明这个谱面是活动里的优秀作品。</li>
+            <li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li>
           </ul>
 
           <h4>评分显示规则</h4>
@@ -1949,75 +2066,68 @@
     <div class="rating-backdrop" id="ratingBackdrop"></div>
     <div class="rating-dialog" role="dialog" aria-modal="true" aria-labelledby="ratingTitle">
       <div class="rating-header">
-        <div class="rating-title" id="ratingTitle">星级评分</div>
+        <div class="rating-title" id="ratingTitle">区间评分</div>
         <button type="button" class="rating-close" id="ratingCloseBtn">×</button>
       </div>
-      <div class="rating-note">系统自动按权重换算到 100-1000（C 维度权重最高）</div>
-      <div class="rating-tip" id="ratingTip">该维度分配是一种参考性结构，星级评论的设计初步是为了缩小各选手在均分设置上的标准差。谱面评价切忌以偏概全，我们的建议是多角度考虑。目前参考维度的分数分配可能具有偏极端的误导性，您可以调整到自认为综合方面更合理的分数。您需要遵守的只是不要直接给出极端高/低的分数，一个谱面具体要划分到何种档位需要您自己心中有一个标准判断。</div>
-      <div class="rating-examples" id="ratingExamples">
-        <div class="rating-examples-title">往届的分档展示（仍仅供参考）</div>
-        <div class="rating-examples-group">
-          <div class="rating-examples-group-title">高分档（T1+）</div>
-          <div class="rating-examples-links">
-            <a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">示例 1</a>
-            <a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">示例 2</a>
-          </div>
-        </div>
-        <div class="rating-examples-group">
-          <div class="rating-examples-group-title">优秀分档（T2-T3+）</div>
-          <div class="rating-examples-links">
-            <a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">示例 1</a>
-            <a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">示例 2</a>
-          </div>
-        </div>
-      </div>
+      <div class="rating-note">先判断作品所在档位，再在对应区间内精调分数。</div>
+      <div class="rating-tip" id="ratingTip">理论上，越靠近 1000 的分数越难被给出。请先给出整体档位判断，再用下方进度条微调到最符合您观感的分数。</div>
       <div class="rating-body">
-        <div class="rating-dimension" data-dimension="A">
-          <div class="rating-dimension-label">
-            <span>维度A（合理性，仅供参考）</span>
-            <span class="rating-weight">15%</span>
+        <div class="rating-band-guide" id="ratingExamples">
+          <div class="rating-band-guide-title">总体给分范围参考</div>
+          <ul>
+            <li><strong>100-400（miss）：</strong>都来比赛了，底子先打好再说啦。</li>
+            <li><strong>400-600（good）：</strong>存在争议点，或者谱面虽然成功创作出来，但很缺乏竞争力（亮眼之处）。</li>
+            <li><strong>600-800：</strong>没有明显争议点，但存在可提升的地方，800 以上基本上说明这个谱面是活动里的优秀作品。</li>
+            <li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li>
+          </ul>
+          <div class="rating-distribution">
+            <div class="rating-distribution-note">理想上分数应更接近正态分布，高分尤其是接近 1000 的分数应当非常稀少。</div>
+            <div class="rating-distribution-bars" aria-label="评分正态分布示意">
+              <span style="height: 18%;"></span>
+              <span style="height: 32%;"></span>
+              <span style="height: 58%;"></span>
+              <span style="height: 86%;"></span>
+              <span style="height: 100%;"></span>
+              <span style="height: 82%;"></span>
+              <span style="height: 54%;"></span>
+              <span style="height: 28%;"></span>
+              <span style="height: 12%;"></span>
+            </div>
           </div>
-          <div class="rating-stars" role="group" aria-label="维度A评分">
-            <button type="button" class="rating-star" data-value="1" aria-label="维度A 1星">★</button>
-            <button type="button" class="rating-star" data-value="2" aria-label="维度A 2星">★</button>
-            <button type="button" class="rating-star" data-value="3" aria-label="维度A 3星">★</button>
-          </div>
-          <div class="rating-dimension-desc">是否存在违和谱音，或多押难度不合理的情况。</div>
         </div>
-        <div class="rating-dimension" data-dimension="B">
-          <div class="rating-dimension-label">
-            <span>维度B（可玩性，仅供参考）</span>
-            <span class="rating-weight">30%</span>
-          </div>
-          <div class="rating-stars" role="group" aria-label="维度B评分">
-            <button type="button" class="rating-star" data-value="1" aria-label="维度B 1星">★</button>
-            <button type="button" class="rating-star" data-value="2" aria-label="维度B 2星">★</button>
-            <button type="button" class="rating-star" data-value="3" aria-label="维度B 3星">★</button>
-            <button type="button" class="rating-star" data-value="4" aria-label="维度B 4星">★</button>
-            <button type="button" class="rating-star" data-value="5" aria-label="维度B 5星">★</button>
-          </div>
-          <div class="rating-dimension-desc">手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。</div>
+        <div class="rating-stage-title">您认为该作品大约处于：</div>
+        <div class="rating-tier-grid" role="radiogroup" aria-label="选择评分档位">
+          <button type="button" class="rating-tier-option" data-tier="low" role="radio" aria-checked="false">
+            <div class="rating-tier-name">1. 该作品相对会场属于较低水平</div>
+            <div class="rating-tier-range">100-600</div>
+            <div class="rating-tier-desc">感觉有点想拉闸……</div>
+          </button>
+          <button type="button" class="rating-tier-option" data-tier="normal" role="radio" aria-checked="false">
+            <div class="rating-tier-name">2. 该作品属于 normal / 平均水平</div>
+            <div class="rating-tier-range">600-750</div>
+            <div class="rating-tier-desc">一般般吧不咋地</div>
+          </button>
+          <button type="button" class="rating-tier-option" data-tier="high" role="radio" aria-checked="false">
+            <div class="rating-tier-name">3. 该作品属于较优水平</div>
+            <div class="rating-tier-range">750-1000</div>
+            <div class="rating-tier-desc">写得好好想抬一手</div>
+          </button>
         </div>
-        <div class="rating-dimension" data-dimension="C">
-          <div class="rating-dimension-label">
-            <span>维度C（创意性，仅供参考）</span>
-            <span class="rating-weight">55%</span>
+        <div class="rating-slider-panel" id="ratingSliderPanel">
+          <div class="rating-slider-meta">
+            <div id="ratingSliderRange">请选择档位</div>
+            <div class="rating-slider-value" id="ratingSliderValue">--</div>
           </div>
-          <div class="rating-stars" role="group" aria-label="维度C评分">
-            <button type="button" class="rating-star" data-value="1" aria-label="维度C 1星">★</button>
-            <button type="button" class="rating-star" data-value="2" aria-label="维度C 2星">★</button>
-            <button type="button" class="rating-star" data-value="3" aria-label="维度C 3星">★</button>
-            <button type="button" class="rating-star" data-value="4" aria-label="维度C 4星">★</button>
-            <button type="button" class="rating-star" data-value="5" aria-label="维度C 5星">★</button>
-            <button type="button" class="rating-star" data-value="6" aria-label="维度C 6星">★</button>
-            <button type="button" class="rating-star" data-value="7" aria-label="维度C 7星">★</button>
+          <input type="range" class="rating-range-input" id="ratingRangeInput" min="100" max="1000" step="10" value="600">
+          <div class="rating-slider-labels">
+            <span id="ratingSliderLeft">请选择一个档位后开始细调。</span>
+            <span id="ratingSliderRight"></span>
           </div>
-          <div class="rating-dimension-desc">是否让人眼前一亮、脱颖而出，配置是否有新意。</div>
         </div>
       </div>
       <div class="rating-summary-panel">
         <div class="rating-score" id="ratingComputedScore">评分：--</div>
-        <div class="rating-detail" id="ratingDetail">A: - / B: - / C: -</div>
+        <div class="rating-detail" id="ratingDetail">先选择整体档位，再拖动进度条细调。</div>
         <div class="rating-warning" id="ratingWarning"></div>
       </div>
       <div class="rating-footer">
@@ -2079,16 +2189,9 @@
     const EN_MECHANISM_HTML = [
       '<h4>Scoring model</h4>',
       '<ul>',
-      '<li><strong>Reasonableness (A):</strong> 1–3 stars, 15% weight</li>',
-      '<li><strong>Playability (B):</strong> 1–5 stars, 30% weight</li>',
-      '<li><strong>Creativity (C):</strong> 1–7 stars, 55% weight</li>',
-      '<li><strong>Auto conversion:</strong> weighted sum mapped to 100–1000</li>',
-      '</ul>',
-      '<h4>Dimension notes</h4>',
-      '<ul>',
-      '<li><strong>Reasonableness:</strong> charting vs. music, or unreasonable multi-press difficulty.</li>',
-      '<li><strong>Playability:</strong> flow, readability, and feel (is it fun? any extremely awkward patterns?).</li>',
-      '<li><strong>Creativity:</strong> does it stand out? fresh patterns or ideas?</li>',
+      '<li><strong>Pick a tier first:</strong> lower level (100-600), normal / average (600-750), or strong level (750-1000).</li>',
+      '<li><strong>Then fine-tune:</strong> use the slider in that range, with 10-point steps.</li>',
+      '<li><strong>Distribution:</strong> scores closer to 1000 should be rarer; the overall spread should roughly resemble a normal distribution.</li>',
       '</ul>',
       '<h4>Score bands (reference)</h4>',
       '<ul>',
@@ -2140,7 +2243,7 @@
         submitSectionHtml: '提交评论 <a href="https://docs.qq.com/document/DRUtoTlppUklBYllG" style="color: #fff;" target="_blank">评分参照文件</a>',
         selectWork: '选择作品',
         selectWorkPlaceholder: '请选择作品编号',
-        ratingLabel: '评分（点击打星）',
+        ratingLabel: '评分（点击打分）',
         ratingPlaceholder: '点击评分',
         commentLabel: '评论内容',
         markdownHint: '（支持Markdown格式）',
@@ -2168,28 +2271,16 @@
         pageInfo: '第 {cur} / {tot} 页',
         loadingComments: '加载评论中...',
         noComments: '暂无评论',
-        ratingModalTitle: '星级评分',
-        ratingNote: '系统自动按权重换算到 100-1000（C 维度权重最高）',
-        ratingTip: '该维度分配是一种参考性结构，星级评论的设计初步是为了缩小各选手在均分设置上的标准差。谱面评价切忌以偏概全，我们的建议是多角度考虑。目前参考维度的分数分配可能具有偏极端的误导性，您可以调整到自认为综合方面更合理的分数。您需要遵守的只是不要直接给出极端高/低的分数，一个谱面具体要划分到何种档位需要您自己心中有一个标准判断。',
-        ratingExamplesHtml: `<div class="rating-examples-title">往届的分档展示（仍仅供参考）</div><div class="rating-examples-group"><div class="rating-examples-group-title">高分档（T1+）</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">示例 1</a><a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">示例 2</a></div></div><div class="rating-examples-group"><div class="rating-examples-group-title">优秀分档（T2-T3+）</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">示例 1</a><a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">示例 2</a></div></div>`,
-        dimA: '维度A（合理性，仅供参考）',
-        dimB: '维度B（可玩性，仅供参考）',
-        dimC: '维度C（创意性，仅供参考）',
-        ratingDescA: '是否存在违和谱音，或多押难度不合理的情况。',
-        ratingDescB: '手顺、配置引导与手感（这张谱好玩吗？是否存在极难处理的节奏类型）。',
-        ratingDescC: '是否让人眼前一亮、脱颖而出，配置是否有新意。',
+        ratingModalTitle: '区间评分',
+        ratingNote: '先判断作品所在档位，再在对应区间内精调分数。',
+        ratingTip: '理论上，越靠近 1000 的分数越难被给出。请先给出整体档位判断，再用下方进度条微调到最符合您观感的分数。',
+        ratingExamplesHtml: `<div class="rating-band-guide-title">总体给分范围参考</div><ul><li><strong>100-400（miss）：</strong>都来比赛了，底子先打好再说啦。</li><li><strong>400-600（good）：</strong>存在争议点，或者谱面虽然成功创作出来，但很缺乏竞争力（亮眼之处）。</li><li><strong>600-800：</strong>没有明显争议点，但存在可提升的地方，800 以上基本上说明这个谱面是活动里的优秀作品。</li><li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li></ul><div class="rating-distribution"><div class="rating-distribution-note">理想上分数应更接近正态分布，高分尤其是接近 1000 的分数应当非常稀少。</div><div class="rating-distribution-bars" aria-label="评分正态分布示意"><span style="height: 18%;"></span><span style="height: 32%;"></span><span style="height: 58%;"></span><span style="height: 86%;"></span><span style="height: 100%;"></span><span style="height: 82%;"></span><span style="height: 54%;"></span><span style="height: 28%;"></span><span style="height: 12%;"></span></div></div>`,
         scoreLabel: '评分：',
         scoreDash: '评分：--',
         reset: '重置',
         cancel: '取消',
         confirmRating: '确认评分',
-        ratingWarnPickAll: '请为三个维度选择星级',
-        groupAriaA: '维度A评分',
-        groupAriaB: '维度B评分',
-        groupAriaC: '维度C评分',
-        starAriaA: '维度A {n}星',
-        starAriaB: '维度B {n}星',
-        starAriaC: '维度C {n}星',
+        ratingWarnPickAll: '请先选择档位并调整分数',
         initLoading: '正在初始化评论系统...',
         connecting: '正在连接评论系统...',
         loadingWork: '正在加载作品 #{n} 的评论...',
@@ -2203,7 +2294,7 @@
         submitSuccess: '✅ 提交成功！',
         submitFail: '❌ 提交失败',
         fillComplete: '❌ 请填写完整信息',
-        needStarRating: '请先完成星级评分',
+        needStarRating: '请先完成区间评分',
         workNumberRange: '❌ 作品编号必须在1-500之间',
         scoreRange: '❌ 评分必须在100-1000之间',
         commentEmpty: '❌ 评论内容不能为空',
@@ -2245,7 +2336,7 @@
         submitSectionHtml: 'Submit a comment <a href="https://docs.qq.com/document/DRUtoTlppUklBYllG" style="color: #fff;" target="_blank">Rating reference</a>',
         selectWork: 'Work',
         selectWorkPlaceholder: 'Select work number',
-        ratingLabel: 'Score (tap stars)',
+        ratingLabel: 'Score (tap to rate)',
         ratingPlaceholder: 'Tap to score',
         commentLabel: 'Comment',
         markdownHint: '(Markdown supported)',
@@ -2273,28 +2364,16 @@
         pageInfo: 'Page {cur} / {tot}',
         loadingComments: 'Loading comments...',
         noComments: 'No comments yet',
-        ratingModalTitle: 'Star rating',
-        ratingNote: 'Converted to 100–1000 by weights (dimension C has the highest weight)',
-        ratingTip: 'This dimension split is only a reference. The star-rating design was initially intended to reduce variance in how different participants set their average scores. Avoid judging a chart from a single angle; we recommend considering it from multiple perspectives. The current reference split across dimensions may be somewhat misleading in an overly extreme way, so you may adjust the result to what you believe is a more reasonable overall score. The main thing is to avoid giving extreme high/low scores directly; where a chart belongs should depend on your own internal standard.',
-        ratingExamplesHtml: `<div class="rating-examples-title">Examples from previous score brackets (still for reference only)</div><div class="rating-examples-group"><div class="rating-examples-group-title">High tier (T1+)</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=af28bc43-b9a8-4541-9bc8-8b8d6b9c97cd" target="_blank" rel="noopener noreferrer">Example 1</a><a href="https://majdata.net/song?id=99b05554-0da3-41b2-8906-38f8abe35d6e" target="_blank" rel="noopener noreferrer">Example 2</a></div></div><div class="rating-examples-group"><div class="rating-examples-group-title">Strong tier (T2-T3+)</div><div class="rating-examples-links"><a href="https://majdata.net/song?id=c723b5d5-e719-4a00-a3c7-9c7204c3bf8b" target="_blank" rel="noopener noreferrer">Example 1</a><a href="https://majdata.net/song?id=8e7a0d64-d7d1-4943-af7c-634eec801911" target="_blank" rel="noopener noreferrer">Example 2</a></div></div>`,
-        dimA: 'A · Reasonableness (reference only)',
-        dimB: 'B · Playability (reference only)',
-        dimC: 'C · Creativity (reference only)',
-        ratingDescA: 'Charting vs. music, or unreasonable multi-press difficulty.',
-        ratingDescB: 'Flow, readability, and feel — is it fun? Any extremely awkward patterns?',
-        ratingDescC: 'Does it stand out? Fresh patterns or ideas?',
+        ratingModalTitle: 'Range rating',
+        ratingNote: 'Pick the broad tier first, then fine-tune within that score range.',
+        ratingTip: 'Scores closer to 1000 should be increasingly rare. Choose the overall tier first, then use the slider to tune the score that best matches your judgment.',
+        ratingExamplesHtml: `<div class="rating-band-guide-title">Score range reference</div><ul><li><strong>100-400 (miss):</strong>below contest-ready fundamentals.</li><li><strong>400-600 (good):</strong>debatable issues, or completed but lacking competitive highlights.</li><li><strong>600-800:</strong>no major controversy, but still room to improve; 800+ usually means a strong event entry.</li><li><strong>800-1000 (perfect):</strong>a standout chart that should feel decisive after watching it.</li></ul><div class="rating-distribution"><div class="rating-distribution-note">Ideally, scores should roughly follow a normal distribution. Very high scores, especially near 1000, should be rare.</div><div class="rating-distribution-bars" aria-label="Score distribution example"><span style="height: 18%;"></span><span style="height: 32%;"></span><span style="height: 58%;"></span><span style="height: 86%;"></span><span style="height: 100%;"></span><span style="height: 82%;"></span><span style="height: 54%;"></span><span style="height: 28%;"></span><span style="height: 12%;"></span></div></div>`,
         scoreLabel: 'Score: ',
         scoreDash: 'Score: --',
         reset: 'Reset',
         cancel: 'Cancel',
         confirmRating: 'Confirm',
-        ratingWarnPickAll: 'Please set stars for all three dimensions',
-        groupAriaA: 'Dimension A',
-        groupAriaB: 'Dimension B',
-        groupAriaC: 'Dimension C',
-        starAriaA: 'Dimension A · {n} star(s)',
-        starAriaB: 'Dimension B · {n} star(s)',
-        starAriaC: 'Dimension C · {n} star(s)',
+        ratingWarnPickAll: 'Please choose a tier and adjust the score',
         initLoading: 'Initializing…',
         connecting: 'Connecting…',
         loadingWork: 'Loading comments for work #{n}…',
@@ -2308,7 +2387,7 @@
         submitSuccess: '✅ Submitted!',
         submitFail: '❌ Submit failed',
         fillComplete: '❌ Please fill in all fields',
-        needStarRating: 'Please complete the star rating first',
+        needStarRating: 'Please complete the range rating first',
         workNumberRange: '❌ Work number must be between 1 and 500',
         scoreRange: '❌ Score must be between 100 and 1000',
         commentEmpty: '❌ Comment cannot be empty',
@@ -2484,34 +2563,6 @@
       const noCom = document.getElementById('noComments');
       if (noCom) noCom.textContent = t('noComments');
 
-      const dims = document.querySelectorAll('.rating-dimension');
-      dims.forEach((dimEl) => {
-        const d = dimEl.dataset.dimension;
-        const labelSpan = dimEl.querySelector('.rating-dimension-label span:first-child');
-        if (labelSpan) {
-          if (d === 'A') labelSpan.textContent = t('dimA');
-          if (d === 'B') labelSpan.textContent = t('dimB');
-          if (d === 'C') labelSpan.textContent = t('dimC');
-        }
-        const desc = dimEl.querySelector('.rating-dimension-desc');
-        if (desc) {
-          if (d === 'A') desc.textContent = t('ratingDescA');
-          if (d === 'B') desc.textContent = t('ratingDescB');
-          if (d === 'C') desc.textContent = t('ratingDescC');
-        }
-        const group = dimEl.querySelector('.rating-stars');
-        if (group) {
-          if (d === 'A') group.setAttribute('aria-label', t('groupAriaA'));
-          if (d === 'B') group.setAttribute('aria-label', t('groupAriaB'));
-          if (d === 'C') group.setAttribute('aria-label', t('groupAriaC'));
-        }
-        const starKey = d === 'A' ? 'starAriaA' : d === 'B' ? 'starAriaB' : 'starAriaC';
-        dimEl.querySelectorAll('.rating-star').forEach((star) => {
-          const n = star.dataset.value;
-          star.setAttribute('aria-label', t(starKey, { n }));
-        });
-      });
-
       applySubmitButtonLabel();
       updateCharCounter();
       updateRatingUI();
@@ -2567,12 +2618,33 @@
     let isAuthorMode = false; // 当前是否为作者自评模式（SC）
     let currentWorkStatusType = '';
     let loadingTimeout = null; // 加载超时计时器
-    const ratingConfig = {
-      A: { max: 3, weight: 0.15 },
-      B: { max: 5, weight: 0.3 },
-      C: { max: 7, weight: 0.55 }
+    const ratingBands = {
+      low: {
+        label: '较低水平',
+        min: 100,
+        max: 600,
+        step: 10,
+        left: '这实在烂透了！！',
+        right: '这很难救但是也不是完全没东西'
+      },
+      normal: {
+        label: 'normal / 平均水平',
+        min: 600,
+        max: 750,
+        step: 10,
+        left: '存在明显瑕疵但总体算是完成了',
+        right: '还可以，但没那么可以。'
+      },
+      high: {
+        label: '较优水平',
+        min: 750,
+        max: 1000,
+        step: 10,
+        left: '这明显高于会场总体水平，不过有待观察',
+        right: '这就是我在会场看见最好的作品了，不会太多了。'
+      }
     };
-    let ratingState = { A: null, B: null, C: null };
+    let ratingState = { band: null, score: null };
 
     // ==================== 初始化 ====================
     window.addEventListener('message', async (event) => {
@@ -3033,22 +3105,23 @@
     }
 
     // ==================== 评分弹窗 ====================
-    function computeWeightedScore(state) {
-      if (!state.A || !state.B || !state.C) {
+    function getRoundedScoreForBand(band) {
+      const midpoint = band.min + ((band.max - band.min) / 2);
+      const stepped = Math.round((midpoint - band.min) / band.step) * band.step + band.min;
+      return Math.min(band.max, Math.max(band.min, stepped));
+    }
+
+    function computeSelectedScore(state) {
+      if (!state.band || state.score === null) {
         return null;
       }
-
-      const aNorm = (state.A - 1) / (ratingConfig.A.max - 1);
-      const bNorm = (state.B - 1) / (ratingConfig.B.max - 1);
-      const cNorm = (state.C - 1) / (ratingConfig.C.max - 1);
-      const weightedNorm = (ratingConfig.A.weight * aNorm) +
-        (ratingConfig.B.weight * bNorm) +
-        (ratingConfig.C.weight * cNorm);
-      const rawScore = 100 + weightedNorm * 900;
-      const score = Math.round(rawScore);
-      const clampedScore = Math.min(1000, Math.max(100, score));
-
-      return { score: clampedScore, weightedNorm: weightedNorm };
+      const band = ratingBands[state.band];
+      if (!band) {
+        return null;
+      }
+      const stepped = Math.round((Number(state.score) - band.min) / band.step) * band.step + band.min;
+      const clampedScore = Math.min(band.max, Math.max(band.min, stepped));
+      return { score: clampedScore, band };
     }
 
     function updateRatingSummary() {
@@ -3056,12 +3129,9 @@
       const inputScore = document.getElementById('inputScore');
       if (!summaryEl) return;
 
-      const hasAnyRating = ratingState.A || ratingState.B || ratingState.C;
-      if (hasAnyRating) {
-        const aText = ratingState.A ? `${ratingState.A}★` : '-';
-        const bText = ratingState.B ? `${ratingState.B}★` : '-';
-        const cText = ratingState.C ? `${ratingState.C}★` : '-';
-        summaryEl.textContent = `A: ${aText} / B: ${bText} / C: ${cText}`;
+      const computed = computeSelectedScore(ratingState);
+      if (computed) {
+        summaryEl.textContent = `${computed.band.label} / ${t('scoreLabel')}${computed.score}`;
         return;
       }
 
@@ -3070,32 +3140,53 @@
         return;
       }
 
-      summaryEl.textContent = 'A: - / B: - / C: -';
+      summaryEl.textContent = '档位：- / 分数：-';
     }
 
     function updateRatingUI() {
       const modal = document.getElementById('ratingModal');
       if (!modal) return;
 
-      modal.querySelectorAll('.rating-dimension').forEach((dimensionEl) => {
-        const dimension = dimensionEl.dataset.dimension;
-        const value = ratingState[dimension];
-        dimensionEl.querySelectorAll('.rating-star').forEach((star) => {
-          const starValue = parseInt(star.dataset.value, 10);
-          const isActive = value && starValue <= value;
-          star.classList.toggle('active', Boolean(isActive));
-          star.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        });
-      });
-
-      const computed = computeWeightedScore(ratingState);
+      const selectedBand = ratingState.band ? ratingBands[ratingState.band] : null;
+      const computed = computeSelectedScore(ratingState);
       const scoreEl = document.getElementById('ratingComputedScore');
       const detailEl = document.getElementById('ratingDetail');
       const warningEl = document.getElementById('ratingWarning');
       const confirmBtn = document.getElementById('ratingConfirmBtn');
+      const sliderPanel = document.getElementById('ratingSliderPanel');
+      const slider = document.getElementById('ratingRangeInput');
+      const sliderValue = document.getElementById('ratingSliderValue');
+      const sliderRange = document.getElementById('ratingSliderRange');
+      const sliderLeft = document.getElementById('ratingSliderLeft');
+      const sliderRight = document.getElementById('ratingSliderRight');
+
+      modal.querySelectorAll('.rating-tier-option').forEach((option) => {
+        const isActive = option.dataset.tier === ratingState.band;
+        option.classList.toggle('active', isActive);
+        option.setAttribute('aria-checked', isActive ? 'true' : 'false');
+      });
 
       if (warningEl) {
         warningEl.textContent = '';
+      }
+
+      if (selectedBand && slider) {
+        sliderPanel?.classList.add('show');
+        slider.min = selectedBand.min;
+        slider.max = selectedBand.max;
+        slider.step = selectedBand.step;
+        slider.value = computed ? computed.score : getRoundedScoreForBand(selectedBand);
+
+        if (sliderValue) sliderValue.textContent = slider.value;
+        if (sliderRange) sliderRange.textContent = `${selectedBand.label}：${selectedBand.min}-${selectedBand.max} 分`;
+        if (sliderLeft) sliderLeft.textContent = selectedBand.left;
+        if (sliderRight) sliderRight.textContent = selectedBand.right;
+      } else {
+        sliderPanel?.classList.remove('show');
+        if (sliderValue) sliderValue.textContent = '--';
+        if (sliderRange) sliderRange.textContent = '请选择档位';
+        if (sliderLeft) sliderLeft.textContent = '请选择一个档位后开始细调。';
+        if (sliderRight) sliderRight.textContent = '';
       }
 
       if (computed) {
@@ -3103,7 +3194,7 @@
           scoreEl.textContent = t('scoreLabel') + computed.score;
         }
         if (detailEl) {
-          detailEl.textContent = `A: ${ratingState.A}★ / B: ${ratingState.B}★ / C: ${ratingState.C}★`;
+          detailEl.textContent = `${computed.band.label}（${computed.band.min}-${computed.band.max}）`;
         }
         if (confirmBtn) {
           confirmBtn.disabled = false;
@@ -3113,10 +3204,7 @@
           scoreEl.textContent = t('scoreDash');
         }
         if (detailEl) {
-          const aText = ratingState.A ? `${ratingState.A}★` : '-';
-          const bText = ratingState.B ? `${ratingState.B}★` : '-';
-          const cText = ratingState.C ? `${ratingState.C}★` : '-';
-          detailEl.textContent = `A: ${aText} / B: ${bText} / C: ${cText}`;
+          detailEl.textContent = '先选择整体档位，再拖动进度条细调。';
         }
         if (confirmBtn) {
           confirmBtn.disabled = true;
@@ -3128,7 +3216,7 @@
 
     function resetRatingState(options = {}) {
       const { keepScoreInput = false } = options;
-      ratingState = { A: null, B: null, C: null };
+      ratingState = { band: null, score: null };
       if (!keepScoreInput) {
         const inputScore = document.getElementById('inputScore');
         if (inputScore) {
@@ -3156,8 +3244,18 @@
       modal.setAttribute('aria-hidden', 'true');
     }
 
+    function selectRatingBand(bandKey) {
+      const band = ratingBands[bandKey];
+      if (!band) return;
+      ratingState = {
+        band: bandKey,
+        score: getRoundedScoreForBand(band)
+      };
+      updateRatingUI();
+    }
+
     function confirmRatingSelection() {
-      const computed = computeWeightedScore(ratingState);
+      const computed = computeSelectedScore(ratingState);
       const warningEl = document.getElementById('ratingWarning');
       if (!computed) {
         if (warningEl) {
@@ -3189,25 +3287,18 @@
         });
       }
 
-      modal.querySelectorAll('.rating-star').forEach((star) => {
-        star.addEventListener('click', () => {
-          const dimensionEl = star.closest('.rating-dimension');
-          if (!dimensionEl) return;
-          const dimension = dimensionEl.dataset.dimension;
-          const value = parseInt(star.dataset.value, 10);
-          if (!dimension || Number.isNaN(value)) return;
+      modal.querySelectorAll('.rating-tier-option').forEach((option) => {
+        option.addEventListener('click', () => selectRatingBand(option.dataset.tier));
+      });
 
-          ratingState = { ...ratingState, [dimension]: value };
-          star.classList.remove('pulse');
-          void star.offsetWidth;
-          star.classList.add('pulse');
+      const slider = document.getElementById('ratingRangeInput');
+      if (slider) {
+        slider.addEventListener('input', () => {
+          if (!ratingState.band) return;
+          ratingState = { ...ratingState, score: parseInt(slider.value, 10) };
           updateRatingUI();
         });
-
-        star.addEventListener('animationend', () => {
-          star.classList.remove('pulse');
-        });
-      });
+      }
 
       const closeBtn = document.getElementById('ratingCloseBtn');
       if (closeBtn) {
