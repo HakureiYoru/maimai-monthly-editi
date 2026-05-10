@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  .panel {
+    width: 100%;
+    height: 100%;
+    padding: 18px;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(255, 202, 88, 0.18), transparent 34%),
+      radial-gradient(circle at 88% 10%, rgba(255, 100, 116, 0.16), transparent 28%),
+      rgba(12, 12, 22, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  h2 {
+    font-size: 21px;
+    letter-spacing: 0.04em;
+  }
+  .sub {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .pill {
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .refresh {
+    border: 0;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    color: #fff;
+    background: linear-gradient(135deg, #ffb347, #ff6f61);
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .list {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding-top: 10px;
+  }
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 42px 46px minmax(0, 1fr) 120px;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 10px;
+    border-radius: 16px;
+  }
+  .row:hover { background: rgba(255, 255, 255, 0.05); }
+  .row.top1 { background: rgba(255, 205, 82, 0.09); }
+  .row.top2 { background: rgba(215, 220, 235, 0.07); }
+  .row.top3 { background: rgba(213, 136, 70, 0.08); }
+  .rank {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .rank.medal { font-size: 22px; }
+  .avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.11);
+    color: rgba(255, 255, 255, 0.74);
+    font-weight: 900;
+  }
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .name {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .usage {
+    text-align: right;
+  }
+  .count {
+    font-size: 22px;
+    font-weight: 950;
+    color: #ffd56d;
+  }
+  .detail {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.42);
+  }
+  .state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 16px;
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="header">
+    <div>
+      <h2>大喇叭使用榜</h2>
+      <div class="sub">按积分商店“大喇叭”购买/发送记录统计使用次数。</div>
+    </div>
+    <div class="stats">
+      <span class="pill" id="totalUsage">总使用 0 次</span>
+      <span class="pill" id="totalUsers">0 人使用</span>
+      <button class="refresh" id="refreshBtn">刷新</button>
+    </div>
+  </div>
+  <div class="list" id="list">
+    <div class="state">正在等待数据...</div>
+  </div>
+</div>
+
+<script>
+  var medals = ["🥇", "🥈", "🥉"];
+  var topClasses = ["top1", "top2", "top3"];
+  var listEl = document.getElementById("list");
+  var totalUsageEl = document.getElementById("totalUsage");
+  var totalUsersEl = document.getElementById("totalUsers");
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getInitial(name) {
+    return name && name !== "未知用户" ? name.charAt(0).toUpperCase() : "?";
+  }
+
+  function avatarHtml(user) {
+    var initial = escapeHtml(getInitial(user.name));
+    if (!user.profilePhoto) {
+      return initial;
+    }
+    return '<img src="' + escapeHtml(user.profilePhoto) + '" alt="' + initial + '" onerror="this.remove()">' + initial;
+  }
+
+  function setState(message) {
+    listEl.innerHTML = '<div class="state">' + escapeHtml(message) + '</div>';
+  }
+
+  function render(data) {
+    var users = Array.isArray(data.users) ? data.users : [];
+    totalUsageEl.textContent = "总使用 " + (data.totalUsage || 0) + " 次";
+    totalUsersEl.textContent = (data.totalUsers || users.length || 0) + " 人使用";
+
+    if (!users.length) {
+      setState("暂无大喇叭使用记录");
+      return;
+    }
+
+    listEl.innerHTML = users.map(function(user, index) {
+      var rankIndex = (user.rank || index + 1) - 1;
+      var rankHtml = rankIndex < 3
+        ? '<div class="rank medal">' + medals[rankIndex] + '</div>'
+        : '<div class="rank">#' + escapeHtml(user.rank || index + 1) + '</div>';
+
+      return '<div class="row ' + (topClasses[rankIndex] || "") + '">'
+        + rankHtml
+        + '<div class="avatar">' + avatarHtml(user) + '</div>'
+        + '<div>'
+        + '<div class="name">' + escapeHtml(user.name || "未知用户") + '</div>'
+        + '</div>'
+        + '<div class="usage">'
+        + '<div class="count">' + escapeHtml(user.usageCount || 0) + '</div>'
+        + '<div class="detail">完成 ' + escapeHtml(user.doneCount || 0)
+        + ' / 待处理 ' + escapeHtml(user.pendingCount || 0) + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join("");
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", function() {
+    window.parent.postMessage({ action: "refreshHornLeaderboard" }, "*");
+  });
+
+  window.addEventListener("message", function(event) {
+    var data = event.data || {};
+    if (data.type === "HORN_USAGE_LOADING") {
+      setState(data.message || "正在加载...");
+    } else if (data.type === "HORN_USAGE_ERROR") {
+      setState(data.message || "加载失败");
+    } else if (data.type === "HORN_USAGE_DATA") {
+      render(data);
+    }
+  });
+
+  window.parent.postMessage({ action: "hornLeaderboardReady" }, "*");
+</script>
+</body>
+</html>
