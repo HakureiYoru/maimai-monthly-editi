@@ -2378,6 +2378,7 @@ async function formatCommentForHTML(comment) {
       isSelfScComment: false,
       createdDate: comment._createdDate,
       coverImage: "",
+      isWorkDQ: false,
       hasGoldSkin: !!(goldSkinUsersCache && goldSkinUsersCache.has(comment._owner)),
       isQualifiedPlayer: !!(qualifiedPlayersCache && qualifiedPlayersCache.has(comment._owner)),
     };
@@ -2414,17 +2415,12 @@ async function formatCommentForHTML(comment) {
     
     // 设置封面图片
     formattedComment.coverImage = coverImage;
+    formattedComment.isWorkDQ = isWorkDQ;
 
     // 判断是否为作者自评
     if (workOwnerId) {
       formattedComment.isAuthorComment = comment._owner === workOwnerId;
       formattedComment.isSelfScComment = formattedComment.isAuthorComment;
-    }
-
-    // 判断是否淘汰
-    if (isWorkDQ) {
-      formattedComment.commentText =
-        "*该作品已淘汰*" + formattedComment.commentText;
     }
 
     // 判断是否显示评分
