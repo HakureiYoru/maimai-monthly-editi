@@ -474,19 +474,89 @@
       margin-bottom: 8px;
     }
 
+    .rating-distribution-chart {
+      position: relative;
+      padding: 20px 4px 0;
+    }
+
+    .rating-distribution-normal-band {
+      position: absolute;
+      left: 55.5%;
+      right: 28.5%;
+      top: 18px;
+      bottom: 18px;
+      border-radius: 8px;
+      background: rgba(120, 170, 255, 0.14);
+      border: 1px solid rgba(120, 170, 255, 0.22);
+      pointer-events: none;
+    }
+
     .rating-distribution-bars {
       display: flex;
       align-items: flex-end;
       gap: 4px;
-      height: 46px;
+      height: 56px;
     }
 
     .rating-distribution-bars span {
       flex: 1;
       min-width: 8px;
       border-radius: 5px 5px 2px 2px;
-      background: linear-gradient(180deg, rgba(255, 215, 0, 0.9), rgba(255, 120, 80, 0.72));
-      opacity: 0.8;
+      background: linear-gradient(180deg, rgba(255, 232, 130, 0.96), rgba(255, 145, 90, 0.78));
+      box-shadow: 0 0 10px rgba(255, 190, 90, 0.16);
+      opacity: 0.88;
+      position: relative;
+      z-index: 1;
+    }
+
+    .rating-distribution-marker {
+      position: absolute;
+      left: var(--rating-marker-left, 50%);
+      top: 0;
+      z-index: 3;
+      display: none;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .rating-distribution-marker.show {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .rating-distribution-marker-label {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #6d3d00;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .rating-distribution-marker-arrow {
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 10px solid rgba(255, 255, 255, 0.94);
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+    }
+
+    .rating-distribution-axis {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.62);
+    }
+
+    .rating-distribution-axis span:nth-child(2) {
+      color: rgba(180, 210, 255, 0.9);
+      font-weight: 700;
     }
 
     .rating-summary-panel {
@@ -1951,7 +2021,7 @@
         <div class="info-content" id="mechanismContent">
           <h4>评分方式</h4>
           <ul>
-            <li><strong>先选档位：</strong>较低水平（100-600）、normal / 平均水平（600-750）、较优水平（750-1000）。</li>
+            <li><strong>先选档位：</strong>较低水平（100-590）、normal / 平均水平（600-740）、较优水平（750-1000）。</li>
             <li><strong>再细调分数：</strong>进入对应区间后，用进度条按 10 分步进调整。</li>
             <li><strong>分布建议：</strong>越靠近 1000 的分数越难被给出，整体最好接近正态分布。</li>
           </ul>
@@ -2094,17 +2164,35 @@
             <li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li>
           </ul>
           <div class="rating-distribution">
-            <div class="rating-distribution-note">理想上分数应更接近正态分布，高分尤其是接近 1000 的分数应当非常稀少。</div>
-            <div class="rating-distribution-bars" aria-label="评分正态分布示意">
-              <span style="height: 18%;"></span>
-              <span style="height: 32%;"></span>
-              <span style="height: 58%;"></span>
-              <span style="height: 86%;"></span>
-              <span style="height: 100%;"></span>
-              <span style="height: 82%;"></span>
-              <span style="height: 54%;"></span>
-              <span style="height: 28%;"></span>
-              <span style="height: 12%;"></span>
+            <div class="rating-distribution-note">理想上分数应围绕 normal 区间形成峰值，并向 100 / 1000 两端递减；高分尤其是接近 1000 的分数应当非常稀少。</div>
+            <div class="rating-distribution-chart" aria-label="评分正态分布示意">
+              <div class="rating-distribution-normal-band"></div>
+              <div class="rating-distribution-marker" id="ratingDistributionMarker">
+                <span class="rating-distribution-marker-label" id="ratingDistributionMarkerLabel">你的位置</span>
+                <span class="rating-distribution-marker-arrow"></span>
+              </div>
+              <div class="rating-distribution-bars">
+                <span style="height: 10%;"></span>
+                <span style="height: 16%;"></span>
+                <span style="height: 26%;"></span>
+                <span style="height: 40%;"></span>
+                <span style="height: 58%;"></span>
+                <span style="height: 78%;"></span>
+                <span style="height: 96%;"></span>
+                <span style="height: 100%;"></span>
+                <span style="height: 88%;"></span>
+                <span style="height: 66%;"></span>
+                <span style="height: 44%;"></span>
+                <span style="height: 28%;"></span>
+                <span style="height: 17%;"></span>
+                <span style="height: 9%;"></span>
+                <span style="height: 4%;"></span>
+              </div>
+            </div>
+            <div class="rating-distribution-axis">
+              <span>100</span>
+              <span>normal 600-740</span>
+              <span>1000</span>
             </div>
           </div>
         </div>
@@ -2112,12 +2200,12 @@
         <div class="rating-tier-grid" role="radiogroup" aria-label="选择评分档位">
           <button type="button" class="rating-tier-option" data-tier="low" role="radio" aria-checked="false">
             <div class="rating-tier-name">1. 该作品相对会场属于较低水平</div>
-            <div class="rating-tier-range">100-600</div>
+            <div class="rating-tier-range">100-590</div>
             <div class="rating-tier-desc">感觉有点想拉闸……</div>
           </button>
           <button type="button" class="rating-tier-option" data-tier="normal" role="radio" aria-checked="false">
             <div class="rating-tier-name">2. 该作品属于 normal / 平均水平</div>
-            <div class="rating-tier-range">600-750</div>
+            <div class="rating-tier-range">600-740</div>
             <div class="rating-tier-desc">一般般吧不咋地</div>
           </button>
           <button type="button" class="rating-tier-option" data-tier="high" role="radio" aria-checked="false">
@@ -2202,7 +2290,7 @@
     const EN_MECHANISM_HTML = [
       '<h4>Scoring model</h4>',
       '<ul>',
-      '<li><strong>Pick a tier first:</strong> lower level (100-600), normal / average (600-750), or strong level (750-1000).</li>',
+      '<li><strong>Pick a tier first:</strong> lower level (100-590), normal / average (600-740), or strong level (750-1000).</li>',
       '<li><strong>Then fine-tune:</strong> use the slider in that range, with 10-point steps.</li>',
       '<li><strong>Distribution:</strong> scores closer to 1000 should be rarer; the overall spread should roughly resemble a normal distribution.</li>',
       '</ul>',
@@ -2287,13 +2375,15 @@
         ratingModalTitle: '区间评分',
         ratingNote: '先判断作品所在档位，再在对应区间内精调分数。',
         ratingTip: '理论上，越靠近 1000 的分数越难被给出。请先给出整体档位判断，再用下方进度条微调到最符合您观感的分数。',
-        ratingExamplesHtml: `<div class="rating-band-guide-title">总体给分范围参考</div><ul><li><strong>100-400（miss）：</strong>都来比赛了，底子先打好再说啦。</li><li><strong>400-600（good）：</strong>存在争议点，或者谱面虽然成功创作出来，但很缺乏竞争力（亮眼之处）。</li><li><strong>600-800：</strong>没有明显争议点，但存在可提升的地方，800 以上基本上说明这个谱面是活动里的优秀作品。</li><li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li></ul><div class="rating-distribution"><div class="rating-distribution-note">理想上分数应更接近正态分布，高分尤其是接近 1000 的分数应当非常稀少。</div><div class="rating-distribution-bars" aria-label="评分正态分布示意"><span style="height: 18%;"></span><span style="height: 32%;"></span><span style="height: 58%;"></span><span style="height: 86%;"></span><span style="height: 100%;"></span><span style="height: 82%;"></span><span style="height: 54%;"></span><span style="height: 28%;"></span><span style="height: 12%;"></span></div></div>`,
+        ratingExamplesHtml: `<div class="rating-band-guide-title">总体给分范围参考</div><ul><li><strong>100-400（miss）：</strong>都来比赛了，底子先打好再说啦。</li><li><strong>400-600（good）：</strong>存在争议点，或者谱面虽然成功创作出来，但很缺乏竞争力（亮眼之处）。</li><li><strong>600-800：</strong>没有明显争议点，但存在可提升的地方，800 以上基本上说明这个谱面是活动里的优秀作品。</li><li><strong>800-1000（perfect）：</strong>感觉能够让人眼前一亮脱颖而出的谱面，基本上是这个档的谱面应该看完心里就有答案了。</li></ul><div class="rating-distribution"><div class="rating-distribution-note">理想上分数应围绕 normal 区间形成峰值，并向 100 / 1000 两端递减；高分尤其是接近 1000 的分数应当非常稀少。</div><div class="rating-distribution-chart" aria-label="评分正态分布示意"><div class="rating-distribution-normal-band"></div><div class="rating-distribution-marker" id="ratingDistributionMarker"><span class="rating-distribution-marker-label" id="ratingDistributionMarkerLabel">你的位置</span><span class="rating-distribution-marker-arrow"></span></div><div class="rating-distribution-bars"><span style="height: 10%;"></span><span style="height: 16%;"></span><span style="height: 26%;"></span><span style="height: 40%;"></span><span style="height: 58%;"></span><span style="height: 78%;"></span><span style="height: 96%;"></span><span style="height: 100%;"></span><span style="height: 88%;"></span><span style="height: 66%;"></span><span style="height: 44%;"></span><span style="height: 28%;"></span><span style="height: 17%;"></span><span style="height: 9%;"></span><span style="height: 4%;"></span></div></div><div class="rating-distribution-axis"><span>100</span><span>normal 600-740</span><span>1000</span></div></div>`,
         scoreLabel: '评分：',
         scoreDash: '评分：--',
         reset: '重置',
         cancel: '取消',
         confirmRating: '确认评分',
         ratingWarnPickAll: '请先选择档位并调整分数',
+        ratingMarkerLabel: '你的位置',
+        ratingHighScoreWarning: '这个高分是很少被给出的，请确认它确实接近你心中的顶尖作品。',
         initLoading: '正在初始化评论系统...',
         connecting: '正在连接评论系统...',
         loadingWork: '正在加载作品 #{n} 的评论...',
@@ -2380,13 +2470,15 @@
         ratingModalTitle: 'Range rating',
         ratingNote: 'Pick the broad tier first, then fine-tune within that score range.',
         ratingTip: 'Scores closer to 1000 should be increasingly rare. Choose the overall tier first, then use the slider to tune the score that best matches your judgment.',
-        ratingExamplesHtml: `<div class="rating-band-guide-title">Score range reference</div><ul><li><strong>100-400 (miss):</strong>below contest-ready fundamentals.</li><li><strong>400-600 (good):</strong>debatable issues, or completed but lacking competitive highlights.</li><li><strong>600-800:</strong>no major controversy, but still room to improve; 800+ usually means a strong event entry.</li><li><strong>800-1000 (perfect):</strong>a standout chart that should feel decisive after watching it.</li></ul><div class="rating-distribution"><div class="rating-distribution-note">Ideally, scores should roughly follow a normal distribution. Very high scores, especially near 1000, should be rare.</div><div class="rating-distribution-bars" aria-label="Score distribution example"><span style="height: 18%;"></span><span style="height: 32%;"></span><span style="height: 58%;"></span><span style="height: 86%;"></span><span style="height: 100%;"></span><span style="height: 82%;"></span><span style="height: 54%;"></span><span style="height: 28%;"></span><span style="height: 12%;"></span></div></div>`,
+        ratingExamplesHtml: `<div class="rating-band-guide-title">Score range reference</div><ul><li><strong>100-400 (miss):</strong>below contest-ready fundamentals.</li><li><strong>400-600 (good):</strong>debatable issues, or completed but lacking competitive highlights.</li><li><strong>600-800:</strong>no major controversy, but still room to improve; 800+ usually means a strong event entry.</li><li><strong>800-1000 (perfect):</strong>a standout chart that should feel decisive after watching it.</li></ul><div class="rating-distribution"><div class="rating-distribution-note">Ideally, scores should peak around the normal range and taper toward 100 / 1000. Very high scores, especially near 1000, should be rare.</div><div class="rating-distribution-chart" aria-label="Score distribution example"><div class="rating-distribution-normal-band"></div><div class="rating-distribution-marker" id="ratingDistributionMarker"><span class="rating-distribution-marker-label" id="ratingDistributionMarkerLabel">Your position</span><span class="rating-distribution-marker-arrow"></span></div><div class="rating-distribution-bars"><span style="height: 10%;"></span><span style="height: 16%;"></span><span style="height: 26%;"></span><span style="height: 40%;"></span><span style="height: 58%;"></span><span style="height: 78%;"></span><span style="height: 96%;"></span><span style="height: 100%;"></span><span style="height: 88%;"></span><span style="height: 66%;"></span><span style="height: 44%;"></span><span style="height: 28%;"></span><span style="height: 17%;"></span><span style="height: 9%;"></span><span style="height: 4%;"></span></div></div><div class="rating-distribution-axis"><span>100</span><span>normal 600-740</span><span>1000</span></div></div>`,
         scoreLabel: 'Score: ',
         scoreDash: 'Score: --',
         reset: 'Reset',
         cancel: 'Cancel',
         confirmRating: 'Confirm',
         ratingWarnPickAll: 'Please choose a tier and adjust the score',
+        ratingMarkerLabel: 'Your position',
+        ratingHighScoreWarning: 'This high score should be rare. Please make sure it truly feels like a top-tier entry.',
         initLoading: 'Initializing…',
         connecting: 'Connecting…',
         loadingWork: 'Loading comments for work #{n}…',
@@ -2635,7 +2727,7 @@
       low: {
         label: '较低水平',
         min: 100,
-        max: 600,
+        max: 590,
         step: 10,
         left: '这实在烂透了！！',
         right: '这很难救但是也不是完全没东西'
@@ -2643,7 +2735,7 @@
       normal: {
         label: 'normal / 平均水平',
         min: 600,
-        max: 750,
+        max: 740,
         step: 10,
         left: '存在明显瑕疵但总体算是完成了',
         right: '还可以，但没那么可以。'
@@ -3172,6 +3264,8 @@
       const sliderRange = document.getElementById('ratingSliderRange');
       const sliderLeft = document.getElementById('ratingSliderLeft');
       const sliderRight = document.getElementById('ratingSliderRight');
+      const distributionMarker = document.getElementById('ratingDistributionMarker');
+      const distributionMarkerLabel = document.getElementById('ratingDistributionMarkerLabel');
 
       modal.querySelectorAll('.rating-tier-option').forEach((option) => {
         const isActive = option.dataset.tier === ratingState.band;
@@ -3209,6 +3303,17 @@
         if (detailEl) {
           detailEl.textContent = `${computed.band.label}（${computed.band.min}-${computed.band.max}）`;
         }
+        if (distributionMarker) {
+          const markerLeft = ((computed.score - 100) / 900) * 100;
+          distributionMarker.style.setProperty('--rating-marker-left', `${Math.min(100, Math.max(0, markerLeft))}%`);
+          distributionMarker.classList.add('show');
+        }
+        if (distributionMarkerLabel) {
+          distributionMarkerLabel.textContent = t('ratingMarkerLabel');
+        }
+        if (warningEl && computed.score > 900) {
+          warningEl.textContent = t('ratingHighScoreWarning');
+        }
         if (confirmBtn) {
           confirmBtn.disabled = false;
         }
@@ -3218,6 +3323,9 @@
         }
         if (detailEl) {
           detailEl.textContent = '先选择整体档位，再拖动进度条细调。';
+        }
+        if (distributionMarker) {
+          distributionMarker.classList.remove('show');
         }
         if (confirmBtn) {
           confirmBtn.disabled = true;
