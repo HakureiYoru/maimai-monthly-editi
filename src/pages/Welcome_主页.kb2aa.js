@@ -1,5 +1,6 @@
 import wixData from "wix-data";
 import wixUsers from "wix-users";
+import { getRecentMmfcBilibiliVideos } from "backend/bilibiliVideos.jsw";
 import { getOngakiImageUrls } from "backend/mediaManagement.jsw";
 import {
   claimCurrentUserDailySignIn,
@@ -30,9 +31,11 @@ $w.onReady(async function () {
       sendMemberData();
       sendDailySignInData();
       sendApplicationStats();
+      sendBilibiliVideos();
     }
     if (msg.data.type === "refreshOngaki") sendOngakiImage();
     if (msg.data.type === "refreshMember") sendMemberData();
+    if (msg.data.type === "refreshBilibiliVideos") sendBilibiliVideos();
     if (msg.data.type === "requestDailySignInStatus") sendDailySignInData();
     if (msg.data.type === "claimDailySignIn") handleDailySignIn();
   });
@@ -40,6 +43,7 @@ $w.onReady(async function () {
   sendMemberData();
   sendDailySignInData();
   sendApplicationStats();
+  sendBilibiliVideos();
 });
 
 async function sendLeaderboardData() {
@@ -62,6 +66,16 @@ async function sendApplicationStats() {
   } catch (error) {
     console.error("加载申请统计时出错:", error);
     $w("#htmlHomeSection").postMessage({ type: "applicationStats", count: 0 });
+  }
+}
+
+async function sendBilibiliVideos() {
+  try {
+    const videos = await getRecentMmfcBilibiliVideos(8);
+    $w("#htmlHomeSection").postMessage({ type: "bilibiliVideos", videos });
+  } catch (error) {
+    console.error("加载 B 站 MMFC 视频失败:", error);
+    $w("#htmlHomeSection").postMessage({ type: "bilibiliVideos", videos: [] });
   }
 }
 
