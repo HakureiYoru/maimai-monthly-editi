@@ -158,6 +158,47 @@
       color: rgba(255, 255, 255, 0.8);
     }
 
+    .score-position-preview {
+      display: none;
+      gap: 4px;
+      margin-top: -2px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .score-position-preview.show {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .score-position-bar {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--score-distribution-gradient, linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.22)));
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      overflow: visible;
+    }
+
+    .score-position-arrow {
+      position: absolute;
+      left: var(--score-position-left, 50%);
+      top: -8px;
+      width: 0;
+      height: 0;
+      transform: translateX(-50%);
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 7px solid #fff4b8;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+    }
+
+    .score-position-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* 评分弹窗 */
     .rating-modal {
       position: fixed;
@@ -1968,6 +2009,12 @@
           <input type="text" class="input-field rating-input" id="inputScore" 
                  placeholder="点击评分" readonly>
           <div class="rating-summary" id="ratingSummary">档位：- / 分数：-</div>
+          <div class="score-position-preview" id="scorePositionPreview" aria-live="polite">
+            <div class="score-position-bar" id="scorePositionBar">
+              <div class="score-position-arrow" id="scorePositionArrow"></div>
+            </div>
+            <div class="score-position-text" id="scorePositionText">选择分数后显示分布位置</div>
+          </div>
         </div>
       </div>
 
@@ -2458,7 +2505,10 @@
         viewParent: '查看主评论',
         deleteBtn: '删除',
         reportTitle: '检举评论',
-        coverAlt: '作品 #{n}'
+        coverAlt: '作品 #{n}',
+        scorePositionEmpty: '暂无历史正式评分用于比较',
+        scorePositionHint: '选择分数后显示分布位置',
+        scorePositionText: '约高于 {percent}% 的已有正式评分（{total}个）'
       },
       en: {
         docTitle: 'Comment system',
@@ -2553,7 +2603,10 @@
         viewParent: 'View parent',
         deleteBtn: 'Delete',
         reportTitle: 'Report',
-        coverAlt: 'Work #{n}'
+        coverAlt: 'Work #{n}',
+        scorePositionEmpty: 'No official scores to compare yet',
+        scorePositionHint: 'Pick a score to see its position',
+        scorePositionText: 'Above roughly {percent}% of existing official scores ({total})'
       }
     };
 
@@ -2698,6 +2751,7 @@
       applySubmitButtonLabel();
       updateCharCounter();
       updateRatingUI();
+      updateScorePositionPreview();
       updatePagination();
 
       const previewPh = document.getElementById('previewPlaceholderEl');
@@ -2777,6 +2831,14 @@
       }
     };
     let ratingState = { band: null, score: null };
+    const scorePositionConfig = { min: 100, max: 1000, step: 10 };
+    let scoreDistribution = {
+      min: scorePositionConfig.min,
+      max: scorePositionConfig.max,
+      step: scorePositionConfig.step,
+      total: 0,
+      histogram: new Array(((scorePositionConfig.max - scorePositionConfig.min) / scorePositionConfig.step) + 1).fill(0)
+    };
 
     // ==================== 初始化 ====================
     window.addEventListener('message', async (event) => {
@@ -2809,6 +2871,9 @@
         case 'WORK_SELECTION_STATE':
           handleWorkSelectionState(data);
           break;
+        case 'SCORE_DISTRIBUTION':
+          setScoreDistribution(data);
+          break;
         case 'SET_WORK_FILTER':
           handleSetWorkFilter(data);
           break;
@@ -2821,6 +2886,7 @@
       console.log('[评论系统] 初始化...', data);
       currentUserId = data.currentUserId;
       isUserVerified = data.isUserVerified;
+      setScoreDistribution(data.scoreDistribution);
       
       // 【修复】重置所有筛选器状态到默认值
       currentWorkFilter = '';
@@ -3256,6 +3322,102 @@
       return { score: clampedScore, band };
     }
 
+    function normalizeScoreDistribution(data) {
+      const min = Number(data?.min) || scorePositionConfig.min;
+      const max = Number(data?.max) || scorePositionConfig.max;
+      const step = Number(data?.step) || scorePositionConfig.step;
+      const bucketCount = Math.floor((max - min) / step) + 1;
+      const source = Array.isArray(data?.histogram) ? data.histogram : [];
+      const histogram = new Array(bucketCount).fill(0).map((_, index) => {
+        const count = Number(source[index]) || 0;
+        return count > 0 ? count : 0;
+      });
+      const total = Number(data?.total) || histogram.reduce((sum, count) => sum + count, 0);
+      return { min, max, step, total, histogram };
+    }
+
+    function setScoreDistribution(data) {
+      scoreDistribution = normalizeScoreDistribution(data);
+      updateScoreDistributionBar();
+      updateScorePositionPreview();
+    }
+
+    function getScoreBucketIndex(score) {
+      const { min, max, step, histogram } = scoreDistribution;
+      const clamped = Math.min(max, Math.max(min, Number(score)));
+      return Math.min(histogram.length - 1, Math.max(0, Math.round((clamped - min) / step)));
+    }
+
+    function getCurrentPreviewScore() {
+      const computed = computeSelectedScore(ratingState);
+      if (computed) {
+        return computed.score;
+      }
+
+      const inputScore = document.getElementById('inputScore');
+      const score = inputScore && inputScore.value ? parseInt(inputScore.value, 10) : NaN;
+      return Number.isFinite(score) ? score : null;
+    }
+
+    function updateScoreDistributionBar() {
+      const bar = document.getElementById('scorePositionBar');
+      if (!bar) return;
+
+      const { histogram, total } = scoreDistribution;
+      if (!total || !histogram.length) {
+        bar.style.setProperty('--score-distribution-gradient', 'linear-gradient(90deg, rgba(255,255,255,0.16), rgba(255,255,255,0.24))');
+        return;
+      }
+
+      const maxCount = Math.max(...histogram, 1);
+      const bucketWidth = 100 / histogram.length;
+      const stops = histogram.flatMap((count, index) => {
+        const intensity = Math.sqrt(count / maxCount);
+        const alpha = 0.16 + (intensity * 0.68);
+        const green = Math.round(210 - (intensity * 60));
+        const blue = Math.round(120 - (intensity * 55));
+        const color = `rgba(255, ${green}, ${blue}, ${alpha.toFixed(2)})`;
+        const start = (index * bucketWidth).toFixed(2);
+        const end = ((index + 1) * bucketWidth).toFixed(2);
+        return [`${color} ${start}%`, `${color} ${end}%`];
+      });
+
+      bar.style.setProperty('--score-distribution-gradient', `linear-gradient(90deg, ${stops.join(', ')})`);
+    }
+
+    function updateScorePositionPreview(scoreOverride) {
+      const preview = document.getElementById('scorePositionPreview');
+      const arrow = document.getElementById('scorePositionArrow');
+      const text = document.getElementById('scorePositionText');
+      if (!preview || !arrow || !text) return;
+
+      const score = scoreOverride !== undefined ? scoreOverride : getCurrentPreviewScore();
+      if (score === null || score === '' || !Number.isFinite(Number(score))) {
+        preview.classList.remove('show');
+        text.textContent = t('scorePositionHint');
+        return;
+      }
+
+      const { min, max, total, histogram } = scoreDistribution;
+      const left = ((Math.min(max, Math.max(min, Number(score))) - min) / (max - min)) * 100;
+      arrow.style.setProperty('--score-position-left', `${Math.min(100, Math.max(0, left)).toFixed(2)}%`);
+      preview.classList.add('show');
+
+      if (!total || !histogram.length) {
+        text.textContent = t('scorePositionEmpty');
+        return;
+      }
+
+      const bucketIndex = getScoreBucketIndex(score);
+      const below = histogram.slice(0, bucketIndex).reduce((sum, count) => sum + count, 0);
+      const sameBucket = histogram[bucketIndex] || 0;
+      const percentile = Math.round(((below + sameBucket / 2) / total) * 100);
+      text.textContent = t('scorePositionText', {
+        percent: Math.min(100, Math.max(0, percentile)),
+        total
+      });
+    }
+
     function updateRatingSummary() {
       const summaryEl = document.getElementById('ratingSummary');
       const inputScore = document.getElementById('inputScore');
@@ -3264,15 +3426,18 @@
       const computed = computeSelectedScore(ratingState);
       if (computed) {
         summaryEl.textContent = `${computed.band.label} / ${t('scoreLabel')}${computed.score}`;
+        updateScorePositionPreview(computed.score);
         return;
       }
 
       if (inputScore && inputScore.value) {
         summaryEl.textContent = t('scoreLabel') + inputScore.value;
+        updateScorePositionPreview(parseInt(inputScore.value, 10));
         return;
       }
 
       summaryEl.textContent = '档位：- / 分数：-';
+      updateScorePositionPreview(null);
     }
 
     function updateRatingUI() {

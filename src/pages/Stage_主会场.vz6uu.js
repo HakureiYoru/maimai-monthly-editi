@@ -53,6 +53,7 @@ let workOwnersCache = {}; // 缓存作品所有者信息
 let allWorksRankingCache = null; // 缓存所有作品的排名信息
 let workTitlesCache = {}; // 缓存作品标题信息
 let userCommentStatusCache = null; // 【新增】缓存用户评论状态 Map<workNumber, boolean>
+let scoreDistributionCache = null; // 缓存正式评分分布，供评分元件实时展示位置
 
 // 【新增】加载锁，防止并发重复加载
 let isLoadingUserFormalRatings = false; // 防止并发加载用户评分状态
@@ -1046,6 +1047,117 @@ async function checkUserHasFormalRating(workNumber) {
   return userFormalRatingsCache[workNumber] || false;
 }
 
+const SCORE_DISTRIBUTION_MIN = 100;
+const SCORE_DISTRIBUTION_MAX = 1000;
+const SCORE_DISTRIBUTION_STEP = 10;
+
+function createEmptyScoreDistribution() {
+  const bucketCount =
+    (SCORE_DISTRIBUTION_MAX - SCORE_DISTRIBUTION_MIN) /
+      SCORE_DISTRIBUTION_STEP +
+    1;
+  return {
+    min: SCORE_DISTRIBUTION_MIN,
+    max: SCORE_DISTRIBUTION_MAX,
+    step: SCORE_DISTRIBUTION_STEP,
+    total: 0,
+    histogram: new Array(bucketCount).fill(0),
+  };
+}
+
+function getScoreDistributionBucket(score) {
+  const numericScore = Number(score);
+  if (
+    !Number.isFinite(numericScore) ||
+    numericScore < SCORE_DISTRIBUTION_MIN ||
+    numericScore > SCORE_DISTRIBUTION_MAX
+  ) {
+    return -1;
+  }
+
+  const bucket = Math.round(
+    (numericScore - SCORE_DISTRIBUTION_MIN) / SCORE_DISTRIBUTION_STEP
+  );
+  return Math.min(
+    Math.max(bucket, 0),
+    (SCORE_DISTRIBUTION_MAX - SCORE_DISTRIBUTION_MIN) /
+      SCORE_DISTRIBUTION_STEP
+  );
+}
+
+async function getScoreDistributionData() {
+  if (scoreDistributionCache) {
+    return scoreDistributionCache;
+  }
+
+  const distribution = createEmptyScoreDistribution();
+
+  try {
+    await loadBatchData();
+    const ownerMap = workOwnersCache || {};
+    let result = await wixData
+      .query("BOFcomment")
+      .isEmpty("replyTo")
+      .ge("score", SCORE_DISTRIBUTION_MIN)
+      .le("score", SCORE_DISTRIBUTION_MAX)
+      .limit(1000)
+      .find();
+
+    while (result) {
+      result.items.forEach((comment) => {
+        const workOwner = ownerMap[comment.workNumber];
+        if (workOwner && workOwner === comment._owner) {
+          return;
+        }
+
+        const bucket = getScoreDistributionBucket(comment.score);
+        if (bucket < 0) {
+          return;
+        }
+
+        distribution.histogram[bucket] += 1;
+        distribution.total += 1;
+      });
+
+      if (result.hasNext()) {
+        result = await result.next();
+      } else {
+        break;
+      }
+    }
+
+    scoreDistributionCache = distribution;
+    return scoreDistributionCache;
+  } catch (error) {
+    console.error("[评论系统] 加载评分分布失败:", error);
+    scoreDistributionCache = distribution;
+    return scoreDistributionCache;
+  }
+}
+
+function incrementScoreDistribution(score) {
+  if (!scoreDistributionCache) {
+    return;
+  }
+
+  const bucket = getScoreDistributionBucket(score);
+  if (bucket < 0) {
+    return;
+  }
+
+  scoreDistributionCache.histogram[bucket] += 1;
+  scoreDistributionCache.total += 1;
+
+  try {
+    $w("#commentSystemPanel").postMessage({
+      type: "SCORE_DISTRIBUTION",
+      data: scoreDistributionCache,
+    });
+  } catch (error) {
+    console.error("[评论系统] 发送评分分布更新失败:", error);
+  }
+}
+
 // 【优化】清理缓存数据
 function clearCaches() {
   userFormalRatingsCache = null;
@@ -1055,6 +1167,7 @@ function clearCaches() {
   workTitlesCache = {}; // 清理作品标题缓存
   allWorksRankingCache = null;
   batchDataCache = null; // 清理批量数据缓存
+  scoreDistributionCache = null; // 清理评分分布缓存
   userTaskDataCache = null; // 清理任务数据缓存
   goldSkinUsersCache = null; // 清理金皮肤用户缓存
   qualifiedPlayersCache = null; // 清理Q选手缓存
@@ -1227,6 +1340,14 @@ async function refreshRepeaters() {
 
     // 重新加载排名数据
     await calculateAllWorksRanking();
+
+    if ($w("#commentSystemPanel")) {
+      const scoreDistribution = await getScoreDistributionData();
+      $w("#commentSystemPanel").postMessage({
+        type: "SCORE_DISTRIBUTION",
+        data: scoreDistribution,
+      });
+    }
 
     // 【修复】通知新评论系统HTML元件刷新评论列表（保持当前筛选状态）
     if ($w("#commentSystemPanel")) {
@@ -1861,12 +1982,15 @@ function initCommentSystemPanel() {
 async function handleCommentSystemReady() {
  // console.log("[评论系统] HTML元件已准备就绪");
 
+  const scoreDistribution = await getScoreDistributionData();
+
   // 发送初始化数据
   $w("#commentSystemPanel").postMessage({
     type: "INIT_COMMENT_SYSTEM",
     data: {
       currentUserId: currentUserId,
       isUserVerified: isUserVerified,
+      scoreDistribution,
     },
   });
 }
@@ -2632,6 +2756,9 @@ async function handleCommentSubmit(data) {
     // 步骤9: 增量热更新
     sendSubmitProgress("更新页面数据...", "updating");
     await incrementalUpdateAfterComment(workNumber, score, comment, isAuthor);
+    if (!isAuthor) {
+      incrementScoreDistribution(score);
+    }
 
     // 步骤10: 发送成功结果并立即刷新评论列表
     const commentLen = comment.length;
