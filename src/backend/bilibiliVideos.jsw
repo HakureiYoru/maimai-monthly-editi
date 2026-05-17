@@ -1,0 +1,332 @@
+import { fetch } from "wix-fetch";
+
+const VIDEO_KEYWORD = "mmfc";
+const SEARCH_ORDER = "pubdate";
+const SEARCH_CACHE_MS = 5 * 60 * 1000;
+const WBI_KEYS_CACHE_MS = 24 * 60 * 60 * 1000;
+
+const MIXIN_KEY_ENC_TAB = [
+  46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
+  33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40,
+  61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11,
+  36, 20, 34, 44, 52,
+];
+
+const DEFAULT_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+  Referer: "https://www.bilibili.com/",
+  Origin: "https://www.bilibili.com",
+};
+
+let wbiKeysCache = null;
+let searchCache = null;
+
+/**
+ * 搜索 B 站最近的 MMFC 相关视频。
+ * @param {number} maxResults
+ * @returns {Promise<Array<{title:string, author:string, bvid:string, pic:string, play:number, pubdate:number, duration:string, url:string}>>}
+ */
+export async function getRecentMmfcBilibiliVideos(maxResults = 5) {
+  const limit = Math.min(Math.max(parseInt(maxResults, 10) || 5, 1), 10);
+
+  if (
+    searchCache &&
+    Date.now() - searchCache.timestamp < SEARCH_CACHE_MS &&
+    Array.isArray(searchCache.videos)
+  ) {
+    return searchCache.videos.slice(0, limit);
+  }
+
+  try {
+    const keys = await getWbiKeys();
+    if (!keys) return [];
+
+    const params = {
+      search_type: "video",
+      keyword: VIDEO_KEYWORD,
+      order: SEARCH_ORDER,
+      page: 1,
+      page_size: limit,
+    };
+
+    const signedQuery = encodeWbi(params, keys.imgKey, keys.subKey);
+    const response = await fetch(
+      `https://api.bilibili.com/x/web-interface/wbi/search/type?${signedQuery}`,
+      {
+        method: "get",
+        headers: {
+          ...DEFAULT_HEADERS,
+          Cookie: `buvid3=${buildBuvid3()};`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      console.warn("[B站视频搜索] HTTP", response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    if (data?.code !== 0) {
+      console.warn("[B站视频搜索] 返回非0:", data?.code, data?.message);
+      return [];
+    }
+
+    const result = data?.data?.result || [];
+    const videos = result.map(normalizeVideo).filter((video) => video.bvid);
+    searchCache = { timestamp: Date.now(), videos };
+    return videos.slice(0, limit);
+  } catch (error) {
+    console.error("[B站视频搜索] 加载失败:", error);
+    return [];
+  }
+}
+
+async function getWbiKeys() {
+  if (wbiKeysCache && Date.now() - wbiKeysCache.timestamp < WBI_KEYS_CACHE_MS) {
+    return wbiKeysCache;
+  }
+
+  const response = await fetch("https://api.bilibili.com/x/web-interface/nav", {
+    method: "get",
+    headers: DEFAULT_HEADERS,
+  });
+
+  if (!response.ok) {
+    console.warn("[B站WBI] nav HTTP", response.status);
+    return null;
+  }
+
+  const data = await response.json();
+  const code = data?.code;
+  if (code !== 0 && code !== -101) {
+    console.warn("[B站WBI] nav 返回异常:", code);
+    return null;
+  }
+
+  const wbiImg = data?.data?.wbi_img || {};
+  const imgKey = extractKey(wbiImg.img_url);
+  const subKey = extractKey(wbiImg.sub_url);
+  if (!imgKey || !subKey) return null;
+
+  wbiKeysCache = { imgKey, subKey, timestamp: Date.now() };
+  return wbiKeysCache;
+}
+
+function extractKey(url) {
+  if (!url) return "";
+  return String(url).split("/").pop().split(".")[0] || "";
+}
+
+function encodeWbi(params, imgKey, subKey) {
+  const mixinKey = MIXIN_KEY_ENC_TAB.map((index) => `${imgKey}${subKey}`[index]).join("").slice(0, 32);
+  const signedParams = {
+    ...params,
+    wts: Math.floor(Date.now() / 1000),
+  };
+  const query = Object.keys(signedParams)
+    .sort()
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(filterWbiValue(signedParams[key]))}`)
+    .join("&");
+  return `${query}&w_rid=${md5(query + mixinKey)}`;
+}
+
+function filterWbiValue(value) {
+  return String(value).replace(/[!'()*]/g, "");
+}
+
+function normalizeVideo(item) {
+  const bvid = item?.bvid || "";
+  const pic = item?.pic || "";
+  return {
+    title: stripSearchHighlight(item?.title || ""),
+    author: item?.author || "未知UP主",
+    bvid,
+    aid: item?.aid || 0,
+    pic: pic.startsWith("//") ? `https:${pic}` : pic,
+    play: Number(item?.play) || 0,
+    pubdate: Number(item?.pubdate) || 0,
+    duration: item?.duration || "",
+    description: item?.description || "",
+    url: bvid ? `https://www.bilibili.com/video/${bvid}` : "",
+  };
+}
+
+function stripSearchHighlight(text) {
+  return String(text)
+    .replace(/<em class="keyword">/g, "")
+    .replace(/<\/em>/g, "");
+}
+
+function buildBuvid3() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxxinfoc".replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    return (char === "x" ? value : (value & 0x3) | 0x8).toString(16).toUpperCase();
+  });
+}
+
+function md5(input) {
+  function rotateLeft(value, amount) {
+    return (value << amount) | (value >>> (32 - amount));
+  }
+
+  function addUnsigned(x, y) {
+    const x4 = x & 0x40000000;
+    const y4 = y & 0x40000000;
+    const x8 = x & 0x80000000;
+    const y8 = y & 0x80000000;
+    const result = (x & 0x3fffffff) + (y & 0x3fffffff);
+    if (x4 & y4) return result ^ 0x80000000 ^ x8 ^ y8;
+    if (x4 | y4) {
+      if (result & 0x40000000) return result ^ 0xc0000000 ^ x8 ^ y8;
+      return result ^ 0x40000000 ^ x8 ^ y8;
+    }
+    return result ^ x8 ^ y8;
+  }
+
+  function f(x, y, z) { return (x & y) | (~x & z); }
+  function g(x, y, z) { return (x & z) | (y & ~z); }
+  function h(x, y, z) { return x ^ y ^ z; }
+  function i(x, y, z) { return y ^ (x | ~z); }
+
+  function ff(a, b, c, d, x, s, ac) {
+    return addUnsigned(rotateLeft(addUnsigned(addUnsigned(a, f(b, c, d)), addUnsigned(x, ac)), s), b);
+  }
+  function gg(a, b, c, d, x, s, ac) {
+    return addUnsigned(rotateLeft(addUnsigned(addUnsigned(a, g(b, c, d)), addUnsigned(x, ac)), s), b);
+  }
+  function hh(a, b, c, d, x, s, ac) {
+    return addUnsigned(rotateLeft(addUnsigned(addUnsigned(a, h(b, c, d)), addUnsigned(x, ac)), s), b);
+  }
+  function ii(a, b, c, d, x, s, ac) {
+    return addUnsigned(rotateLeft(addUnsigned(addUnsigned(a, i(b, c, d)), addUnsigned(x, ac)), s), b);
+  }
+
+  const words = convertToWordArray(utf8Encode(input));
+  let a = 0x67452301;
+  let b = 0xefcdab89;
+  let c = 0x98badcfe;
+  let d = 0x10325476;
+
+  for (let k = 0; k < words.length; k += 16) {
+    const aa = a;
+    const bb = b;
+    const cc = c;
+    const dd = d;
+
+    a = ff(a, b, c, d, words[k + 0], 7, 0xd76aa478);
+    d = ff(d, a, b, c, words[k + 1], 12, 0xe8c7b756);
+    c = ff(c, d, a, b, words[k + 2], 17, 0x242070db);
+    b = ff(b, c, d, a, words[k + 3], 22, 0xc1bdceee);
+    a = ff(a, b, c, d, words[k + 4], 7, 0xf57c0faf);
+    d = ff(d, a, b, c, words[k + 5], 12, 0x4787c62a);
+    c = ff(c, d, a, b, words[k + 6], 17, 0xa8304613);
+    b = ff(b, c, d, a, words[k + 7], 22, 0xfd469501);
+    a = ff(a, b, c, d, words[k + 8], 7, 0x698098d8);
+    d = ff(d, a, b, c, words[k + 9], 12, 0x8b44f7af);
+    c = ff(c, d, a, b, words[k + 10], 17, 0xffff5bb1);
+    b = ff(b, c, d, a, words[k + 11], 22, 0x895cd7be);
+    a = ff(a, b, c, d, words[k + 12], 7, 0x6b901122);
+    d = ff(d, a, b, c, words[k + 13], 12, 0xfd987193);
+    c = ff(c, d, a, b, words[k + 14], 17, 0xa679438e);
+    b = ff(b, c, d, a, words[k + 15], 22, 0x49b40821);
+
+    a = gg(a, b, c, d, words[k + 1], 5, 0xf61e2562);
+    d = gg(d, a, b, c, words[k + 6], 9, 0xc040b340);
+    c = gg(c, d, a, b, words[k + 11], 14, 0x265e5a51);
+    b = gg(b, c, d, a, words[k + 0], 20, 0xe9b6c7aa);
+    a = gg(a, b, c, d, words[k + 5], 5, 0xd62f105d);
+    d = gg(d, a, b, c, words[k + 10], 9, 0x2441453);
+    c = gg(c, d, a, b, words[k + 15], 14, 0xd8a1e681);
+    b = gg(b, c, d, a, words[k + 4], 20, 0xe7d3fbc8);
+    a = gg(a, b, c, d, words[k + 9], 5, 0x21e1cde6);
+    d = gg(d, a, b, c, words[k + 14], 9, 0xc33707d6);
+    c = gg(c, d, a, b, words[k + 3], 14, 0xf4d50d87);
+    b = gg(b, c, d, a, words[k + 8], 20, 0x455a14ed);
+    a = gg(a, b, c, d, words[k + 13], 5, 0xa9e3e905);
+    d = gg(d, a, b, c, words[k + 2], 9, 0xfcefa3f8);
+    c = gg(c, d, a, b, words[k + 7], 14, 0x676f02d9);
+    b = gg(b, c, d, a, words[k + 12], 20, 0x8d2a4c8a);
+
+    a = hh(a, b, c, d, words[k + 5], 4, 0xfffa3942);
+    d = hh(d, a, b, c, words[k + 8], 11, 0x8771f681);
+    c = hh(c, d, a, b, words[k + 11], 16, 0x6d9d6122);
+    b = hh(b, c, d, a, words[k + 14], 23, 0xfde5380c);
+    a = hh(a, b, c, d, words[k + 1], 4, 0xa4beea44);
+    d = hh(d, a, b, c, words[k + 4], 11, 0x4bdecfa9);
+    c = hh(c, d, a, b, words[k + 7], 16, 0xf6bb4b60);
+    b = hh(b, c, d, a, words[k + 10], 23, 0xbebfbc70);
+    a = hh(a, b, c, d, words[k + 13], 4, 0x289b7ec6);
+    d = hh(d, a, b, c, words[k + 0], 11, 0xeaa127fa);
+    c = hh(c, d, a, b, words[k + 3], 16, 0xd4ef3085);
+    b = hh(b, c, d, a, words[k + 6], 23, 0x4881d05);
+    a = hh(a, b, c, d, words[k + 9], 4, 0xd9d4d039);
+    d = hh(d, a, b, c, words[k + 12], 11, 0xe6db99e5);
+    c = hh(c, d, a, b, words[k + 15], 16, 0x1fa27cf8);
+    b = hh(b, c, d, a, words[k + 2], 23, 0xc4ac5665);
+
+    a = ii(a, b, c, d, words[k + 0], 6, 0xf4292244);
+    d = ii(d, a, b, c, words[k + 7], 10, 0x432aff97);
+    c = ii(c, d, a, b, words[k + 14], 15, 0xab9423a7);
+    b = ii(b, c, d, a, words[k + 5], 21, 0xfc93a039);
+    a = ii(a, b, c, d, words[k + 12], 6, 0x655b59c3);
+    d = ii(d, a, b, c, words[k + 3], 10, 0x8f0ccc92);
+    c = ii(c, d, a, b, words[k + 10], 15, 0xffeff47d);
+    b = ii(b, c, d, a, words[k + 1], 21, 0x85845dd1);
+    a = ii(a, b, c, d, words[k + 8], 6, 0x6fa87e4f);
+    d = ii(d, a, b, c, words[k + 15], 10, 0xfe2ce6e0);
+    c = ii(c, d, a, b, words[k + 6], 15, 0xa3014314);
+    b = ii(b, c, d, a, words[k + 13], 21, 0x4e0811a1);
+    a = ii(a, b, c, d, words[k + 4], 6, 0xf7537e82);
+    d = ii(d, a, b, c, words[k + 11], 10, 0xbd3af235);
+    c = ii(c, d, a, b, words[k + 2], 15, 0x2ad7d2bb);
+    b = ii(b, c, d, a, words[k + 9], 21, 0xeb86d391);
+
+    a = addUnsigned(a, aa);
+    b = addUnsigned(b, bb);
+    c = addUnsigned(c, cc);
+    d = addUnsigned(d, dd);
+  }
+
+  return [a, b, c, d].map(wordToHex).join("").toLowerCase();
+}
+
+function convertToWordArray(input) {
+  const messageLength = input.length;
+  const numberOfWordsTemp1 = messageLength + 8;
+  const numberOfWordsTemp2 = (numberOfWordsTemp1 - (numberOfWordsTemp1 % 64)) / 64;
+  const numberOfWords = (numberOfWordsTemp2 + 1) * 16;
+  const wordArray = new Array(numberOfWords - 1);
+  let bytePosition = 0;
+  let byteCount = 0;
+
+  while (byteCount < messageLength) {
+    const wordCount = (byteCount - (byteCount % 4)) / 4;
+    bytePosition = (byteCount % 4) * 8;
+    wordArray[wordCount] = wordArray[wordCount] | (input.charCodeAt(byteCount) << bytePosition);
+    byteCount += 1;
+  }
+
+  const wordCount = (byteCount - (byteCount % 4)) / 4;
+  bytePosition = (byteCount % 4) * 8;
+  wordArray[wordCount] = wordArray[wordCount] | (0x80 << bytePosition);
+  wordArray[numberOfWords - 2] = messageLength << 3;
+  wordArray[numberOfWords - 1] = messageLength >>> 29;
+  return wordArray;
+}
+
+function wordToHex(value) {
+  let output = "";
+  for (let count = 0; count <= 3; count += 1) {
+    const byte = (value >>> (count * 8)) & 255;
+    output += `0${byte.toString(16)}`.slice(-2);
+  }
+  return output;
+}
+
+function utf8Encode(input) {
+  return unescape(encodeURIComponent(input));
+}
