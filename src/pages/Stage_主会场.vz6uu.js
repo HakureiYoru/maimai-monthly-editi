@@ -21,6 +21,11 @@ import { getTierFromPercentile } from "public/tierUtils.js";
 import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 import { getUsersWithSkin } from "backend/userSkins.jsw";
 import { getShouyuanVideos, getAllShouyuanCounts } from "backend/shouyuanManager.jsw";
+import {
+  getVisibleCommentsPage,
+  getCommentScoreDistribution,
+  getVisibleCommentThread,
+} from "backend/commentVisibility.jsw";
 
 // 全局状态管理
 let commentsCountByWorkNumber = {};
@@ -672,28 +677,11 @@ function initCommentRepliesPanel() {
 // 显示评论回复面板（替代原来的 lightbox）
 async function showCommentReplies(commentId, workNumber, originalComment) {
   try {
-    // 查询原评论的完整数据（获取所有者ID）
-    const originalCommentResult = await wixData
-      .query("BOFcomment")
-      .eq("_id", commentId)
-      .find();
-    
-    let originalCommentOwnerId = null;
-    if (originalCommentResult.items.length > 0) {
-      originalCommentOwnerId = originalCommentResult.items[0]._owner;
-    }
+    const threadData = await getVisibleCommentThread(commentId);
 
-    // 查询回复数据
-    const replies = await wixData
-      .query("BOFcomment")
-      .eq("replyTo", commentId)
-      .ascending("_createdDate")
-      .find();
-
-    // 获取作品所有者ID（从批量缓存）
-    let workOwnerId = null;
-    if (batchDataCache && batchDataCache.workOwnerMap) {
-      workOwnerId = batchDataCache.workOwnerMap[workNumber];
+    if (!threadData.success) {
+      console.error("获取评论线程失败:", threadData.message);
+      return;
     }
 
     // 显示HTML面板
@@ -703,14 +691,14 @@ async function showCommentReplies(commentId, workNumber, originalComment) {
     $w("#commentRepliesPanel").postMessage({
       action: "init",
       commentData: {
-        commentId: commentId,
-        workNumber: workNumber,
-        originalComment: originalComment,
-        originalCommentOwnerId: originalCommentOwnerId, // 原评论所有者ID
-        replies: replies.items,
+        commentId: threadData.parentComment.commentId,
+        workNumber: threadData.parentComment.workNumber,
+        originalComment: threadData.parentComment.commentText,
+        originalCommentOwnerId: threadData.parentComment._owner,
+        replies: threadData.replies,
       },
-      currentUserId: currentUserId,
-      workOwnerId: workOwnerId, // 传递作品所有者ID
+      currentUserId: threadData.currentUserId || currentUserId,
+      workOwnerId: threadData.workOwnerId,
     });
 
     // 滚动到顶部以确保面板可见
@@ -753,16 +741,12 @@ function closeCommentRepliesPanel() {
 // 处理获取回复数据请求
 async function handleGetReplies(commentId) {
   try {
-    const replies = await wixData
-      .query("BOFcomment")
-      .eq("replyTo", commentId)
-      .ascending("_createdDate")
-      .find();
+    const threadData = await getVisibleCommentThread(commentId);
 
     // 将回复数据发送回HTML元件
     $w("#commentRepliesPanel").postMessage({
       action: "repliesData",
-      replies: replies.items,
+      replies: threadData.success ? threadData.replies : [],
     });
   } catch (error) {
     console.error("获取回复数据失败:", error);
@@ -1142,47 +1126,12 @@ async function getScoreDistributionData() {
     return scoreDistributionCache;
   }
 
-  const distribution = createEmptyScoreDistribution();
-
   try {
-    await loadBatchData();
-    const ownerMap = workOwnersCache || {};
-    let result = await wixData
-      .query("BOFcomment")
-      .isEmpty("replyTo")
-      .ge("score", SCORE_DISTRIBUTION_MIN)
-      .le("score", SCORE_DISTRIBUTION_MAX)
-      .limit(1000)
-      .find();
-
-    while (result) {
-      result.items.forEach((comment) => {
-        const workOwner = ownerMap[comment.workNumber];
-        if (workOwner && workOwner === comment._owner) {
-          return;
-        }
-
-        const bucket = getScoreDistributionBucket(comment.score);
-        if (bucket < 0) {
-          return;
-        }
-
-        distribution.histogram[bucket] += 1;
-        distribution.total += 1;
-      });
-
-      if (result.hasNext()) {
-        result = await result.next();
-      } else {
-        break;
-      }
-    }
-
-    scoreDistributionCache = distribution;
+    scoreDistributionCache = await getCommentScoreDistribution();
     return scoreDistributionCache;
   } catch (error) {
     console.error("[评论系统] 加载评分分布失败:", error);
-    scoreDistributionCache = distribution;
+    scoreDistributionCache = createEmptyScoreDistribution();
     return scoreDistributionCache;
   }
 }
@@ -2490,19 +2439,14 @@ async function sendCommentsData(requestData) {
       currentPage: currentPage
     };
 
-    const cacheKey = getCommentCacheKey(workFilter, filterMode);
-    let state = commentDataCache.get(cacheKey);
-
-    if (!state) {
-      state = await initializeCommentPaginationState(workFilter, filterMode);
-      commentDataCache.set(cacheKey, state);
-    }
-
-    const targetPage = await ensureCommentPage(
-      state,
-      parseInt(currentPage, 10) || 1
-    );
-    const comments = state.pages.get(targetPage) || [];
+    const pageData = await getVisibleCommentsPage({
+      workFilter,
+      filterMode,
+      currentPage,
+      pageSize: commentsPerPage,
+    });
+    const comments = pageData.comments || [];
+    const targetPage = pageData.currentPage || 1;
 
     // 【修复】返回当前实际使用的筛选状态，确保客户端同步
     $w("#commentSystemPanel").postMessage({
@@ -2512,13 +2456,13 @@ async function sendCommentsData(requestData) {
         workFilter: workFilter || "", // 返回实际使用的workFilter
         filterMode: filterMode || "default", // 返回实际使用的filterMode
         currentPage: targetPage,
-        totalPages: Math.max(1, state.totalPages),
-        totalCount: state.totalCount,
+        totalPages: Math.max(1, pageData.totalPages || 1),
+        totalCount: pageData.totalCount || 0,
       },
     });
 
     // console.log(
-      // `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${state.totalPages}, total=${state.totalCount})`
+      // `[评论系统] 已发送 ${comments.length} 条评论数据 (page ${targetPage}/${pageData.totalPages}, total=${pageData.totalCount})`
     // );
   } catch (error) {
     console.error("[评论系统] 发送评论数据失败:", error);
@@ -3065,25 +3009,9 @@ async function handleViewReplies(data) {
   try {
     const { commentId, workNumber, originalComment, isReply, replyTo } = data;
 
-    // 如果是楼中楼回复，需要先查询父评论数据
+    // 如果是楼中楼回复，直接让后端按父评论ID返回可见线程
     if (isReply && replyTo) {
-     // console.log(`[评论系统] 楼中楼回复，查询父评论: ${replyTo}`);
-
-      const parentCommentResult = await wixData
-        .query("BOFcomment")
-        .eq("_id", replyTo)
-        .find();
-
-      if (parentCommentResult.items.length > 0) {
-        const parentComment = parentCommentResult.items[0];
-        await showCommentReplies(
-          parentComment._id,
-          parentComment.workNumber,
-          parentComment.comment
-        );
-      } else {
-        console.error("[评论系统] 未找到父评论");
-      }
+      await showCommentReplies(replyTo, workNumber, "");
     } else {
       // 主评论：直接显示回复
       await showCommentReplies(commentId, workNumber, originalComment);

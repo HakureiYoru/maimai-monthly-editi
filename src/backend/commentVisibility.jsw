@@ -1,0 +1,536 @@
+import wixData from "wix-data";
+import { currentMember } from "wix-members-backend";
+import { COLLECTIONS } from "backend/constants";
+import { getAllWorksWeightedRatingData } from "backend/ratingTaskManager.jsw";
+import { getUsersWithSkin } from "backend/userSkins.jsw";
+import { getTierFromPercentile } from "public/tierUtils.js";
+
+const AUTH_OPTS = { suppressAuth: true };
+const SEA_SELECTION_ROLE_ID = "573f8607-c036-4154-934a-b8c03526a639";
+const MIN_RATINGS_FOR_RANKING = 8;
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 30;
+const LOCKED_COMMENT_EXCERPT_LENGTH = 28;
+const LOCKED_COMMENT_NOTICE =
+  "（已隐藏完整评论：完成一次对该作品的评论后可查看完整内容。）";
+const SCORE_DISTRIBUTION_MIN = 100;
+const SCORE_DISTRIBUTION_MAX = 1000;
+const SCORE_DISTRIBUTION_STEP = 10;
+
+function normalizeWorkFilter(workFilter) {
+  if (workFilter === undefined || workFilter === null || workFilter === "") {
+    return null;
+  }
+  const numeric = parseInt(workFilter, 10);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizePageSize(pageSize) {
+  const numeric = parseInt(pageSize, 10);
+  if (!Number.isFinite(numeric)) {
+    return DEFAULT_PAGE_SIZE;
+  }
+  return Math.max(1, Math.min(MAX_PAGE_SIZE, numeric));
+}
+
+async function getCurrentUserContext() {
+  try {
+    const member = await currentMember.getMember();
+    if (!member?._id) {
+      return { userId: null, isSeaSelectionMember: false };
+    }
+
+    const roles = await currentMember.getRoles();
+    const isSeaSelectionMember = (roles || []).some(
+      (role) =>
+        role._id === SEA_SELECTION_ROLE_ID ||
+        role.id === SEA_SELECTION_ROLE_ID ||
+        role.title === "海选组"
+    );
+
+    return { userId: member._id, isSeaSelectionMember };
+  } catch (error) {
+    return { userId: null, isSeaSelectionMember: false };
+  }
+}
+
+function createEmptyScoreDistribution() {
+  const bucketCount =
+    (SCORE_DISTRIBUTION_MAX - SCORE_DISTRIBUTION_MIN) /
+      SCORE_DISTRIBUTION_STEP +
+    1;
+  return {
+    min: SCORE_DISTRIBUTION_MIN,
+    max: SCORE_DISTRIBUTION_MAX,
+    step: SCORE_DISTRIBUTION_STEP,
+    total: 0,
+    histogram: new Array(bucketCount).fill(0),
+  };
+}
+
+function getScoreDistributionBucket(score) {
+  const numericScore = Number(score);
+  if (
+    !Number.isFinite(numericScore) ||
+    numericScore < SCORE_DISTRIBUTION_MIN ||
+    numericScore > SCORE_DISTRIBUTION_MAX
+  ) {
+    return -1;
+  }
+
+  const bucket = Math.round(
+    (numericScore - SCORE_DISTRIBUTION_MIN) / SCORE_DISTRIBUTION_STEP
+  );
+  return Math.min(
+    Math.max(bucket, 0),
+    (SCORE_DISTRIBUTION_MAX - SCORE_DISTRIBUTION_MIN) /
+      SCORE_DISTRIBUTION_STEP
+  );
+}
+
+function stripCommentMarkupForPreview(commentText) {
+  return String(commentText || "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/[`*_>#|~-]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function createLockedCommentPreview(commentText) {
+  const source = stripCommentMarkupForPreview(commentText) || "评论内容";
+  const excerptLength = Math.min(LOCKED_COMMENT_EXCERPT_LENGTH, source.length);
+  const startIndex = Math.max(0, Math.floor((source.length - excerptLength) / 2));
+  const excerpt = source.slice(startIndex, startIndex + excerptLength);
+
+  return `……${excerpt}……\n\n${LOCKED_COMMENT_NOTICE}`;
+}
+
+async function fetchWorksMap() {
+  const result = await wixData.query(COLLECTIONS.ENTER_CONTEST_034).limit(1000).find(AUTH_OPTS);
+  const workMap = {};
+  result.items.forEach((work) => {
+    workMap[work.sequenceId] = work;
+  });
+  return workMap;
+}
+
+async function fetchUserCommentAccess(userId, workOwnerMap) {
+  if (!userId) {
+    return {
+      commentedWorkSet: new Set(),
+      formalRatedWorkSet: new Set(),
+    };
+  }
+
+  const result = await wixData
+    .query(COLLECTIONS.BOF_COMMENT)
+    .eq("_owner", userId)
+    .isEmpty("replyTo")
+    .limit(1000)
+    .find(AUTH_OPTS);
+
+  const commentedWorkSet = new Set();
+  const formalRatedWorkSet = new Set();
+
+  (result.items || []).forEach((comment) => {
+    commentedWorkSet.add(comment.workNumber);
+    if (workOwnerMap[comment.workNumber] !== comment._owner) {
+      formalRatedWorkSet.add(comment.workNumber);
+    }
+  });
+
+  return { commentedWorkSet, formalRatedWorkSet };
+}
+
+async function fetchReplyCountMap(commentIds) {
+  const ids = [...new Set((commentIds || []).filter(Boolean))];
+  const counts = {};
+  ids.forEach((id) => {
+    counts[id] = 0;
+  });
+
+  if (ids.length === 0) {
+    return counts;
+  }
+
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const result = await wixData
+      .query(COLLECTIONS.BOF_COMMENT)
+      .hasSome("replyTo", chunk)
+      .limit(1000)
+      .find(AUTH_OPTS);
+
+    (result.items || []).forEach((reply) => {
+      counts[reply.replyTo] = (counts[reply.replyTo] || 0) + 1;
+    });
+  }
+
+  return counts;
+}
+
+function buildRankingMap(workRatings = {}) {
+  const validWorks = [];
+
+  Object.entries(workRatings).forEach(([workNumber, ratingData]) => {
+    if (ratingData?.isDQ) {
+      return;
+    }
+    if ((ratingData?.numRatings || 0) < MIN_RATINGS_FOR_RANKING) {
+      return;
+    }
+
+    validWorks.push({
+      sequenceId: parseInt(workNumber, 10),
+      averageScore: ratingData.weightedAverage,
+      numRatings: ratingData.numRatings,
+    });
+  });
+
+  validWorks.sort((a, b) => b.averageScore - a.averageScore);
+
+  const rankingMap = {};
+  validWorks.forEach((work, index) => {
+    rankingMap[work.sequenceId] = {
+      percentile: (index + 1) / validWorks.length,
+      rank: index + 1,
+    };
+  });
+  return rankingMap;
+}
+
+function buildRatingInfo(workNumber, ratingData, rankingMap) {
+  if (!ratingData) {
+    return "";
+  }
+
+  if (ratingData.numRatings >= MIN_RATINGS_FOR_RANKING) {
+    const workRanking = rankingMap[workNumber];
+    if (workRanking) {
+      const tier = getTierFromPercentile(workRanking.percentile);
+      return `${tier} (${ratingData.numRatings}人评分)`;
+    }
+  } else if (ratingData.numRatings > 0) {
+    return `评分量不足(${ratingData.numRatings}人评分)`;
+  }
+
+  return "";
+}
+
+function createBaseQuery(normalizedWorkFilter, effectiveFilterMode, userId) {
+  let query = wixData.query(COLLECTIONS.BOF_COMMENT);
+
+  if (normalizedWorkFilter !== null) {
+    return query.eq("workNumber", normalizedWorkFilter).descending("_createdDate");
+  }
+
+  if (effectiveFilterMode === "YourComment") {
+    if (!userId) {
+      return query.eq("_id", "__empty__");
+    }
+    return query.eq("_owner", userId).descending("_createdDate");
+  }
+
+  return query.isEmpty("replyTo").descending("_createdDate");
+}
+
+async function fetchScoreOnlyItems(baseQuery, pageSize, currentPage, workOwnerMap) {
+  const allItems = [];
+  let result = await baseQuery.limit(1000).find(AUTH_OPTS);
+
+  while (result) {
+    allItems.push(...(result.items || []));
+    if (result.hasNext()) {
+      result = await result.next();
+    } else {
+      break;
+    }
+  }
+
+  const filteredItems = allItems.filter(
+    (item) => workOwnerMap[item.workNumber] !== item._owner
+  );
+  const totalCount = filteredItems.length;
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
+  const safePage = Math.max(1, Math.min(currentPage, totalPages));
+  const start = (safePage - 1) * pageSize;
+
+  return {
+    items: filteredItems.slice(start, start + pageSize),
+    totalCount,
+    totalPages,
+    currentPage: safePage,
+  };
+}
+
+function sanitizeComment({
+  comment,
+  work,
+  currentUserId,
+  userCommentedWorkSet,
+  userFormalRatedWorkSet,
+  isSeaSelectionMember,
+  replyCountMap,
+  goldSkinUserSet,
+  qualifiedPlayerSet,
+  workRatings,
+  rankingMap,
+  workCoverMap,
+}) {
+  const workOwnerId = work?._owner || null;
+  const isReply = !!comment.replyTo;
+  const isAuthorComment = !!workOwnerId && comment._owner === workOwnerId;
+  const isFormalComment = !isReply && !isAuthorComment;
+  const isWorkAuthor = !!currentUserId && currentUserId === workOwnerId;
+  const userHasCommented = userCommentedWorkSet.has(comment.workNumber);
+  const userHasFormalRating = userFormalRatedWorkSet.has(comment.workNumber);
+  const canViewProtectedData =
+    isWorkAuthor || userHasCommented || isSeaSelectionMember;
+  const showScore = isFormalComment && (userHasFormalRating || isSeaSelectionMember);
+  const isCommentHidden = isFormalComment && !canViewProtectedData;
+  const visibleCommentText = isCommentHidden
+    ? createLockedCommentPreview(comment.comment)
+    : comment.comment;
+  const ratingData = workRatings[comment.workNumber] || null;
+
+  return {
+    commentId: comment._id,
+    workNumber: comment.workNumber,
+    score: showScore ? comment.score : null,
+    commentText: visibleCommentText,
+    _owner: comment._owner,
+    isReply,
+    replyTo: comment.replyTo,
+    showScore,
+    isAuthorComment,
+    canDelete: !!currentUserId && !isReply && (isAuthorComment ? currentUserId === comment._owner : isSeaSelectionMember),
+    ratingInfo: showScore ? buildRatingInfo(comment.workNumber, ratingData, rankingMap) : "",
+    workTitle: work?.firstName
+      ? `#${comment.workNumber} - ${work.firstName}`
+      : `#${comment.workNumber}`,
+    replyCount: isReply ? 0 : replyCountMap[comment._id] || 0,
+    isSelfScComment: isAuthorComment,
+    createdDate: comment._createdDate,
+    coverImage: workCoverMap[comment.workNumber] || "",
+    isWorkDQ: work?.isDq === true,
+    hasGoldSkin: !isAuthorComment && goldSkinUserSet.has(comment._owner),
+    isQualifiedPlayer: !isAuthorComment && qualifiedPlayerSet.has(comment._owner),
+    isCommentHidden,
+  };
+}
+
+async function fetchQualifiedPlayerSet() {
+  const result = await wixData
+    .query(COLLECTIONS.JOB_APPLICATION_089)
+    .eq("isHighQuality", true)
+    .limit(1000)
+    .find(AUTH_OPTS);
+
+  return new Set((result.items || []).map((item) => item._owner).filter(Boolean));
+}
+
+export async function getVisibleCommentsPage(requestData = {}) {
+  const { userId, isSeaSelectionMember } = await getCurrentUserContext();
+  const pageSize = normalizePageSize(requestData.pageSize);
+  const normalizedWorkFilter = normalizeWorkFilter(requestData.workFilter);
+  const effectiveFilterMode = requestData.filterMode || "default";
+  const requestedPage = Math.max(1, parseInt(requestData.currentPage, 10) || 1);
+
+  const [
+    batchData,
+    workMap,
+    goldSkinUsers,
+    qualifiedPlayerSet,
+  ] = await Promise.all([
+    getAllWorksWeightedRatingData(),
+    fetchWorksMap(),
+    getUsersWithSkin("gold_skin"),
+    fetchQualifiedPlayerSet(),
+  ]);
+
+  const workOwnerMap = batchData.workOwnerMap || {};
+  const { commentedWorkSet, formalRatedWorkSet } =
+    await fetchUserCommentAccess(userId, workOwnerMap);
+  const baseQuery = createBaseQuery(
+    normalizedWorkFilter,
+    effectiveFilterMode,
+    userId
+  );
+
+  let items = [];
+  let totalCount = 0;
+  let totalPages = 1;
+  let currentPage = requestedPage;
+
+  if (effectiveFilterMode === "ScoreOnly" && normalizedWorkFilter === null) {
+    const pageData = await fetchScoreOnlyItems(
+      baseQuery,
+      pageSize,
+      requestedPage,
+      workOwnerMap
+    );
+    items = pageData.items;
+    totalCount = pageData.totalCount;
+    totalPages = pageData.totalPages;
+    currentPage = pageData.currentPage;
+  } else {
+    totalCount = await baseQuery.count(AUTH_OPTS);
+    totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
+    currentPage = Math.max(1, Math.min(requestedPage, totalPages));
+    const skipCount = (currentPage - 1) * pageSize;
+    const result = await baseQuery.skip(skipCount).limit(pageSize).find(AUTH_OPTS);
+    items = result.items || [];
+  }
+
+  const mainCommentIds = items
+    .filter((item) => !item.replyTo)
+    .map((item) => item._id);
+  const replyCountMap = await fetchReplyCountMap(mainCommentIds);
+  const rankingMap = buildRankingMap(batchData.workRatings || {});
+  const goldSkinUserSet = new Set(goldSkinUsers || []);
+
+  const comments = items.map((comment) =>
+    sanitizeComment({
+      comment,
+      work: workMap[comment.workNumber],
+      currentUserId: userId,
+      userCommentedWorkSet: commentedWorkSet,
+      userFormalRatedWorkSet: formalRatedWorkSet,
+      isSeaSelectionMember,
+      replyCountMap,
+      goldSkinUserSet,
+      qualifiedPlayerSet,
+      workRatings: batchData.workRatings || {},
+      rankingMap,
+      workCoverMap: batchData.workCoverMap || {},
+    })
+  );
+
+  return {
+    comments,
+    currentPage,
+    totalPages,
+    totalCount,
+  };
+}
+
+export async function getCommentScoreDistribution() {
+  const distribution = createEmptyScoreDistribution();
+  const batchData = await getAllWorksWeightedRatingData();
+  const ownerMap = batchData.workOwnerMap || {};
+
+  let result = await wixData
+    .query(COLLECTIONS.BOF_COMMENT)
+    .isEmpty("replyTo")
+    .ge("score", SCORE_DISTRIBUTION_MIN)
+    .le("score", SCORE_DISTRIBUTION_MAX)
+    .limit(1000)
+    .find(AUTH_OPTS);
+
+  while (result) {
+    (result.items || []).forEach((comment) => {
+      const workOwner = ownerMap[comment.workNumber];
+      if (workOwner && workOwner === comment._owner) {
+        return;
+      }
+
+      const bucket = getScoreDistributionBucket(comment.score);
+      if (bucket < 0) {
+        return;
+      }
+
+      distribution.histogram[bucket] += 1;
+      distribution.total += 1;
+    });
+
+    if (result.hasNext()) {
+      result = await result.next();
+    } else {
+      break;
+    }
+  }
+
+  return distribution;
+}
+
+export async function getVisibleCommentThread(commentId) {
+  if (!commentId) {
+    return { success: false, message: "缺少评论ID" };
+  }
+
+  const { userId, isSeaSelectionMember } = await getCurrentUserContext();
+  const rawComment = await wixData.get(COLLECTIONS.BOF_COMMENT, commentId, AUTH_OPTS);
+  if (!rawComment) {
+    return { success: false, message: "未找到评论" };
+  }
+
+  const parentId = rawComment.replyTo || rawComment._id;
+  const parentComment = rawComment.replyTo
+    ? await wixData.get(COLLECTIONS.BOF_COMMENT, parentId, AUTH_OPTS)
+    : rawComment;
+
+  if (!parentComment) {
+    return { success: false, message: "未找到主评论" };
+  }
+
+  const [
+    batchData,
+    workMap,
+    goldSkinUsers,
+    qualifiedPlayerSet,
+  ] = await Promise.all([
+    getAllWorksWeightedRatingData(),
+    fetchWorksMap(),
+    getUsersWithSkin("gold_skin"),
+    fetchQualifiedPlayerSet(),
+  ]);
+  const { commentedWorkSet, formalRatedWorkSet } =
+    await fetchUserCommentAccess(userId, batchData.workOwnerMap || {});
+
+  const repliesResult = await wixData
+    .query(COLLECTIONS.BOF_COMMENT)
+    .eq("replyTo", parentId)
+    .ascending("_createdDate")
+    .limit(1000)
+    .find(AUTH_OPTS);
+
+  const replyCountMap = { [parentId]: (repliesResult.items || []).length };
+  const rankingMap = buildRankingMap(batchData.workRatings || {});
+  const goldSkinUserSet = new Set(goldSkinUsers || []);
+  const sanitizeContext = {
+    work: workMap[parentComment.workNumber],
+    currentUserId: userId,
+    userCommentedWorkSet: commentedWorkSet,
+    userFormalRatedWorkSet: formalRatedWorkSet,
+    isSeaSelectionMember,
+    replyCountMap,
+    goldSkinUserSet,
+    qualifiedPlayerSet,
+    workRatings: batchData.workRatings || {},
+    rankingMap,
+    workCoverMap: batchData.workCoverMap || {},
+  };
+
+  const visibleParent = sanitizeComment({
+    comment: parentComment,
+    ...sanitizeContext,
+  });
+
+  const replies = (repliesResult.items || []).map((reply) => ({
+    _id: reply._id,
+    workNumber: reply.workNumber,
+    comment: reply.comment,
+    _owner: reply._owner,
+    replyTo: reply.replyTo,
+    _createdDate: reply._createdDate,
+  }));
+
+  return {
+    success: true,
+    parentComment: visibleParent,
+    replies,
+    currentUserId: userId,
+    workOwnerId: workMap[parentComment.workNumber]?._owner || null,
+  };
+}
