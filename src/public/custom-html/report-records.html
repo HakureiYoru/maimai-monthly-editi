@@ -851,6 +851,10 @@
                         <span class="info-label">处理人:</span>
                         <strong class="processed-by" data-record-id="${record._id}">${processed ? escapeHtml(processedByName || '未知') : '未处理'}</strong>
                     </div>
+                    <div class="info-item">
+                        <span class="info-label">评论评分:</span>
+                        <strong>${escapeHtml(formatReportedScore(record.reportedScore))}</strong>
+                    </div>
                 </div>
                 <div class="reason-box">
                     <span class="info-label">检举理由:</span>
@@ -918,6 +922,13 @@
             renderNoteState(record._id, div);
 
             return div;
+        }
+
+        function formatReportedScore(score) {
+            if (score === undefined || score === null || score === '') {
+                return '-';
+            }
+            return String(score);
         }
 
         async function hydrateRecordElement(record, root, renderToken) {

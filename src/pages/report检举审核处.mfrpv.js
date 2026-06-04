@@ -56,6 +56,38 @@ async function getWorkTitle(workNumber) {
     }
 }
 
+async function enrichReportRecordsWithScores(records) {
+    const enrichedRecords = [];
+
+    for (const record of records) {
+        if (
+            record.reportedScore !== undefined &&
+            record.reportedScore !== null &&
+            record.reportedScore !== ''
+        ) {
+            enrichedRecords.push(record);
+            continue;
+        }
+
+        if (!record.originalCommentId) {
+            enrichedRecords.push(record);
+            continue;
+        }
+
+        try {
+            const comment = await wixData.get('BOFcomment', record.originalCommentId);
+            enrichedRecords.push({
+                ...record,
+                reportedScore: comment?.score ?? null
+            });
+        } catch (error) {
+            enrichedRecords.push(record);
+        }
+    }
+
+    return enrichedRecords;
+}
+
 $w.onReady(async function () {
     const htmlElement = $w('#reportRecordsHtml');
     if (htmlElement && htmlElement.onMessage) {
@@ -77,13 +109,14 @@ async function loadReportRecords(action = 'init') {
             .descending('reportedAt')
             .find();
 
-        console.log(`加载了 ${results.items.length} 条检举记录`);
+        const records = await enrichReportRecordsWithScores(results.items);
+        console.log(`加载了 ${records.length} 条检举记录`);
 
         const htmlElement = $w('#reportRecordsHtml');
         if (htmlElement && htmlElement.postMessage) {
             htmlElement.postMessage({
                 action: action,
-                records: results.items
+                records: records
             });
         }
     } catch (error) {

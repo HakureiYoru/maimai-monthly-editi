@@ -200,6 +200,7 @@
 
         <div class="comment-info" id="commentInfo">
             <div>作品编号: <strong id="workNumber">-</strong></div>
+            <div>评分: <strong id="commentScore">-</strong></div>
             <div class="comment-preview" id="commentPreview">加载中...</div>
         </div>
 
@@ -254,6 +255,7 @@
             statusBox.textContent = '';
 
             document.getElementById('workNumber').textContent = '-';
+            document.getElementById('commentScore').textContent = '-';
             document.getElementById('commentPreview').textContent = '加载中...';
         }
 
@@ -300,6 +302,10 @@
         function displayCommentInfo() {
             if (!commentData) return;
             document.getElementById('workNumber').textContent = commentData.workNumber || '-';
+            document.getElementById('commentScore').textContent =
+                commentData.score !== undefined && commentData.score !== null && commentData.score !== ''
+                    ? commentData.score
+                    : '-';
 
             const comment = commentData.comment || '无内容';
             const preview = comment.length > 200 ? comment.substring(0, 200) + '...' : comment;

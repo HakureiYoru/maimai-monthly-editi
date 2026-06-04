@@ -214,6 +214,7 @@ export async function reportComment(commentId, reporterId, reportReason = "") {
       const reportRecord = {
         workNumber: comment.workNumber,
         reportedComment: comment.comment,
+        reportedScore: comment.score,
         reportReason: reportReason || "未填写检举理由",
         reportedBy: reporterId || "guest",
         reportedAt: new Date(),

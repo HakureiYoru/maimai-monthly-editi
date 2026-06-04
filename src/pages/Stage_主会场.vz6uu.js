@@ -466,6 +466,7 @@ async function handleReportComment(data) {
       commentData: {
         commentId: data.commentId,
         workNumber: data.workNumber,
+        score: data.score,
         comment: data.comment,
         _owner: data._owner,
       },
