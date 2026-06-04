@@ -54,6 +54,11 @@ let allWorksRankingCache = null; // 缓存所有作品的排名信息
 let workTitlesCache = {}; // 缓存作品标题信息
 let userCommentStatusCache = null; // 【新增】缓存用户评论状态 Map<workNumber, boolean>
 let scoreDistributionCache = null; // 缓存正式评分分布，供评分元件实时展示位置
+let seaSelectionMemberCache = null; // 缓存当前用户是否为海选组审核
+
+const LOCKED_COMMENT_EXCERPT_LENGTH = 28;
+const LOCKED_COMMENT_NOTICE =
+  "（已隐藏完整评论：完成一次对该作品的评论后可查看完整内容。）";
 
 // 【新增】加载锁，防止并发重复加载
 let isLoadingUserFormalRatings = false; // 防止并发加载用户评分状态
@@ -1047,6 +1052,53 @@ async function checkUserHasFormalRating(workNumber) {
   return userFormalRatingsCache[workNumber] || false;
 }
 
+async function checkUserHasCommentedOnWork(workNumber) {
+  if (!currentUserId || !isUserVerified) {
+    return false;
+  }
+
+  if (!userCommentStatusCache) {
+    await batchLoadUserCommentStatus();
+  }
+
+  return userCommentStatusCache.get(workNumber) || false;
+}
+
+async function checkCurrentUserIsSeaSelectionMemberCached() {
+  if (!currentUserId) {
+    return false;
+  }
+
+  if (seaSelectionMemberCache !== null) {
+    return seaSelectionMemberCache;
+  }
+
+  try {
+    seaSelectionMemberCache = await checkIsSeaSelectionMember();
+  } catch (error) {
+    console.error("检查海选组成员身份失败:", error);
+    seaSelectionMemberCache = false;
+  }
+
+  return seaSelectionMemberCache;
+}
+
+function createLockedCommentPreview(commentText) {
+  const normalized = String(commentText || "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/[`*_>#|~-]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const fallbackText = "评论内容";
+  const source = normalized || fallbackText;
+  const excerptLength = Math.min(LOCKED_COMMENT_EXCERPT_LENGTH, source.length);
+  const startIndex = Math.max(0, Math.floor((source.length - excerptLength) / 2));
+  const excerpt = source.slice(startIndex, startIndex + excerptLength);
+
+  return `……${excerpt}……\n\n${LOCKED_COMMENT_NOTICE}`;
+}
+
 const SCORE_DISTRIBUTION_MIN = 100;
 const SCORE_DISTRIBUTION_MAX = 1000;
 const SCORE_DISTRIBUTION_STEP = 10;
@@ -1171,6 +1223,7 @@ function clearCaches() {
   userTaskDataCache = null; // 清理任务数据缓存
   goldSkinUsersCache = null; // 清理金皮肤用户缓存
   qualifiedPlayersCache = null; // 清理Q选手缓存
+  seaSelectionMemberCache = null; // 清理海选组身份缓存
   resetCommentDataCache(); // 清理评论分页缓存
 
   // 重置所有加载锁
@@ -2505,6 +2558,7 @@ async function formatCommentForHTML(comment) {
       isWorkDQ: false,
       hasGoldSkin: !!(goldSkinUsersCache && goldSkinUsersCache.has(comment._owner)),
       isQualifiedPlayer: !!(qualifiedPlayersCache && qualifiedPlayersCache.has(comment._owner)),
+      isCommentHidden: false,
     };
 
     // 【优化】优先从批量缓存获取作品信息，避免逐个查询
@@ -2547,6 +2601,21 @@ async function formatCommentForHTML(comment) {
       formattedComment.isSelfScComment = formattedComment.isAuthorComment;
     }
 
+    const isFormalComment = !comment.replyTo && !formattedComment.isAuthorComment;
+    if (isFormalComment) {
+      const isWorkAuthor = !!currentUserId && currentUserId === workOwnerId;
+      const userHasCommented = await checkUserHasCommentedOnWork(comment.workNumber);
+      const isSeaSelectionMember =
+        await checkCurrentUserIsSeaSelectionMemberCached();
+      const canViewFullComment =
+        isWorkAuthor || userHasCommented || isSeaSelectionMember;
+
+      if (!canViewFullComment) {
+        formattedComment.commentText = createLockedCommentPreview(comment.comment);
+        formattedComment.isCommentHidden = true;
+      }
+    }
+
     // 判断是否显示评分
     if (!comment.replyTo) {
       const userHasFormalRating = await checkUserHasFormalRating(
@@ -2584,13 +2653,8 @@ async function formatCommentForHTML(comment) {
         formattedComment.canDelete = currentUserId === comment._owner;
       } else {
         // 普通评论：海选组成员可以删除
-        try {
-          const isSeaSelectionMember = await checkIsSeaSelectionMember();
-          formattedComment.canDelete = isSeaSelectionMember;
-        } catch (error) {
-          console.error("检查海选组成员身份失败:", error);
-          formattedComment.canDelete = false;
-        }
+        formattedComment.canDelete =
+          await checkCurrentUserIsSeaSelectionMemberCached();
       }
     }
 
@@ -2604,6 +2668,7 @@ async function formatCommentForHTML(comment) {
       commentText: comment.comment,
       showScore: false,
       isAuthorComment: false,
+      isCommentHidden: false,
       canDelete: false,
       ratingInfo: "",
       workTitle: `#${comment.workNumber}`,

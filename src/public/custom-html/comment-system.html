@@ -1278,6 +1278,13 @@
       background: rgba(255, 255, 255, 0.25);
     }
 
+    .comment-content.locked-comment {
+      cursor: default;
+      border: 1px dashed rgba(255, 255, 255, 0.45);
+      background: rgba(30, 30, 30, 0.28);
+      color: rgba(255, 255, 255, 0.86);
+    }
+
     .comment-content.expanded {
       max-height: none;
       overflow-y: auto;
@@ -3993,6 +4000,9 @@
 
       // 渲染评论内容（支持Markdown）
       const commentContentHTML = renderMarkdown(comment.commentText || t('noCommentText'));
+      const commentContentClass = comment.isCommentHidden
+        ? 'comment-content locked-comment short'
+        : 'comment-content';
       
       // 格式化时间
       const formattedTime = formatCommentTime(comment.createdDate);
@@ -4008,7 +4018,7 @@
           ${comment.ratingInfo ? `<div class="comment-rating-info">${escapeHtml(comment.ratingInfo)}</div>` : ''}
           <div class="comment-time">${formattedTime}</div>
         </div>
-        <div class="comment-content" data-full-text="${escapeHtml(comment.commentText || t('noCommentText'))}">${commentContentHTML}</div>
+        <div class="${commentContentClass}" data-full-text="${escapeHtml(comment.commentText || t('noCommentText'))}">${commentContentHTML}</div>
         <div class="comment-actions">
           ${actionsHTML}
           ${comment.replyCount > 0 ? `<span class="reply-count">${escapeHtml(t('replyCount', { n: comment.replyCount }))}</span>` : ''}
@@ -4021,6 +4031,10 @@
       // 检查评论内容是否需要展开功能
       const commentContent = div.querySelector('.comment-content');
       if (commentContent) {
+        if (comment.isCommentHidden) {
+          return div;
+        }
+
         // 【新增】设置 ResizeObserver 监控内容高度变化
         setupResizeObserver(commentContent);
         
