@@ -425,7 +425,7 @@
       <div class="section-title">投票结果（加权统计）</div>
       
       <!-- 标签页切换 -->
-      <div class="chart-tabs" id="chartTabs">
+      <div class="chart-tabs" id="chartTabs" style="display:none;">
         <button class="tab-button active" data-chart="votes">
           投票统计
         </button>
@@ -435,7 +435,7 @@
       </div>
       
       <!-- 投票结果柱状图 -->
-      <div class="chart-container active" id="votingChartContainer">
+      <div class="chart-container" id="votingChartContainer">
         <canvas id="votingChart"></canvas>
       </div>
       
@@ -623,6 +623,11 @@
 
       if (resultsVisible) {
         // 后端已授权：展示完整图表
+        document.getElementById('publicVoteInfo').style.display = 'none';
+        document.getElementById('chartTabs').style.display = 'flex';
+        document.getElementById('votingChartContainer').style.display = '';
+        document.getElementById('votingChartContainer').classList.add('active');
+        document.getElementById('weightChartContainer').style.display = '';
         updateCharts();
         enableChartTabs();
       } else {
