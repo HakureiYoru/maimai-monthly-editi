@@ -619,9 +619,10 @@
     function handleVotingResults(data) {
       //console.log('[投票系统] 收到投票结果:', data);
       votingResults = data;
+      resultsVisible = data.canViewFullResults === true;
 
-      if (resultsVisible || isAdmin) {
-        // 管理员或已开放：展示完整图表
+      if (resultsVisible) {
+        // 后端已授权：展示完整图表
         updateCharts();
         enableChartTabs();
       } else {
@@ -711,21 +712,13 @@
 
       const publicInfoEl = document.getElementById('publicVoteInfo');
 
-      if (!votingResults || !votingResults.labels || votingResults.labels.length === 0) {
+      if (!votingResults || !votingResults.lowestOption) {
         publicInfoEl.innerHTML = '<div class="public-info-label">暂无投票数据</div>';
         publicInfoEl.style.display = 'block';
         return;
       }
 
-      const labels = votingResults.labels;
-      const data = votingResults.data || [];
-
-      // 找出当前票数最低的选项（若多个并列取第一个）
-      let minIdx = 0;
-      for (let i = 1; i < data.length; i++) {
-        if (data[i] < data[minIdx]) minIdx = i;
-      }
-      const lowestOption = labels[minIdx];
+      const lowestOption = votingResults.lowestOption;
 
       publicInfoEl.innerHTML = `
         <div class="public-info-label">目前票数最低的选项是：</div>

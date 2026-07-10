@@ -1,6 +1,20 @@
 import wixData from "wix-data";
+import { currentMember } from "wix-members-backend";
 import { getUserRankAndVoteWeight } from "backend/getUserPublicInfo.jsw";
 import { QUERY_LIMITS } from "backend/constants";
+
+// 投票结果开关：false 时仅管理员能获取完整结果，普通用户只会收到最低票选项
+const RESULTS_VISIBLE = false;
+
+async function isCurrentUserAdmin() {
+  try {
+    const roles = await currentMember.getRoles();
+    return roles.some((role) => role.title === "Admin" || role.name === "Admin");
+  } catch (error) {
+    // 未登录用户无法获取角色，按非管理员处理
+    return false;
+  }
+}
 
 // 获取用户信息
 export async function getUserInfo(userId) {
@@ -47,10 +61,18 @@ export async function getVotingOptions() {
   try {
     return {
       options: [
-        { value: "theme1", label: "BEMANI" },
-        { value: "theme2", label: "BMS" },
-        { value: "theme3", label: "Vocaloid" },
-        { value: "theme4", label: "雷亚音游" },
+        {
+          value: "theme1",
+          label:
+            "高校祭（一切与学院、校园相关的选曲主题；曲目本身、所指角色或事件须含校园要素，或角色属于学生。例如：《蔚蓝档案》的《Unwelcome School》）",
+        },
+        {
+          value: "theme2",
+          label:
+            "冰与火之歌（一切自然元素相关，如冰、火、风、雷、雨、雪、水、光、暗、日、月等，也包括温度的数值、单位或概念。例如：《FIRE FIRE》《Snow Goose》《Thunderbolt》《Sweet Rain》《Celsius》《灼熱Beach Side Bunny》）",
+        },
+        { value: "theme3", label: "BMS" },
+        { value: "theme4", label: "华语" },
       ],
     };
   } catch (error) {
@@ -105,6 +127,9 @@ export async function submitVote(
 // 获取投票结果
 export async function getVotingResults() {
   try {
+    const canViewFullResults =
+      RESULTS_VISIBLE || (await isCurrentUserAdmin());
+
     // 获取所有投票记录
     const results = await wixData
       .query("ThemeVote")
@@ -114,6 +139,8 @@ export async function getVotingResults() {
 
     if (results.items.length === 0) {
       return {
+        canViewFullResults,
+        lowestOption: null,
         labels: [],
         data: [],
         voters: [],
@@ -166,20 +193,34 @@ export async function getVotingResults() {
 
     options.options.forEach((option) => {
       const themeValue = option.value;
-      labels.push(option.label);
+      // 图表仅显示括号前的主题名，投票选项仍保留完整说明
+      const chartLabel = option.label.split(/[（(]/, 1)[0].trim();
+      labels.push(chartLabel);
       // 使用加权票数而不是简单人数
       data.push(themeWeightedVotes[themeValue] || 0);
       voters.push((themeVoters[themeValue] || []).join(", "));
 
       if (themeWeights[themeValue] && themeWeights[themeValue].length > 0) {
         weightData.push({
-          label: option.label,
+          label: chartLabel,
           data: themeWeights[themeValue],
         });
       }
     });
 
+    if (!canViewFullResults) {
+      const minimumVoteCount = Math.min(...data);
+      const minimumIndex = data.indexOf(minimumVoteCount);
+
+      return {
+        canViewFullResults: false,
+        lowestOption: labels[minimumIndex] || null,
+      };
+    }
+
     return {
+      canViewFullResults: true,
+      lowestOption: null,
       labels,
       data,
       voters,

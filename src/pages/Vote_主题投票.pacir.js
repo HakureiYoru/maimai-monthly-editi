@@ -14,9 +14,6 @@ import {
 
 import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 
-// 结果可见开关：false = 隐藏图表仅展示最低票数选项，true = 公开完整图表
-const RESULTS_VISIBLE = true;
-
 let currentUserId = null;
 let isAdmin = false;
 let isHtmlReady = false;
@@ -145,7 +142,6 @@ async function handleVotingSystemReady() {
   // 发送初始化数据
   postMessageToHtml("INIT_VOTING_SYSTEM", {
     currentUserId: currentUserId,
-    resultsVisible: RESULTS_VISIBLE,
     isAdmin: isAdmin,
   });
 }
