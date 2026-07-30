@@ -1,6 +1,6 @@
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
-import { getUserPublicInfo } from 'backend/getUserPublicInfo.jsw';
+import { getUsersPublicInfo } from 'backend/getUserPublicInfo.jsw';
 
 const DEFAULT_PHOTO = "https://static.wixstatic.com/media/daf9ba_fb0143f9208d4e059c81d6f4e7855256~mv2.jpg";
 const QUALIFIED_PP_THRESHOLD = 100;
@@ -133,32 +133,25 @@ function postApplyStatus(message) {
 }
 
 /**
- * 加载底部选手状态卡片：仅展示报名表(jobApplication089)中的当前用户记录
- * 附加往届排名与 Q 状态（Team.totalPp > 100）
+ * 加载全部报名选手，并附加会员头像、往届排名与 Q 状态
  */
 async function loadApplyPlayerStatus() {
     try {
         postApplyStatus({ type: 'APPLY_STATUS_LOADING' });
 
-        if (!wixUsers.currentUser.loggedIn) {
-            postApplyStatus({
-                type: 'APPLY_STATUS_MESSAGE',
-                message: '请先登录以查看您的报名信息',
-            });
-            return;
-        }
+        const [registrationResults, teamAllResults] = await Promise.all([
+            wixData.query('jobApplication089')
+                .ascending('_createdDate')
+                .limit(1000)
+                .find(),
+            wixData.query('Team')
+                .descending('totalPp')
+                .limit(1000)
+                .find(),
+        ]);
 
-        const userId = wixUsers.currentUser.id;
-
-        const registrationResults = await wixData.query('jobApplication089')
-            .eq('_owner', userId)
-            .limit(1)
-            .find();
-
-        const registration = registrationResults.items[0] || null;
-
-        // 与旧 table1 一致：没有报名记录就不展示选手行
-        if (!registration) {
+        const registrations = registrationResults.items || [];
+        if (registrations.length === 0) {
             postApplyStatus({
                 type: 'APPLY_STATUS_MESSAGE',
                 message: '暂无报名记录',
@@ -166,13 +159,9 @@ async function loadApplyPlayerStatus() {
             return;
         }
 
-        const [publicInfo, teamAllResults] = await Promise.all([
-            getUserPublicInfo(userId).catch(() => null),
-            wixData.query('Team')
-                .descending('totalPp')
-                .limit(100)
-                .find(),
-        ]);
+        const memberMap = await getUsersPublicInfo(
+            registrations.map((registration) => registration._owner)
+        ).catch(() => ({}));
 
         // 与 Ranking 页一致：仅统计 totalPp > 0 的选手，并列同分跳名次
         const scoredMembers = (teamAllResults.items || []).filter(
@@ -187,31 +176,37 @@ async function loadApplyPlayerStatus() {
             return { ...member, rank: currentRank };
         });
 
-        const myTeam = rankedMembers.find((m) => m.realId === userId) || null;
-        const totalPp = myTeam ? (myTeam.totalPp || 0) : 0;
-        const rank = myTeam ? myTeam.rank : null;
+        const teamMap = new Map(
+            rankedMembers.map((member) => [member.realId, member])
+        );
 
-        // Q：优先报名表 isHighQuality；否则按天梯 totalPp > 100
-        const isQualified =
-            registration.isHighQuality === true || totalPp > QUALIFIED_PP_THRESHOLD;
+        const players = registrations.map((registration) => {
+            const userId = registration._owner;
+            const publicInfo = memberMap[userId] || null;
+            const teamMember = teamMap.get(userId) || null;
+            const totalPp = teamMember ? (teamMember.totalPp || 0) : 0;
 
-        // 名字只用报名表 firstName（与旧 table1「参赛者」一致）
-        const displayName = registration.firstName || '未填写昵称';
-
-        const photo =
-            (publicInfo && publicInfo.profileImageUrl) ||
-            (myTeam && myTeam.photo) ||
-            DEFAULT_PHOTO;
+            return {
+                displayName:
+                    (publicInfo && publicInfo.name) ||
+                    (teamMember && teamMember.title) ||
+                    '未知用户',
+                registrationId: registration.firstName || '未填写',
+                photo:
+                    (publicInfo && publicInfo.profileImageUrl) ||
+                    (teamMember && teamMember.photo) ||
+                    DEFAULT_PHOTO,
+                rank: teamMember ? teamMember.rank : null,
+                totalPp,
+                isQualified:
+                    registration.isHighQuality === true ||
+                    totalPp > QUALIFIED_PP_THRESHOLD,
+            };
+        });
 
         postApplyStatus({
             type: 'APPLY_STATUS_DATA',
-            player: {
-                displayName,
-                photo,
-                rank,
-                totalPp,
-                isQualified,
-            },
+            players,
         });
     } catch (error) {
         console.error("[报名页] 加载选手状态失败:", error);

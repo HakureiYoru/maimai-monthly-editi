@@ -46,7 +46,7 @@
 
     .card-header {
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
+      grid-template-columns: 1.4fr 1fr 0.8fr 0.9fr;
       gap: 8px;
       padding: 12px 18px;
       background: rgba(0, 0, 0, 0.55);
@@ -66,18 +66,41 @@
 
     .card-body {
       flex: 1;
-      display: flex;
-      align-items: center;
-      padding: 16px 18px;
+      padding: 4px 18px;
       min-height: 88px;
+      overflow-y: auto;
+      scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+      scrollbar-width: thin;
+    }
+
+    .card-body::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .card-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 999px;
     }
 
     .player-row {
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
+      grid-template-columns: 1.4fr 1fr 0.8fr 0.9fr;
       gap: 8px;
       width: 100%;
       align-items: center;
+      min-height: 76px;
+      padding: 10px 0;
+      position: relative;
+    }
+
+    .player-row + .player-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.16);
     }
 
     .player-cell {
@@ -162,6 +185,10 @@
     }
 
     .state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
       width: 100%;
       text-align: center;
       color: rgba(255, 255, 255, 0.75);
@@ -173,6 +200,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
+      height: 100%;
       gap: 12px;
       color: rgba(255, 255, 255, 0.75);
       font-size: 14px;
@@ -189,6 +218,10 @@
 
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    .mobile-label {
+      display: none;
     }
 
     @media (max-width: 560px) {
@@ -209,8 +242,7 @@
         gap: 4px;
       }
 
-      .card-header span:nth-child(2),
-      .card-header span:nth-child(3) {
+      .card-header span:not(:first-child) {
         display: none;
       }
 
@@ -226,10 +258,6 @@
         color: rgba(255, 255, 255, 0.55);
       }
     }
-
-    .mobile-label {
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -237,6 +265,7 @@
     <div class="glass-card">
       <div class="card-header">
         <span>参赛者</span>
+        <span>报名ID</span>
         <span>往届排名</span>
         <span>是否为 Qualified</span>
       </div>
@@ -275,8 +304,9 @@
       cardBody.innerHTML = `<div class="state">${escapeHtml(message)}</div>`;
     }
 
-    function renderPlayer(data) {
+    function createPlayerRow(data) {
       const name = data.displayName || '未知用户';
+      const registrationId = data.registrationId || '未填写';
       const photo = (typeof data.photo === 'string' && data.photo) ? data.photo : DEFAULT_PHOTO;
       const hasRank = Number.isFinite(data.rank) && data.rank > 0;
       const totalPp = Number.isFinite(data.totalPp) ? data.totalPp : 0;
@@ -287,14 +317,19 @@
         ? `总分 ${totalPp}`
         : '未进入天梯';
 
-      cardBody.innerHTML = `
-        <div class="player-row">
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      row.innerHTML = `
           <div class="player-cell identity">
-            <img class="avatar" id="avatarImg" src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" />
+            <img class="avatar" src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" />
             <div class="name-block">
               <div class="player-name">${escapeHtml(name)}</div>
-              <div class="player-sub">已报名本届</div>
+              <div class="player-sub">已报名</div>
             </div>
+          </div>
+          <div class="player-cell">
+            <span class="mobile-label">报名ID</span>
+            <div class="stat-value">${escapeHtml(registrationId)}</div>
           </div>
           <div class="player-cell" style="flex-direction:column;align-items:center;">
             <span class="mobile-label">往届排名</span>
@@ -305,16 +340,29 @@
             <span class="mobile-label">Qualified</span>
             <span class="badge ${isQualified ? 'yes' : 'no'}">${isQualified ? 'Yes' : 'No'}</span>
           </div>
-        </div>
       `;
 
-      const avatarImg = document.getElementById('avatarImg');
+      const avatarImg = row.querySelector('.avatar');
       if (avatarImg) {
         avatarImg.addEventListener('error', () => {
           if (avatarImg.src === DEFAULT_PHOTO) return;
           avatarImg.src = DEFAULT_PHOTO;
         });
       }
+      return row;
+    }
+
+    function renderPlayers(players) {
+      const list = Array.isArray(players) ? players : [];
+      if (list.length === 0) {
+        showMessage('暂无报名记录');
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      list.forEach(player => fragment.appendChild(createPlayerRow(player)));
+      cardBody.replaceChildren(fragment);
+      cardBody.scrollTop = 0;
     }
 
     window.addEventListener('message', (event) => {
@@ -332,7 +380,7 @@
       }
 
       if (data.type === 'APPLY_STATUS_DATA') {
-        renderPlayer(data.player || {});
+        renderPlayers(data.players || []);
       }
     });
   </script>
