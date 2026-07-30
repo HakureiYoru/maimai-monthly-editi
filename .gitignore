@@ -1,6 +1,30 @@
 # dependencies
 node_modules/
+
+# editors and Wix local state
 .vscode/
 .idea/
 .wix/
+.cursor/
 jsconfig.json
+
+# test and browser automation artifacts
+.playwright-cli/
+playwright-report/
+test-results/
+
+# temporary recovery workspaces
+.tmp-*/
+
+# generated build, test, and exported artifacts
+output/
+outputs/
+dist/
+build/
+coverage/
+bin/
+obj/
+
+# logs and temporary files
+*.log
+*.tmp
