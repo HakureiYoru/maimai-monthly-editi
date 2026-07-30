@@ -18,7 +18,6 @@ import {
 import { sendReplyNotification } from "backend/emailNotifications.jsw";
 import { QUERY_LIMITS, RATING_CONFIG } from "public/constants.js";
 import { getTierFromPercentile } from "public/tierUtils.js";
-import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
 import { getUsersWithSkin } from "backend/userSkins.jsw";
 import { getShouyuanVideos, getAllShouyuanCounts } from "backend/shouyuanManager.jsw";
 import {
@@ -255,14 +254,6 @@ $w.onReady(async function () {
       };
     }
   }
-
-  // 初始化积分排行榜 HTML 组件
-  $w("#htmlLeaderboard").onMessage((msg) => {
-    if (msg.data && msg.data.type === "ready") {
-      sendLeaderboardData();
-    }
-  });
-  sendLeaderboardData();
 
   // 初始化自定义HTML楼中楼回复面板
   initCommentRepliesPanel();
@@ -2799,9 +2790,6 @@ async function handleCommentSubmit(data) {
         filterMode: "default",
         currentPage: 1,
       });
-
-      // 同步更新积分榜（积分已在步骤6写入）
-      sendLeaderboardData();
     }, 500);
 
    // console.log(`[评论系统] 评论提交成功`);
@@ -3140,17 +3128,3 @@ function closeShouyuanPanel() {
   }
 }
 
-// ==================== 积分排行榜 ====================
-
-async function sendLeaderboardData() {
-  try {
-    const selfId = wixUsers.currentUser.loggedIn ? wixUsers.currentUser.id : null;
-    const [users, selfUser] = await Promise.all([
-      getLeaderboardData(100),
-      selfId ? getSelfLeaderboardEntry(selfId) : Promise.resolve(null),
-    ]);
-    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users, selfUser });
-  } catch (err) {
-    console.error("[主会场] 积分榜数据加载失败:", err);
-  }
-}

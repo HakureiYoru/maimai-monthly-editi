@@ -6,23 +6,11 @@ import {
   claimCurrentUserDailySignIn,
   getApplicationStats,
   getCurrentUserDailySignInStatus,
-  getLeaderboardData,
-  getSelfLeaderboardEntry,
 } from "backend/pageUtils.jsw";
 
 const DAILY_SIGN_IN_REWARD = 5;
 
 $w.onReady(async function () {
-
-  // 积分榜：等 HTML 组件就绪后再发数据
-  $w("#htmlLeaderboard").onMessage((msg) => {
-    if (msg.data && msg.data.type === "ready") {
-      sendLeaderboardData();
-    }
-  });
-  // 同时主动发送一次，兼容组件比页面代码更早就绪的情况
-  sendLeaderboardData();
-
   // 首页随机区块 HTML 组件
   $w("#htmlHomeSection").onMessage((msg) => {
     if (!msg.data) return;
@@ -45,19 +33,6 @@ $w.onReady(async function () {
   sendApplicationStats();
   sendBilibiliVideos();
 });
-
-async function sendLeaderboardData() {
-  try {
-    const currentUserId = wixUsers.currentUser.loggedIn ? wixUsers.currentUser.id : null;
-    const [users, selfUser] = await Promise.all([
-      getLeaderboardData(100),
-      currentUserId ? getSelfLeaderboardEntry(currentUserId) : Promise.resolve(null),
-    ]);
-    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users, selfUser });
-  } catch (err) {
-    console.error("积分榜数据加载失败:", err);
-  }
-}
 
 async function sendApplicationStats() {
   try {
@@ -124,7 +99,7 @@ async function handleDailySignIn() {
     const result = await claimCurrentUserDailySignIn();
     $w("#htmlHomeSection").postMessage({ type: "dailySignInResult", data: result });
 
-    await Promise.all([sendDailySignInData(), sendLeaderboardData()]);
+    await sendDailySignInData();
   } catch (error) {
     console.error("每日签到失败:", error);
     $w("#htmlHomeSection").postMessage({

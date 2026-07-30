@@ -12,8 +12,6 @@ import {
   getVote2Results,
 } from "backend/votingSystemLite.jsw";
 
-import { getLeaderboardData, getSelfLeaderboardEntry } from "backend/pageUtils.jsw";
-
 let currentUserId = null;
 let isAdmin = false;
 let isHtmlReady = false;
@@ -33,29 +31,7 @@ $w.onReady(function () {
   // 初始化HTML元件通信
   initHtmlComponent();
   initVote2HtmlComponent();
-
-  // 积分榜：等 HTML 组件就绪后再发数据
-  $w("#htmlLeaderboard").onMessage((msg) => {
-    // 可在此处理 HTML 组件回传的消息（如就绪通知）
-    if (msg.data && msg.data.type === "ready") {
-      sendLeaderboardData();
-    }
-  });
-  // 同时主动发送一次，兼容组件比页面代码更早就绪的情况
-  sendLeaderboardData();
 });
-
-async function sendLeaderboardData() {
-  try {
-    const [users, selfUser] = await Promise.all([
-      getLeaderboardData(100),
-      currentUserId ? getSelfLeaderboardEntry(currentUserId) : Promise.resolve(null),
-    ]);
-    $w("#htmlLeaderboard").postMessage({ type: "leaderboard", users, selfUser });
-  } catch (err) {
-    console.error("积分榜数据加载失败:", err);
-  }
-}
 
 // 初始化HTML元件
 function initHtmlComponent() {
