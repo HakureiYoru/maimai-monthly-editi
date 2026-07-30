@@ -76,7 +76,7 @@ $w('#radioGroup1').onChange((event) => {
 
 /**
  * 检查用户是否为Qualified选手
- * 根据用户是否在Team天梯中显示相应提示
+ * 根据用户在Team天梯的 totalPp 是否大于 100 显示相应提示
  */
 async function checkQualifiedStatus() {
     try {
@@ -89,21 +89,19 @@ async function checkQualifiedStatus() {
         
         const currentUserId = wixUsers.currentUser.id;
         
-        // 查询Team数据集，检查用户是否在天梯中
-        // 只通过realId字段匹配
+        // 查询Team数据集：realId 匹配且 totalPp > 100
         const teamResults = await wixData
             .query('Team')
             .eq('realId', currentUserId)
+            .gt('totalPp', 100)
             .find();
         
-        const isInTeamLadder = teamResults.items.length > 0;
+        const isQualified = teamResults.items.length > 0;
         
-        if (isInTeamLadder) {
-            // 用户在天梯中
-            $w("#isQ").text = "✓ 您已被标记为 Qualified 选手（基于以往天梯表现）";
+        if (isQualified) {
+            $w("#isQ").text = "✓ 您已被标记为 Qualified 选手（天梯总积分 > 100）";
             
         } else {
-            // 用户不在天梯中
             $w("#isQ").text = "您目前是普通选手。如需申请 Qualified 资格，请向 Staff 提交相关比赛经历";
             
         }

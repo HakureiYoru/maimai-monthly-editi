@@ -261,7 +261,7 @@ export function enterContest034_afterInsert(item, context) {
 
 /**
  * jobApplication089数据插入后的处理
- * 自动检查用户是否在Team排名数据集中，如果存在则标记为高质量用户
+ * 自动检查用户在Team天梯的 totalPp 是否大于 100，满足则标记为高质量用户
  *
  * 重要：
  * 1. afterInsert钩子不应该返回值（数据已保存）
@@ -316,7 +316,7 @@ export function jobApplication089_afterInsert(item, context) {
         } else {
           logInfo(
             "jobApplication089_afterInsert",
-            `用户 ${item._owner} 不在Team排名中，保持普通用户状态`
+            `用户 ${item._owner} 不满足 totalPp > 100，保持普通用户状态`
           );
         }
       })
@@ -336,7 +336,7 @@ export function jobApplication089_afterInsert(item, context) {
 }
 
 /**
- * 检查用户是否为Qualified用户（是否在Team排名数据集中）
+ * 检查用户是否为Qualified用户（Team天梯 totalPp > 100）
  * @param {Object} applicationItem - 报名记录对象
  * @returns {Promise<Object>} { isQualified: boolean }
  */
@@ -348,18 +348,17 @@ async function checkAndMarkQualifiedUser(applicationItem) {
       return { isQualified: false };
     }
 
-    // 查询Team数据集，检查用户是否存在
-    // 只通过realId字段匹配
+    // 查询Team数据集：realId 匹配且 totalPp > 100
     const teamResults = await wixData
       .query(COLLECTIONS.TEAM)
       .eq("realId", userId)
+      .gt("totalPp", 100)
       .find();
 
-    // 如果在Team中找到记录，说明是Qualified用户
     if (teamResults.items.length > 0) {
       logInfo(
         "checkAndMarkQualifiedUser",
-        `用户 ${userId} 在Team排名中找到（realId匹配），标记为Qualified`
+        `用户 ${userId} 在Team排名中 totalPp > 100，标记为Qualified`
       );
       return { isQualified: true };
     }
