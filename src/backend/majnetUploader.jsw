@@ -12,10 +12,11 @@ import {
   safeExecute,
 } from "backend/errorHandler";
 
-// Majnet API配置
+// Majnet API配置（与 upload_cli.py 对齐：走 cn 镜像，规避主站 Cloudflare）
 const MAJNET_CONFIG = {
-  LOGIN_URL: "https://majdata.net/api3/api/account/Login",
-  UPLOAD_URL: "https://majdata.net/api3/api/maichart/upload",
+  LOGIN_URL: "https://cn.majdata.net/api3/api/account/Login",
+  UPLOAD_URL: "https://cn.majdata.net/api3/api/maichart/upload",
+  REFERER: "https://cn.majdata.net/",
   USERNAME: "mmfc_bot",
   FALLBACK_DESIGNER: "mmfc",
   UPLOAD_DELAY: 2000, // 上传间隔（毫秒）
@@ -156,7 +157,7 @@ function getCommonHeaders() {
     'Accept-Encoding': 'gzip, deflate, br',
     'Connection': 'keep-alive',
     'Cache-Control': 'max-age=0',
-    'Referer': 'https://majdata.net/',
+    'Referer': MAJNET_CONFIG.REFERER,
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'same-origin',
