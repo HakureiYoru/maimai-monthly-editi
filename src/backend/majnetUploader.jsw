@@ -5,6 +5,7 @@
 
 import { fetch } from "wix-fetch";
 import { mediaManager } from "wix-media-backend";
+import { getSecret } from "wix-secrets-backend";
 import { getFileDownloadUrlAndContent } from "backend/mediaManagement.jsw";
 import {
   logInfo,
@@ -37,8 +38,13 @@ const MAJNET_CONFIG = {
 // 全局会话状态。Wix 后端会复用热实例，但不能假设模块状态永久存在。
 let sessionToken = null;
 let lastLoginTime = null;
+let sessionTokenSource = null;
 let activeEndpoint = MAJNET_CONFIG.ENDPOINTS[0];
 let loginPromise = null;
+let secretLoadPromise = null;
+let secretLoadAttempted = false;
+let secretLoadDetail = "尚未读取预授权会话";
+const SESSION_TOKEN_SECRET_NAME = "MAJNET_SESSION_TOKEN";
 // mmfcapi 的普通用户会话有效期为 7 天。这里取 24 小时，既减少重复登录，
 // 又会定期主动刷新；服务端重启导致 token 提前失效时由上传 401 分支处理。
 const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
@@ -153,8 +159,8 @@ class UploadQueue {
 const uploadQueue = new UploadQueue();
 
 /**
- * 预计算的密码MD5值
- * "redwhite7687" 的 MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f"
+ * 旧登录流程使用的密码 MD5。服务端直接将该值视作凭据，禁止记录到日志。
+ * Wix 正常上传优先使用 Secrets Manager 中的预授权 token。
  */
 const PASSWORD_MD5 = "0c95eabfbdfdb54a9fd6aac5dccdcc0f";
 
@@ -271,6 +277,86 @@ function getEndpointCandidates() {
 function clearSession() {
   sessionToken = null;
   lastLoginTime = null;
+  sessionTokenSource = null;
+}
+
+function normalizeSessionToken(value) {
+  const rawValue = String(value || "").trim();
+  const cookieMatch = rawValue.match(
+    /(?:^|[;,]\s*)token=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  );
+
+  if (cookieMatch) {
+    return cookieMatch[1];
+  }
+
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      rawValue
+    )
+  ) {
+    return rawValue;
+  }
+
+  return null;
+}
+
+/**
+ * Wix 的出站 IP 会被 MajdataNet 的 Cloudflare 登录规则拦截，因此优先从
+ * Secrets Manager 读取在本机预先登录得到的持久会话。Secret 只在后端使用，
+ * 不写入日志，也不会返回给前端。
+ */
+async function loadSessionFromSecret() {
+  if (sessionToken) {
+    return sessionTokenSource === "secret";
+  }
+
+  if (secretLoadPromise) {
+    return secretLoadPromise;
+  }
+
+  if (secretLoadAttempted) {
+    return false;
+  }
+
+  secretLoadPromise = (async () => {
+    try {
+      const secretValue = await getSecret(SESSION_TOKEN_SECRET_NAME);
+      const token = normalizeSessionToken(secretValue);
+
+      if (!token) {
+        secretLoadDetail = `Wix Secret ${SESSION_TOKEN_SECRET_NAME} 不是有效的 MajdataNet token`;
+        logInfo("loadSessionFromSecret", secretLoadDetail);
+        return false;
+      }
+
+      sessionToken = token;
+      sessionTokenSource = "secret";
+      lastLoginTime = Date.now();
+      secretLoadDetail = `已读取 Wix Secret ${SESSION_TOKEN_SECRET_NAME}`;
+      logInfo("loadSessionFromSecret", "已加载 MajdataNet 预授权会话");
+      return true;
+    } catch (error) {
+      secretLoadDetail = `无法读取 Wix Secret ${SESSION_TOKEN_SECRET_NAME}: ${error.message}`;
+      logInfo(
+        "loadSessionFromSecret",
+        `未加载 MajdataNet 预授权会话，将尝试常规登录: ${error.message}`
+      );
+      return false;
+    } finally {
+      secretLoadAttempted = true;
+      secretLoadPromise = null;
+    }
+  })();
+
+  return secretLoadPromise;
+}
+
+function invalidateSecretSession() {
+  clearSession();
+  // 允许下一个上传任务重新读取管理员刚刚更新过的 Secret。
+  secretLoadAttempted = false;
+  secretLoadDetail = `Wix Secret ${SESSION_TOKEN_SECRET_NAME} 中的 token 已失效`;
 }
 
 /**
@@ -280,11 +366,15 @@ async function loginToMajnet() {
   // 检查会话是否仍然有效
   if (
     sessionToken &&
-    lastLoginTime &&
-    Date.now() - lastLoginTime < SESSION_TIMEOUT
+    (sessionTokenSource === "secret" ||
+      (lastLoginTime && Date.now() - lastLoginTime < SESSION_TIMEOUT))
   ) {
     logInfo("loginToMajnet", "使用现有会话");
     return { success: true, message: "使用缓存会话" };
+  }
+
+  if (await loadSessionFromSecret()) {
+    return { success: true, message: "使用预授权会话" };
   }
 
   // 同一热实例内只允许一个登录请求，避免并发任务重复撞登录接口。
@@ -329,6 +419,7 @@ async function loginToMajnet() {
             }
 
             sessionToken = token;
+            sessionTokenSource = "login";
             lastLoginTime = Date.now();
             activeEndpoint = endpoint;
 
@@ -366,7 +457,9 @@ async function loginToMajnet() {
       clearSession();
       return {
         success: false,
-        message: `所有 MajdataNet 入口均登录失败 (${attempts.join(" | ")})`,
+        message:
+          `所有 MajdataNet 入口均登录失败 (${attempts.join(" | ")})；` +
+          `${secretLoadDetail}。请在 Wix Secrets Manager 配置 ${SESSION_TOKEN_SECRET_NAME}`,
         error: attempts.join(" | "),
       };
     },
@@ -705,33 +798,45 @@ async function uploadToMajnet(files, chartTitle) {
         let responseText = await response.text();
         let responseSummary = getResponseSummary(response, responseText);
 
-        // mmfcapi 重启会清空非持久会话。遇到明确的 401 时清掉旧 token，
-        // 重新登录并重发当前上传一次，避免本次作品直接失败。
+        // 遇到明确的 401 时，预授权 token 需要管理员更新 Secret；旧登录流程
+        // 产生的普通会话则重新登录并重发当前上传一次。
         if (response.status === 401) {
-          clearSession();
-          const reloginResult = await loginToMajnet();
+          const expiredTokenSource = sessionTokenSource;
 
-          if (reloginResult.success && sessionToken) {
-            requestEndpoint = activeEndpoint;
-            response = await fetch(
-              `${requestEndpoint.apiRoot}/maichart/upload`,
-              {
-                method: "POST",
-                headers: {
-                  ...getCommonHeaders(requestEndpoint),
-                  "Content-Type": `multipart/form-data; boundary=${formData.boundary}`,
-                  Cookie: `token=${sessionToken}`,
-                },
-                body: formData.body,
-              }
-            );
-            responseText = await response.text();
-            responseSummary = getResponseSummary(response, responseText);
-          } else {
+          if (expiredTokenSource === "secret") {
+            invalidateSecretSession();
             responseSummary = {
               ...responseSummary,
-              detail: `${responseSummary.detail}; 重新登录失败: ${reloginResult.message}`,
+              detail:
+                `${responseSummary.detail}; Wix Secret ${SESSION_TOKEN_SECRET_NAME} ` +
+                "中的预授权 token 已失效，请重新生成并更新 Secret",
             };
+          } else {
+            clearSession();
+            const reloginResult = await loginToMajnet();
+
+            if (reloginResult.success && sessionToken) {
+              requestEndpoint = activeEndpoint;
+              response = await fetch(
+                `${requestEndpoint.apiRoot}/maichart/upload`,
+                {
+                  method: "POST",
+                  headers: {
+                    ...getCommonHeaders(requestEndpoint),
+                    "Content-Type": `multipart/form-data; boundary=${formData.boundary}`,
+                    Cookie: `token=${sessionToken}`,
+                  },
+                  body: formData.body,
+                }
+              );
+              responseText = await response.text();
+              responseSummary = getResponseSummary(response, responseText);
+            } else {
+              responseSummary = {
+                ...responseSummary,
+                detail: `${responseSummary.detail}; 重新登录失败: ${reloginResult.message}`,
+              };
+            }
           }
         }
 

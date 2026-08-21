@@ -19,6 +19,7 @@
   "scripts": {
     "postinstall": "wix sync-types",
     "dev": "wix dev",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "majnet:create-session-token": "node scripts/create-majnet-session-token.mjs"
   }
 }
