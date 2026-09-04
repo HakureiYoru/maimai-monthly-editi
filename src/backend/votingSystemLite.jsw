@@ -27,18 +27,15 @@ export async function getVote2Options() {
   try {
     return {
       options: [
-        { value: "7", label: "7 キネティックタウン" },
-        { value: "53", label: "53 BlackFlagBreaker!!(I/O mix)" },
-        { value: "67", label: "67 血讐" },
-        { value: "68", label: "68 押ス ft. 重音テトSV" },
-        { value: "114", label: "114 元　寇　で　す　☆　" },
-        { value: "122", label: "122 なんかいい場所" },
-        { value: "126", label: "126 混沌ブギ" },
-        { value: "153", label: "153 璀璨时光" },
-        { value: "158", label: "158 とんねる大冒険" },
-        { value: "189", label: "189 天下黄金" },
-        { value: "203", label: "203 恋は戦争" },
-        { value: "242", label: "242 芥の部屋は錆色に沈む" }
+        { value: "80", label: "80 眼睛想旅行" },
+        { value: "71", label: "71 ReDreaming Angel 复梦天使" },
+        { value: "28", label: "28 水手怕水" },
+        { value: "72", label: "72 妳是我的花朵" },
+        { value: "38", label: "38 万象霜天" },
+        { value: "51", label: "51 冠世一战" },
+        { value: "65", label: "65 忘记了也没关系" },
+        { value: "8", label: "8 伞护" },
+        { value: "114", label: "114 護花使者" }
       ]
     };
   } catch (error) {
