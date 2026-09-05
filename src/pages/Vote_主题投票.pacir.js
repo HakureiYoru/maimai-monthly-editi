@@ -17,15 +17,22 @@ let isAdmin = false;
 let isHtmlReady = false;
 let isVote2HtmlReady = false;
 
-$w.onReady(function () {
+$w.onReady(async function () {
   // 获取当前用户ID
   if (wixUsers.currentUser.loggedIn) {
     currentUserId = wixUsers.currentUser.id;
-    isAdmin = wixUsers.currentUser.role === "Admin";
-    //console.log('[投票页面] 页面已加载，当前用户ID:', currentUserId);
+    try {
+      const roles = await wixUsers.currentUser.getRoles();
+      isAdmin =
+        Array.isArray(roles) &&
+        roles.some((role) => role.title === "Admin" || role.name === "Admin");
+    } catch (error) {
+      isAdmin = wixUsers.currentUser.role === "Admin";
+    }
   } else {
     console.log("[投票页面] 用户未登录");
     currentUserId = null;
+    isAdmin = false;
   }
 
   // 初始化HTML元件通信
@@ -238,6 +245,7 @@ async function handleVote2Ready() {
   isVote2HtmlReady = true;
   postMessageToVote2("VOTE2_INIT", {
     currentUserId: currentUserId,
+    isAdmin: isAdmin,
   });
 }
 

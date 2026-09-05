@@ -1,7 +1,19 @@
 import wixData from "wix-data";
+import { currentMember } from "wix-members-backend";
 import { QUERY_LIMITS } from "backend/constants";
 
 const VOTE2_COLLECTION = "ThemeVote2";
+
+async function isCurrentUserAdmin() {
+  try {
+    const roles = await currentMember.getRoles();
+    return (roles || []).some(
+      (role) => role.title === "Admin" || role.name === "Admin"
+    );
+  } catch (error) {
+    return false;
+  }
+}
 
 async function checkIfUserVoted(userId) {
   const results = await wixData
@@ -16,7 +28,8 @@ async function checkIfUserVoted(userId) {
 export async function getVote2Status(userId) {
   try {
     const hasVoted = await checkIfUserVoted(userId);
-    return { hasVoted };
+    const isAdmin = await isCurrentUserAdmin();
+    return { hasVoted, isAdmin };
   } catch (error) {
     console.error("获取用户投票状态失败:", error);
     throw error;
@@ -86,7 +99,8 @@ export async function submitVote2(userId, userName, themeValues) {
 export async function getVote2Results(userId) {
   try {
     const hasVoted = await checkIfUserVoted(userId);
-    if (!hasVoted) {
+    const isAdmin = await isCurrentUserAdmin();
+    if (!hasVoted && !isAdmin) {
       return {
         allowed: false,
         labels: [],

@@ -300,6 +300,7 @@
   <script>
     let currentUserId = null;
     let hasVoted = false;
+    let isAdmin = false;
     let votingOptions = [];
     let votingResults = null;
     let votingChart = null;
@@ -360,6 +361,7 @@
 
     async function handleInit(data) {
       currentUserId = data.currentUserId;
+      isAdmin = !!data.isAdmin;
       hasVoted = false;
       votingResults = null;
       loadingStates = {
@@ -385,16 +387,22 @@
 
     function handleStatus(data) {
       hasVoted = !!data.hasVoted;
+      if (data && typeof data.isAdmin === 'boolean') {
+        isAdmin = data.isAdmin;
+      }
 
       if (hasVoted) {
         disableVotingForm();
-        setResultsVisibility(true);
         showStatus('您已经投过票了', 'info');
+      } else {
+        enableFormControls();
+      }
+
+      if (hasVoted || isAdmin) {
         requestResults();
       } else {
         setResultsVisibility(false);
         loadingStates.results = true;
-        enableFormControls();
       }
 
       loadingStates.status = true;
@@ -409,7 +417,8 @@
     }
 
     function handleResults(data) {
-      if (!hasVoted || data?.allowed === false) {
+      const canViewResults = isAdmin || hasVoted;
+      if (!canViewResults || data?.allowed === false) {
         votingResults = null;
         setResultsVisibility(false);
         loadingStates.results = true;
