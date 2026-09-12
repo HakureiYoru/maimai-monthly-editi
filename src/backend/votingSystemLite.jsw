@@ -40,15 +40,15 @@ export async function getVote2Options() {
   try {
     return {
       options: [
-        { value: "80", label: "80 眼睛想旅行" },
-        { value: "71", label: "71 ReDreaming Angel 复梦天使" },
-        { value: "28", label: "28 水手怕水" },
-        { value: "72", label: "72 妳是我的花朵" },
-        { value: "38", label: "38 万象霜天" },
-        { value: "51", label: "51 冠世一战" },
-        { value: "65", label: "65 忘记了也没关系" },
-        { value: "8", label: "8 伞护" },
-        { value: "114", label: "114 護花使者" }
+        { value: "138", label: "138 有线耳机" },
+        { value: "110", label: "110 天灵灵地灵灵" },
+        { value: "148", label: "148 周大侠" },
+        { value: "117", label: "117 选择" },
+        { value: "141", label: "141 「廉价」" },
+        { value: "68", label: "68 关注塔菲谢谢喵" },
+        { value: "120", label: "120 千里邀月" },
+        { value: "82", label: "82 关注塔菲谢谢喵" },
+        { value: "44", label: "44 依兰爱情故事(feat.洛天依)" }
       ]
     };
   } catch (error) {
