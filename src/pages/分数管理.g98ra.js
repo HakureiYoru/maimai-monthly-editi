@@ -1,17 +1,13 @@
 /**
- * 分数管理页面 - 管理员专用
+ * 分数管理页面
  * 显示所有作品的评分详情、等级、评论者信息（包含高权重标记）
  */
 
-import wixData from "wix-data";
-import wixWindow from "wix-window";
-import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import {
   fetchAllMainComments,
   fetchAllWorks,
   fetchAllRegistrations,
-  getWorkWeightedRatingData,
 } from "backend/ratingTaskManager.jsw";
 import { RATING_CONFIG } from "public/constants.js";
 import { getTierFromPercentile, computeWeightedRating } from "public/tierUtils.js";
@@ -26,16 +22,6 @@ let currentFilters = {
 let currentSortBy = "id-asc";
 
 $w.onReady(async function () {
-  // 权限检查
-  const hasPermission = await checkIsSeaSelectionMember();
-  if (!hasPermission) {
-    $w("#htmlScore").postMessage({
-      type: "error",
-      message: "您没有权限访问此页面",
-    });
-    return;
-  }
-
   // 显示加载状态
   $w("#htmlScore").postMessage({
     type: "loading",

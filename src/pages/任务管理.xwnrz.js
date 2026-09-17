@@ -1,11 +1,8 @@
 /**
- * 任务管理页面 - 管理员专用
+ * 任务管理页面
  * 显示所有用户的任务分配情况和权重算法详情
  */
 
-import wixData from "wix-data";
-import wixWindow from "wix-window";
-import { checkIsSeaSelectionMember } from "backend/auditorManagement.jsw";
 import { getUserPublicInfo } from "backend/getUserPublicInfo.jsw";
 import {
   getAllUsersTaskManagementData,
@@ -29,18 +26,6 @@ let currentFilters = {
 let currentSortBy = 'completion'; // 保存当前的排序方式
 
 $w.onReady(async function () {
-  // 权限检查
-  const hasPermission = await checkIsSeaSelectionMember();
-  if (!hasPermission) {
-    const errorPayload = {
-      type: "error",
-      message: "您没有权限访问此页面",
-    };
-    $w("#htmlTask").postMessage(errorPayload);
-    safePostToTasksum(errorPayload);
-    return;
-  }
-
   // 显示加载状态
   $w("#htmlTask").postMessage({
     type: "loading",
