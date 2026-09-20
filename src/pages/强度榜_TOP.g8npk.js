@@ -112,7 +112,7 @@ async function pushStatus() {
       eligible: false,
       reason: "notLoggedIn",
       totalCompleted: 0,
-      targetCompletion: 10,
+      targetCompletion: 7,
     });
     return;
   }
@@ -128,7 +128,7 @@ async function pushStatus() {
       reason: "serverError",
       message: "获取资格状态失败",
       totalCompleted: 0,
-      targetCompletion: 10,
+      targetCompletion: 7,
     });
   }
 }

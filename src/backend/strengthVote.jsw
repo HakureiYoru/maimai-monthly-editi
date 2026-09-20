@@ -1,6 +1,6 @@
 /**
  * 强度榜二选一投票 - 后端服务
- * - 仅允许已完成 10 个评分任务的用户参与
+ * - 仅允许已完成 7 个评分任务的用户参与
  * - 作品来源：enterContest034，排除 isDq=true 的作品
  * - 机制：匹配 -> 票据绑定 -> Elo 更新 -> 榜单
  */
@@ -19,14 +19,14 @@ const COLLECTION_MAP = {
   SUMMARY: "StrengthVoteUserSummary",
 };
 
-const REQUIRED_TASKS = 10;
+const REQUIRED_TASKS = 7;
 const MAX_VOTES = 80;
 const DEFAULT_RATING = 1500;
 const MAX_LEADERBOARD_SIZE = 100;
 const STATS_QUERY_CHUNK = 50;
 const SESSION_TTL_MINUTES = 10;
 const CONTESTANT_WEIGHT = 0.4;
-// 调试开关：false 时跳过“完成任务 10 次”的限制（仍需登录）
+// 调试开关：false 时跳过“完成任务 7 次”的限制（仍需登录）
 const ENFORCE_TASK_COMPLETION = true;
 
 /**
@@ -341,11 +341,8 @@ async function checkEligibility(userId) {
   try {
     const taskData = await getUserTaskData(userId);
     const totalCompleted = Number(taskData?.totalCompleted || 0);
-    const targetCompletion = Number(
-      taskData?.targetCompletion || REQUIRED_TASKS
-    );
-    const hasCompleted =
-      taskData?.hasCompletedTarget || totalCompleted >= targetCompletion;
+    const targetCompletion = REQUIRED_TASKS;
+    const hasCompleted = totalCompleted >= targetCompletion;
 
     if (taskData?.error) {
       return {
@@ -813,7 +810,7 @@ export async function submitStrengthVote(userId, sessionId, winnerWorkNumber) {
     return {
       success: false,
       code: "notEligible",
-      message: "请先完成 10 个评分任务后再参与投票",
+      message: "请先完成 7 个评分任务后再参与投票",
       eligibility,
     };
   }
